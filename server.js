@@ -3,20 +3,18 @@ const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
 const crypto = require("crypto");
+const stream = require("stream");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const SPREADSHEET_ID = "1_ze9la_uzzaK4nWhTuGsm7LMQM4pVjEVu3wB_6njuyw"; // Google Sheets ID
+const SPREADSHEET_ID = "1_ze9la_uzzaK4nWhTuGsm7LMQM4pVjEVu3wB_6njuyw";
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
 
-// Enable CORS for all requests
 app.use(cors());
 
-// Temporary storage for one-time-use links
 const validLinks = new Map();
 
-// Load Google API credentials from environment variable
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
     process.exit(1);
@@ -27,18 +25,17 @@ const client = new google.auth.JWT(
     credentials.client_email,
     null,
     credentials.private_key.replace(/\\n/g, "\n"),
-    ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/spreadsheets.readonly"]
+    ["https://www.googleapis.com/auth/drive"]
 );
 
 const drive = google.drive({ version: "v3", auth: client });
-const sheets = google.sheets({ version: "v4", auth: client });
 
 // Generate a secure token
 function generateToken() {
     return crypto.randomBytes(32).toString("hex");
 }
 
-// Route to fetch file ID and generate a one-time link
+// Route to generate a one-time link
 app.get("/generate-link", async (req, res) => {
     try {
         const itemNumber = req.query.item;
@@ -46,6 +43,7 @@ app.get("/generate-link", async (req, res) => {
             return res.status(400).json({ error: "Item number is required" });
         }
 
+        const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
             range: `${SHEET_NAME}!A:B`,
@@ -63,13 +61,7 @@ app.get("/generate-link", async (req, res) => {
 
         const fileId = row[1];
         const token = generateToken();
-        const directDownloadLink = await generateDirectDownloadLink(fileId);
-
-        if (!directDownloadLink) {
-            return res.status(500).json({ error: "Failed to generate direct download link" });
-        }
-
-        validLinks.set(token, directDownloadLink);
+        validLinks.set(token, fileId);
 
         res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
     } catch (error) {
@@ -78,27 +70,32 @@ app.get("/generate-link", async (req, res) => {
     }
 });
 
-// Route to handle one-time download links
-app.get("/download/:token", (req, res) => {
+// Route to handle one-time download links (secure streaming)
+app.get("/download/:token", async (req, res) => {
     const token = req.params.token;
-    if (validLinks.has(token)) {
-        const fileUrl = validLinks.get(token);
-        validLinks.delete(token);
-        return res.redirect(fileUrl);
-    }
-    return res.redirect(GUMROAD_STORE_URL);
-});
 
-// Function to generate a direct download link from Google Drive
-async function generateDirectDownloadLink(fileId) {
+    if (!validLinks.has(token)) {
+        return res.redirect(GUMROAD_STORE_URL);
+    }
+
+    const fileId = validLinks.get(token);
+    validLinks.delete(token); // Invalidate the link after first use
+
     try {
-        const file = await drive.files.get({ fileId, fields: "webContentLink" });
-        return file.data.webContentLink;
+        const file = await drive.files.get(
+            { fileId, alt: "media" },
+            { responseType: "stream" }
+        );
+
+        res.setHeader("Content-Disposition", `attachment; filename="bot-${fileId}.XMLDocument"`);
+        res.setHeader("Content-Type", "application/octet-stream");
+
+        file.data.pipe(res);
     } catch (error) {
         console.error("Error fetching file from Drive:", error);
-        return null;
+        return res.redirect(GUMROAD_STORE_URL);
     }
-}
+});
 
 // Start the server
 app.listen(PORT, () => {
