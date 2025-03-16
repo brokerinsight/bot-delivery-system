@@ -15,7 +15,7 @@ app.use(express.json()); // Middleware to parse JSON
 
 const validLinks = new Map();
 
-// Load API Key from .env
+// Load API Keys from .env
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
 const NOWPAYMENTS_IPN_KEY = process.env.NOWPAYMENTS_IPN_KEY || "zBIRLfDRmjDCPjPFZR4FyONLAEtibfnI";
 
@@ -39,10 +39,43 @@ const client = new google.auth.JWT(
 
 const drive = google.drive({ version: "v3", auth: client });
 
-// Generate a secure token
-function generateToken() {
-    return crypto.randomBytes(32).toString("hex");
-}
+// ✅ **New Route: Handle USDT Invoice Creation (Secures API Key)**
+app.post("/create-usdt-invoice", async (req, res) => {
+    try {
+        const { priceAmount, botName, itemNumber } = req.body;
+
+        if (!priceAmount || !botName || !itemNumber) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const response = await fetch("https://api.nowpayments.io/v1/invoice", {
+            method: "POST",
+            headers: {
+                "x-api-key": NOWPAYMENTS_API_KEY, // ✅ Secure API Key Usage
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                price_amount: priceAmount,
+                price_currency: "usd",
+                pay_currency: "usdt",
+                order_id: "BOT-" + Math.floor((Math.random() * 1000000000) + 1),
+                order_description: `Item ${itemNumber}: ${botName}`,
+                success_url: `https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.invoice_url) {
+            return res.status(400).json({ error: "Failed to create USDT invoice", details: data });
+        }
+
+        res.json({ success: true, invoice_url: data.invoice_url });
+    } catch (error) {
+        console.error("❌ Error creating USDT invoice:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
 
 // ✅ **NOWPayments Webhook - Handles Payment Notifications**
 app.post("/nowpayments-webhook", async (req, res) => {
