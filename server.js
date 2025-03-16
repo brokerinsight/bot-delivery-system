@@ -1,13 +1,17 @@
 require("dotenv").config(); // Load environment variables
 const express = require("express");
+const cors = require("cors"); // Import CORS middleware
 const { google } = require("googleapis");
 const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = "1_ze9la_uzzaK4nWhTuGsm7LMQM4pVjEVu3wB_6njuyw"; // Google Sheets ID
-const SHEET_NAME = "Sheet1"; // Change if needed
+const SHEET_NAME = "Sheet1"; // Confirmed
 const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
+
+// Enable CORS for all requests
+app.use(cors());
 
 // Temporary storage for one-time-use links
 const validLinks = new Map();
