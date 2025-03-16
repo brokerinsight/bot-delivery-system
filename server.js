@@ -1,7 +1,6 @@
 require("dotenv").config(); // Load environment variables
 const express = require("express");
 const { google } = require("googleapis");
-const fs = require("fs");
 const crypto = require("crypto");
 
 const app = express();
@@ -13,14 +12,13 @@ const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
 // Temporary storage for one-time-use links
 const validLinks = new Map();
 
-// Load Google API credentials from JSON file
-const CREDENTIALS_PATH = process.env.GOOGLE_APPLICATION_CREDENTIALS || "google-credentials.json";
-if (!fs.existsSync(CREDENTIALS_PATH)) {
-    console.error("Error: Google credentials file is missing.");
+// Load Google API credentials from environment variable
+if (!process.env.GOOGLE_CREDENTIALS) {
+    console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
     process.exit(1);
 }
 
-const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH));
+const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
     null,
@@ -66,7 +64,7 @@ app.get("/generate-link", async (req, res) => {
         // Store the link for one-time use
         validLinks.set(token, `https://drive.google.com/uc?export=download&id=${fileId}`);
 
-        res.json({ success: true, downloadLink: `http://localhost:${PORT}${downloadLink}` });
+        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com${downloadLink}` });
     } catch (error) {
         console.error("Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -86,5 +84,5 @@ app.get("/download/:token", (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
