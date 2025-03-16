@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
 const crypto = require("crypto");
-const stream = require("stream");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,7 +69,7 @@ app.get("/generate-link", async (req, res) => {
     }
 });
 
-// Route to handle one-time download links (secure streaming)
+// Route to handle one-time download links (stream .XML file)
 app.get("/download/:token", async (req, res) => {
     const token = req.params.token;
 
@@ -87,8 +86,8 @@ app.get("/download/:token", async (req, res) => {
             { responseType: "stream" }
         );
 
-        res.setHeader("Content-Disposition", `attachment; filename="bot-${fileId}.XMLDocument"`);
-        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Content-Disposition", `attachment; filename="bot-${fileId}.xml"`);
+        res.setHeader("Content-Type", "text/xml");
 
         file.data.pipe(res);
     } catch (error) {
