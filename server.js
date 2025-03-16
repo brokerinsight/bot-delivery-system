@@ -40,7 +40,7 @@ const client = new google.auth.JWT(
 const drive = google.drive({ version: "v3", auth: client });
 
 // ✅ **Route to Check Server Status**
-app.get("/check-server", (req, res) => {
+app.get("/health-check", (req, res) => {
     res.json({ success: true, message: "Server is online." });
 });
 
@@ -62,7 +62,7 @@ app.post("/create-crypto-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: priceAmount,
                 price_currency: "usd",
-                pay_currency: "" , // Allows any crypto
+                pay_currency: "",
                 order_id: "BOT-" + Math.floor(Math.random() * 1000000000 + 1),
                 order_description: `Item ${itemNumber}: ${botName}`,
                 success_url: `https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`
