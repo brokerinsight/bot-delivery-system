@@ -16,35 +16,47 @@ app.use(express.json());
 
 const validLinks = new Map();
 
-const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
-const NOWPAYMENTS_IPN_KEY = process.env.NOWPAYMENTS_IPN_KEY;
-
-if (!NOWPAYMENTS_API_KEY) {
-    console.error("❌ ERROR: NOWPAYMENTS_API_KEY is missing.");
-    process.exit(1);
-}
-
-if (!process.env.GOOGLE_CREDENTIALS) {
-    console.error("❌ ERROR: GOOGLE_CREDENTIALS is missing.");
-    process.exit(1);
-}
-
-const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-const client = new google.auth.JWT(
-    credentials.client_email,
-    null,
-    credentials.private_key.replace(/\\n/g, "\n"),
-    ["https://www.googleapis.com/auth/drive"]
-);
-
-const drive = google.drive({ version: "v3", auth: client });
-
 // ✅ **Route to Check Server Status**
-app.get("/health-check", (req, res) => {
+app.get("/check-server", (req, res) => {
     res.json({ success: true, message: "Server is online." });
 });
 
-// ✅ **Route to Create Crypto Invoice (Dynamically Supports All Cryptos)**
+// ✅ **Fix: Paystack Route for Generating Download Link**
+app.get("/generate-link", async (req, res) => {
+    try {
+        const itemNumber = req.query.item;
+        if (!itemNumber) {
+            return res.status(400).json({ error: "Item number is required" });
+        }
+
+        const sheets = google.sheets({ version: "v4", auth: client });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `${SHEET_NAME}!A:B`,
+        });
+
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ error: "No data found in Google Sheet" });
+        }
+
+        const row = rows.find(r => r[0] == itemNumber);
+        if (!row) {
+            return res.status(404).json({ error: "File ID not found for this item" });
+        }
+
+        const fileId = row[1];
+        const token = crypto.randomBytes(32).toString("hex");
+        validLinks.set(token, fileId);
+
+        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
+    } catch (error) {
+        console.error("❌ Error generating download link:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ **Fix: Crypto Payments (NOWPayments)**
 app.post("/create-crypto-invoice", async (req, res) => {
     try {
         const { priceAmount, botName, itemNumber } = req.body;
@@ -56,13 +68,13 @@ app.post("/create-crypto-invoice", async (req, res) => {
         const response = await fetch("https://api.nowpayments.io/v1/invoice", {
             method: "POST",
             headers: {
-                "x-api-key": NOWPAYMENTS_API_KEY,
+                "x-api-key": process.env.NOWPAYMENTS_API_KEY,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
                 price_amount: priceAmount,
                 price_currency: "usd",
-                pay_currency: "",
+                pay_currency: "", // Allows any crypto
                 order_id: "BOT-" + Math.floor(Math.random() * 1000000000 + 1),
                 order_description: `Item ${itemNumber}: ${botName}`,
                 success_url: `https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`
@@ -92,7 +104,9 @@ app.post("/nowpayments-webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const calculatedHmac = crypto.createHmac("sha512", NOWPAYMENTS_IPN_KEY).update(JSON.stringify(data)).digest("hex");
+        const calculatedHmac = crypto.createHmac("sha512", process.env.NOWPAYMENTS_IPN_KEY)
+            .update(JSON.stringify(data))
+            .digest("hex");
 
         if (calculatedHmac !== receivedHmac) {
             return res.status(403).json({ error: "Unauthorized" });
