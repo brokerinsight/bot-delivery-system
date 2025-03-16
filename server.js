@@ -69,7 +69,7 @@ app.get("/generate-link", async (req, res) => {
     }
 });
 
-// Route to handle one-time download links (stream .XML file)
+// Route to handle one-time download links (preserve filename)
 app.get("/download/:token", async (req, res) => {
     const token = req.params.token;
 
@@ -81,13 +81,15 @@ app.get("/download/:token", async (req, res) => {
     validLinks.delete(token); // Invalidate the link after first use
 
     try {
-        const file = await drive.files.get(
-            { fileId, alt: "media" },
-            { responseType: "stream" }
-        );
+        // Fetch file metadata to get the original filename
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const originalFilename = fileMetadata.data.name || `bot-${fileId}.xml`;
 
-        res.setHeader("Content-Disposition", `attachment; filename="bot-${fileId}.xml"`);
-        res.setHeader("Content-Type", "text/xml");
+        // Stream the file with the correct filename
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+
+        res.setHeader("Content-Disposition", `attachment; filename="${originalFilename}"`);
+        res.setHeader("Content-Type", "application/xml");
 
         file.data.pipe(res);
     } catch (error) {
