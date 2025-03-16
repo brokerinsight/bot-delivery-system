@@ -17,6 +17,8 @@ const validLinks = new Map();
 
 // Load API Key from .env
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
+const NOWPAYMENTS_IPN_KEY = process.env.NOWPAYMENTS_IPN_KEY || "zBIRLfDRmjDCPjPFZR4FyONLAEtibfnI";
+
 if (!NOWPAYMENTS_API_KEY) {
     console.error("❌ ERROR: NOWPAYMENTS_API_KEY is missing in .env file.");
     process.exit(1);
@@ -42,10 +44,27 @@ function generateToken() {
     return crypto.randomBytes(32).toString("hex");
 }
 
-// ✅ **Webhook to handle NOWPayments callback**
+// ✅ **NOWPayments Webhook - Handles Payment Notifications**
 app.post("/nowpayments-webhook", async (req, res) => {
     try {
         const data = req.body;
+        const receivedHmac = req.headers["x-nowpayments-sig"];
+
+        if (!receivedHmac) {
+            console.error("❌ Missing HMAC signature. Unauthorized request.");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        // Validate HMAC Signature
+        const calculatedHmac = crypto
+            .createHmac("sha512", NOWPAYMENTS_IPN_KEY)
+            .update(JSON.stringify(data))
+            .digest("hex");
+
+        if (calculatedHmac !== receivedHmac) {
+            console.error("❌ Invalid HMAC signature. Possible fraud attempt.");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
 
         // Check if payment is successful
         if (data.payment_status === "confirmed" || data.payment_status === "finished") {
