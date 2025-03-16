@@ -1,13 +1,13 @@
-require("dotenv").config(); // Load environment variables
+require("dotenv").config();
 const express = require("express");
-const cors = require("cors"); // Import CORS middleware
+const cors = require("cors");
 const { google } = require("googleapis");
 const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = "1_ze9la_uzzaK4nWhTuGsm7LMQM4pVjEVu3wB_6njuyw"; // Google Sheets ID
-const SHEET_NAME = "Sheet1"; // Confirmed
+const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
 
 // Enable CORS for all requests
@@ -27,9 +27,10 @@ const client = new google.auth.JWT(
     credentials.client_email,
     null,
     credentials.private_key.replace(/\\n/g, "\n"),
-    ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/spreadsheets.readonly"]
 );
 
+const drive = google.drive({ version: "v3", auth: client });
 const sheets = google.sheets({ version: "v4", auth: client });
 
 // Generate a secure token
@@ -47,7 +48,7 @@ app.get("/generate-link", async (req, res) => {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:B`, // Fetch Item Number & File ID
+            range: `${SHEET_NAME}!A:B`,
         });
 
         const rows = response.data.values;
@@ -55,7 +56,6 @@ app.get("/generate-link", async (req, res) => {
             return res.status(404).json({ error: "No data found in Google Sheet" });
         }
 
-        // Find the row matching the requested item number
         const row = rows.find(r => r[0] == itemNumber);
         if (!row) {
             return res.status(404).json({ error: "File ID not found for this item" });
@@ -63,12 +63,15 @@ app.get("/generate-link", async (req, res) => {
 
         const fileId = row[1];
         const token = generateToken();
-        const downloadLink = `/download/${token}`;
+        const directDownloadLink = await generateDirectDownloadLink(fileId);
 
-        // Store the link for one-time use
-        validLinks.set(token, `https://drive.google.com/uc?export=download&id=${fileId}`);
+        if (!directDownloadLink) {
+            return res.status(500).json({ error: "Failed to generate direct download link" });
+        }
 
-        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com${downloadLink}` });
+        validLinks.set(token, directDownloadLink);
+
+        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
     } catch (error) {
         console.error("Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
@@ -80,11 +83,22 @@ app.get("/download/:token", (req, res) => {
     const token = req.params.token;
     if (validLinks.has(token)) {
         const fileUrl = validLinks.get(token);
-        validLinks.delete(token); // Invalidate the link after first use
+        validLinks.delete(token);
         return res.redirect(fileUrl);
     }
     return res.redirect(GUMROAD_STORE_URL);
 });
+
+// Function to generate a direct download link from Google Drive
+async function generateDirectDownloadLink(fileId) {
+    try {
+        const file = await drive.files.get({ fileId, fields: "webContentLink" });
+        return file.data.webContentLink;
+    } catch (error) {
+        console.error("Error fetching file from Drive:", error);
+        return null;
+    }
+}
 
 // Start the server
 app.listen(PORT, () => {
