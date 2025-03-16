@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
 const crypto = require("crypto");
+const fetch = require("node-fetch");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,7 +16,7 @@ app.use(express.json()); // Middleware to parse JSON
 
 const validLinks = new Map();
 
-// Load API Keys from .env
+// Load API Key from .env
 const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
 const NOWPAYMENTS_IPN_KEY = process.env.NOWPAYMENTS_IPN_KEY || "zBIRLfDRmjDCPjPFZR4FyONLAEtibfnI";
 
@@ -39,7 +40,7 @@ const client = new google.auth.JWT(
 
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ **Route: Create a Secure USDT Payment Invoice**
+// ✅ **NEW: Secure Route for USDT Invoice Creation**
 app.post("/create-usdt-invoice", async (req, res) => {
     try {
         const { priceAmount, botName, itemNumber } = req.body;
@@ -51,11 +52,11 @@ app.post("/create-usdt-invoice", async (req, res) => {
         const response = await fetch("https://api.nowpayments.io/v1/invoice", {
             method: "POST",
             headers: {
-                "x-api-key": NOWPAYMENTS_API_KEY, // ✅ Secure API Key Usage
+                "x-api-key": NOWPAYMENTS_API_KEY, // Secure API Key Usage
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                price_amount: parseFloat(priceAmount), // Ensure it's a valid float
+                price_amount: priceAmount,
                 price_currency: "usd",
                 pay_currency: "usdt",
                 order_id: "BOT-" + Math.floor((Math.random() * 1000000000) + 1),
@@ -67,7 +68,6 @@ app.post("/create-usdt-invoice", async (req, res) => {
         const data = await response.json();
 
         if (!data.invoice_url) {
-            console.error("❌ Error from NOWPayments:", data);
             return res.status(400).json({ error: "Failed to create USDT invoice", details: data });
         }
 
@@ -155,7 +155,7 @@ app.get("/generate-link", async (req, res) => {
         }
 
         const fileId = row[1];
-        const token = crypto.randomBytes(32).toString("hex");
+        const token = generateToken();
         validLinks.set(token, fileId);
 
         res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
