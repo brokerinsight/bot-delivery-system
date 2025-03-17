@@ -1,8 +1,11 @@
 require("dotenv").config();
+console.log("GOOGLE_APPLICATION_CREDENTIALS:", process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
 const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
 const crypto = require("crypto");
+const fs = require("fs"); // ✅ Corrected position of `fs`
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,7 +22,9 @@ if (!process.env.GOOGLE_CREDENTIALS) {
     process.exit(1);
 }
 
-const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+// ✅ Corrected placement of reading Google credentials
+const credentials = JSON.parse(fs.readFileSync(process.env.GOOGLE_CREDENTIALS, "utf8"));
+
 const client = new google.auth.JWT(
     credentials.client_email,
     null,
@@ -34,7 +39,7 @@ function generateToken() {
     return crypto.randomBytes(32).toString("hex");
 }
 
-// Route to generate a one-time link
+// ✅ Route to generate a one-time bot download link
 app.get("/generate-link", async (req, res) => {
     try {
         const itemNumber = req.query.item;
@@ -64,12 +69,12 @@ app.get("/generate-link", async (req, res) => {
 
         res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
     } catch (error) {
-        console.error("Error generating download link:", error);
+        console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// Route to handle one-time download links (preserve filename)
+// ✅ Route to handle one-time download links (preserve filename)
 app.get("/download/:token", async (req, res) => {
     const token = req.params.token;
 
@@ -93,12 +98,12 @@ app.get("/download/:token", async (req, res) => {
 
         file.data.pipe(res);
     } catch (error) {
-        console.error("Error fetching file from Drive:", error);
+        console.error("❌ Error fetching file from Drive:", error);
         return res.redirect(GUMROAD_STORE_URL);
     }
 });
 
-// Start the server
+// ✅ Start the server
 app.listen(PORT, () => {
     console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
