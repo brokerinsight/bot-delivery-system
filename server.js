@@ -2,8 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
-const fs = require("fs");
-const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,17 +21,14 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Load Google Credentials with absolute path
-const credentialsPath = path.resolve(process.env.GOOGLE_CREDENTIALS);
-const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
-
+// ✅ Load Google Credentials directly from environment variable
+const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
     null,
     credentials.private_key.replace(/\\n/g, "\n"),
     ["https://www.googleapis.com/auth/drive"]
 );
-
 const drive = google.drive({ version: "v3", auth: client });
 
 // ✅ Route to generate a one-time bot download link
