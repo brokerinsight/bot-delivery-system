@@ -11,18 +11,8 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
 
 app.use(cors());
-app.use(express.json()); // Middleware to parse JSON
 
 const validLinks = new Map();
-
-// Load API Key from .env
-const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
-const NOWPAYMENTS_IPN_KEY = process.env.NOWPAYMENTS_IPN_KEY || "zBIRLfDRmjDCPjPFZR4FyONLAEtibfnI";
-
-if (!NOWPAYMENTS_API_KEY) {
-    console.error("❌ ERROR: NOWPAYMENTS_API_KEY is missing in .env file.");
-    process.exit(1);
-}
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -44,59 +34,7 @@ function generateToken() {
     return crypto.randomBytes(32).toString("hex");
 }
 
-// ✅ **NOWPayments Webhook - Handles Payment Notifications**
-app.post("/nowpayments-webhook", async (req, res) => {
-    try {
-        const data = req.body;
-        const receivedHmac = req.headers["x-nowpayments-sig"];
-
-        if (!receivedHmac) {
-            console.error("❌ Missing HMAC signature. Unauthorized request.");
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
-        // Validate HMAC Signature
-        const calculatedHmac = crypto
-            .createHmac("sha512", NOWPAYMENTS_IPN_KEY)
-            .update(JSON.stringify(data))
-            .digest("hex");
-
-        if (calculatedHmac !== receivedHmac) {
-            console.error("❌ Invalid HMAC signature. Possible fraud attempt.");
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
-        // Check if payment is successful
-        if (data.payment_status === "confirmed" || data.payment_status === "finished") {
-            console.log("✅ Payment confirmed:", data);
-
-            const itemNumber = data.order_description.match(/Item (\d+)/)?.[1];
-            if (!itemNumber) {
-                console.error("❌ Error: Could not extract item number.");
-                return res.status(400).json({ error: "Invalid order description format" });
-            }
-
-            // Generate the download link
-            const generateLinkResponse = await fetch(
-                `https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`
-            );
-            const generateLinkData = await generateLinkResponse.json();
-
-            if (generateLinkData.success) {
-                console.log("🎉 Bot Download Link:", generateLinkData.downloadLink);
-            } else {
-                console.error("❌ Error generating download link:", generateLinkData);
-            }
-        }
-
-        res.sendStatus(200); // Acknowledge NOWPayments webhook
-    } catch (error) {
-        console.error("❌ Error processing NOWPayments webhook:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ **Route to generate a one-time bot download link**
+// Route to generate a one-time link
 app.get("/generate-link", async (req, res) => {
     try {
         const itemNumber = req.query.item;
@@ -126,12 +64,12 @@ app.get("/generate-link", async (req, res) => {
 
         res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
     } catch (error) {
-        console.error("❌ Error generating download link:", error);
+        console.error("Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ **Route to handle one-time download links**
+// Route to handle one-time download links (preserve filename)
 app.get("/download/:token", async (req, res) => {
     const token = req.params.token;
 
@@ -143,9 +81,11 @@ app.get("/download/:token", async (req, res) => {
     validLinks.delete(token); // Invalidate the link after first use
 
     try {
+        // Fetch file metadata to get the original filename
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const originalFilename = fileMetadata.data.name || `bot-${fileId}.xml`;
 
+        // Stream the file with the correct filename
         const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
         res.setHeader("Content-Disposition", `attachment; filename="${originalFilename}"`);
@@ -153,12 +93,12 @@ app.get("/download/:token", async (req, res) => {
 
         file.data.pipe(res);
     } catch (error) {
-        console.error("❌ Error fetching file from Drive:", error);
+        console.error("Error fetching file from Drive:", error);
         return res.redirect(GUMROAD_STORE_URL);
     }
 });
 
-// ✅ **Start the server**
+// Start the server
 app.listen(PORT, () => {
     console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
