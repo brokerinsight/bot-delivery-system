@@ -1,121 +1,104 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const { google } = require('googleapis');
-const fs = require('fs');
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const { google } = require("googleapis");
+const crypto = require("crypto");
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+const SPREADSHEET_ID = "1_ze9la_uzzaK4nWhTuGsm7LMQM4pVjEVu3wB_6njuyw";
+const SHEET_NAME = "Sheet1";
+const GUMROAD_STORE_URL = "https://kaylie254.gumroad.com/";
+
 app.use(cors());
-app.use(express.json());
 
-const NOWPAYMENTS_API_KEY = 'your_nowpayments_api_key'; // Replace with your API key
-const IPN_SECRET = 'your_ipn_secret'; // Set this in NOWPayments settings
+const validLinks = new Map();
 
-const serviceAccount = JSON.parse(fs.readFileSync('serviceAccount.json'));
-const drive = google.drive({ version: 'v3', auth: new google.auth.JWT(
-    serviceAccount.client_email,
+if (!process.env.GOOGLE_CREDENTIALS) {
+    console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
+    process.exit(1);
+}
+
+const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+const client = new google.auth.JWT(
+    credentials.client_email,
     null,
-    serviceAccount.private_key,
-    ['https://www.googleapis.com/auth/drive']
-)});
+    credentials.private_key.replace(/\\n/g, "\n"),
+    ["https://www.googleapis.com/auth/drive"]
+);
 
-const links = {};
+const drive = google.drive({ version: "v3", auth: client });
 
-// Generate a NOWPayments USDT payment link
-app.post('/create-usdt-payment', async (req, res) => {
-    const { price, item, email } = req.body;
-    if (!price || !item || !email) {
-        return res.status(400).json({ success: false, message: "Missing parameters" });
-    }
+// Generate a secure token
+function generateToken() {
+    return crypto.randomBytes(32).toString("hex");
+}
 
+// Route to generate a one-time link
+app.get("/generate-link", async (req, res) => {
     try {
-        const response = await axios.post('https://api.nowpayments.io/v1/invoice', {
-            price_amount: price,
-            price_currency: 'usd',
-            pay_currency: 'usdt',
-            order_id: item,
-            order_description: `Payment for Bot ${item}`,
-            ipn_callback_url: 'https://bot-delivery-system.onrender.com/ipn-handler',
-            success_url: `https://bot-delivery-system.onrender.com/confirm-payment?item=${item}`
-        }, {
-            headers: { 'x-api-key': NOWPAYMENTS_API_KEY }
+        const itemNumber = req.query.item;
+        if (!itemNumber) {
+            return res.status(400).json({ error: "Item number is required" });
+        }
+
+        const sheets = google.sheets({ version: "v4", auth: client });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `${SHEET_NAME}!A:B`,
         });
 
-        res.json({ success: true, paymentUrl: response.data.invoice_url });
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ error: "No data found in Google Sheet" });
+        }
+
+        const row = rows.find(r => r[0] == itemNumber);
+        if (!row) {
+            return res.status(404).json({ error: "File ID not found for this item" });
+        }
+
+        const fileId = row[1];
+        const token = generateToken();
+        validLinks.set(token, fileId);
+
+        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${token}` });
     } catch (error) {
-        console.error("NOWPayments error:", error.response?.data || error.message);
-        res.status(500).json({ success: false, message: "Error creating payment" });
+        console.error("Error generating download link:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// Handle NOWPayments IPN (Instant Payment Notification)
-app.post('/ipn-handler', async (req, res) => {
-    const data = req.body;
+// Route to handle one-time download links (preserve filename)
+app.get("/download/:token", async (req, res) => {
+    const token = req.params.token;
 
-    if (data.ipn_secret !== IPN_SECRET) {
-        return res.status(403).json({ success: false, message: "Invalid IPN secret" });
+    if (!validLinks.has(token)) {
+        return res.redirect(GUMROAD_STORE_URL);
     }
 
-    if (data.payment_status === 'finished') {
-        const item = data.order_id;
-        const fileId = "YOUR_GOOGLE_DRIVE_FILE_ID"; // Fetch from Google Sheets if needed
-        const expirationTime = Date.now() + 5 * 60 * 1000;
-        links[item] = { fileId, expirationTime };
-
-        console.log(`✅ Payment confirmed for item ${item}`);
-    }
-
-    res.status(200).send("OK");
-});
-
-// Confirm payment and redirect to download
-app.get('/confirm-payment', async (req, res) => {
-    const item = req.query.item;
-    if (!item || !links[item]) {
-        return res.redirect('https://kaylie254.gumroad.com/');
-    }
-    
-    res.redirect(`https://bot-delivery-system.onrender.com/download/${item}`);
-});
-
-// Generate one-time download link
-app.get('/generate-link', async (req, res) => {
-    const item = req.query.item;
-    if (!item) return res.status(400).json({ success: false, message: "Missing item parameter" });
+    const fileId = validLinks.get(token);
+    validLinks.delete(token); // Invalidate the link after first use
 
     try {
-        const fileId = "YOUR_GOOGLE_DRIVE_FILE_ID";
-        const response = await drive.files.get({ fileId, fields: 'name' });
-        const fileName = response.data.name;
-        
-        const expirationTime = Date.now() + 5 * 60 * 1000;
-        links[item] = { fileId, expirationTime };
+        // Fetch file metadata to get the original filename
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const originalFilename = fileMetadata.data.name || `bot-${fileId}.xml`;
 
-        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${item}` });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error generating link" });
-    }
-});
+        // Stream the file with the correct filename
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
-// Download route
-app.get('/download/:item', async (req, res) => {
-    const item = req.params.item;
-    const linkData = links[item];
+        res.setHeader("Content-Disposition", `attachment; filename="${originalFilename}"`);
+        res.setHeader("Content-Type", "application/xml");
 
-    if (!linkData || Date.now() > linkData.expirationTime) {
-        return res.redirect('https://kaylie254.gumroad.com/');
-    }
-
-    try {
-        const fileId = linkData.fileId;
-        const file = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
-
-        res.setHeader('Content-Disposition', `attachment; filename="${fileId}.xml"`);
         file.data.pipe(res);
     } catch (error) {
-        res.redirect('https://kaylie254.gumroad.com/');
+        console.error("Error fetching file from Drive:", error);
+        return res.redirect(GUMROAD_STORE_URL);
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Start the server
+app.listen(PORT, () => {
+    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
+});
