@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,14 +18,22 @@ if (!process.env.GOOGLE_CREDENTIALS) {
     process.exit(1);
 }
 
-// ✅ Load Google Credentials
-const credentials = JSON.parse(fs.readFileSync(process.env.GOOGLE_CREDENTIALS, "utf8"));
+if (!SPREADSHEET_ID) {
+    console.error("❌ ERROR: SPREADSHEET_ID environment variable is missing.");
+    process.exit(1);
+}
+
+// ✅ Load Google Credentials with absolute path
+const credentialsPath = path.resolve(process.env.GOOGLE_CREDENTIALS);
+const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
+
 const client = new google.auth.JWT(
     credentials.client_email,
     null,
     credentials.private_key.replace(/\\n/g, "\n"),
     ["https://www.googleapis.com/auth/drive"]
 );
+
 const drive = google.drive({ version: "v3", auth: client });
 
 // ✅ Route to generate a one-time bot download link
@@ -41,12 +50,11 @@ app.get("/generate-link", async (req, res) => {
             range: `${SHEET_NAME}!A:B`,
         });
 
-        const rows = response.data.values;
-        if (!rows || rows.length === 0) {
+        if (!response.data.values || response.data.values.length === 0) {
             return res.status(404).json({ error: "No data found in Google Sheet" });
         }
 
-        const row = rows.find(r => r[0] == itemNumber);
+        const row = response.data.values.find(r => r[0] == itemNumber);
         if (!row) {
             return res.status(404).json({ error: "File ID not found for this item" });
         }
