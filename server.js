@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
+const crypto = require("crypto");
 const { google } = require("googleapis");
 
 const app = express();
@@ -49,7 +50,8 @@ app.post("/create-invoice", async (req, res) => {
             },
             body: JSON.stringify({
                 price_amount: price,
-                price_currency: "USD", // ✅ Always use USD as the currency
+                price_currency: "USD", // ✅ Always use USD
+                order_id: `bot-${item}`,
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -59,6 +61,7 @@ app.post("/create-invoice", async (req, res) => {
         if (data.invoice_url) {
             res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
+            console.error("❌ NOWPayments Invoice Error:", data);
             res.status(400).json({ error: "Failed to create invoice", details: data });
         }
     } catch (error) {
@@ -67,25 +70,40 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Route to handle NOWPayments Webhook
+// ✅ NOWPayments Webhook Handler
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const receivedSecret = req.headers["x-nowpayments-sig"];
+        const receivedSig = req.headers["x-nowpayments-sig"];
 
-        if (!receivedSecret || receivedSecret !== ipnSecret) {
-            console.warn("❌ Invalid IPN signature received");
+        const payload = JSON.stringify(req.body);
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
+
+        if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid IPN Signature");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, price_amount, invoice_id, order_description } = req.body;
+        const { payment_status, price_amount, order_id } = req.body;
+        const itemNumber = order_id.replace("bot-", ""); // Extract item number
 
         if (payment_status === "finished") {
-            console.log(`✅ Payment Successful: ${price_amount} USD for invoice ${invoice_id}`);
-            res.json({ success: true });
+            console.log(`✅ Crypto Payment Successful: ${price_amount} USD for ${order_id}`);
+
+            // Generate the bot download link
+            const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
+            const linkData = await generateLinkResponse.json();
+
+            if (linkData.success && linkData.downloadLink) {
+                console.log(`✅ Bot delivery link created: ${linkData.downloadLink}`);
+                return res.json({ success: true, downloadLink: linkData.downloadLink });
+            } else {
+                console.warn("⚠️ Failed to generate bot link:", linkData);
+                return res.status(500).json({ error: "Bot link generation failed" });
+            }
         } else {
             console.warn(`⚠️ Payment not completed: ${payment_status}`);
-            res.json({ success: false });
+            return res.json({ success: false });
         }
     } catch (error) {
         console.error("❌ Error in webhook handler:", error);
