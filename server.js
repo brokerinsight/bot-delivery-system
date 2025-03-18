@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const fetch = require("node-fetch");
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 const crypto = require("crypto");
 const { google } = require("googleapis");
 
@@ -49,8 +49,8 @@ app.post("/create-invoice", async (req, res) => {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                price_amount: price,
-                price_currency: "USD", // ✅ Always use USD
+                price_amount: parseFloat(price),  // ✅ Ensure price is a number
+                price_currency: "USD",            // ✅ Always use USD
                 order_id: `bot-${item}`,
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
