@@ -30,7 +30,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice
+// ✅ Route to create NOWPayments invoice (FIXED)
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -47,8 +47,8 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`,
-                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  // ✅ Redirect to bot download page
+                order_id: `bot-${item}`,  // ✅ Store item number in order_id
+                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -67,17 +67,16 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Fix for Signature Verification)
+// ✅ NOWPayments Webhook Handler (FIXED)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.rawBody; // ✅ Use raw body for verification
+        const rawPayload = req.rawBody;
 
-        // ✅ Parse and remove unexpected fields before signing
+        // ✅ Sign only NOWPayments' payload
         const receivedData = JSON.parse(rawPayload);
-        const validPayload = JSON.stringify(receivedData); // Sign only NOWPayments' payload
-
+        const validPayload = JSON.stringify(receivedData);
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
         // Debugging logs
@@ -92,11 +91,12 @@ app.post("/webhook", async (req, res) => {
         }
 
         const { payment_status, price_amount, order_id } = receivedData;
-        const itemNumber = order_id.replace("bot-", ""); 
+        const itemNumber = order_id.replace("bot-", ""); // ✅ Extract actual item number
 
         if (payment_status === "finished") {
             console.log(`✅ Crypto Payment Successful: ${price_amount} USD for ${order_id}`);
 
+            // ✅ Fetch the bot file ID using the correct item number
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
             const linkData = await generateLinkResponse.json();
 
@@ -141,21 +141,6 @@ app.get("/generate-link", async (req, res) => {
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Route that triggers automatic bot download (Fix for Redirect Issue)
-app.get("/success", async (req, res) => {
-    const itemNumber = req.query.item;
-    if (!itemNumber) return res.status(400).send("Invalid request");
-
-    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
-    const linkData = await linkResponse.json();
-
-    if (linkData.success && linkData.downloadLink) {
-        return res.redirect(linkData.downloadLink);
-    } else {
-        return res.status(500).send("Error generating bot download link");
     }
 });
 
