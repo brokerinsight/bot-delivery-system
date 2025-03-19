@@ -34,7 +34,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Create Invoice for NowPayments
+// ✅ Create Invoice for NowPayments (Auto-redirect fix)
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -63,14 +63,14 @@ app.post("/create-invoice", async (req, res) => {
         }
 
         console.log(`✅ NowPayments Invoice Created: ${data.invoice_url}`);
-        return res.json({ success: true, invoiceUrl: data.invoice_url });
+        res.json({ success: true, invoiceUrl: data.invoice_url, autoRedirect: true }); // ✅ Added autoRedirect flag
     } catch (error) {
         console.error("❌ Error creating NowPayments invoice:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Paystack Webhook Handler (Fix: Ensure item number is included)
+// ✅ Paystack Webhook Handler (Ensure item is carried correctly)
 app.post("/paystack-webhook", async (req, res) => {
     try {
         const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -85,13 +85,8 @@ app.post("/paystack-webhook", async (req, res) => {
         const { event, data } = req.body;
         if (event === "charge.success") {
             const itemNumber = data.metadata?.item || "";
-            const amountPaid = data.amount / 100; // Convert from kobo to actual currency
-
-            console.log(`✅ Payment successful: ${amountPaid} KES for item ${itemNumber}`);
+            console.log(`✅ Payment successful: ${data.amount / 100} KES for item ${itemNumber}`);
             return processDownload(res, itemNumber, "Paystack");
-        } else {
-            console.warn(`⚠️ Payment event ignored: ${event}`);
-            return res.json({ success: false });
         }
     } catch (error) {
         console.error("❌ Error in Paystack webhook handler:", error);
@@ -99,7 +94,7 @@ app.post("/paystack-webhook", async (req, res) => {
     }
 });
 
-// ✅ NowPayments Webhook Handler (Refined Payload Handling & Signature Check)
+// ✅ NowPayments Webhook Handler (Ensure correct payload structure)
 app.post("/nowpayments-webhook", async (req, res) => {
     try {
         const secret = process.env.NOWPAYMENTS_IPN_SECRET;
@@ -112,14 +107,10 @@ app.post("/nowpayments-webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, order_id, purchase_units } = req.body;
+        const { payment_status, order_id } = req.body;
         if (payment_status === "finished") {
-            const itemNumber = purchase_units?.[0]?.invoice_id || order_id || "";
-            console.log(`✅ NowPayments payment successful for item ${itemNumber}`);
-            return processDownload(res, itemNumber, "NowPayments");
-        } else {
-            console.warn(`⚠️ Payment status ignored: ${payment_status}`);
-            return res.json({ success: false });
+            console.log(`✅ NowPayments payment successful for item ${order_id}`);
+            return processDownload(res, order_id, "NowPayments");
         }
     } catch (error) {
         console.error("❌ Error in NowPayments webhook handler:", error);
@@ -139,10 +130,6 @@ async function processDownload(res, itemNumber, source) {
             spreadsheetId: SPREADSHEET_ID,
             range: `${SHEET_NAME}!A:B`,
         });
-
-        if (!response.data.values || response.data.values.length === 0) {
-            return res.status(404).json({ error: "No data found in Google Sheet" });
-        }
 
         const row = response.data.values.find(r => r[0] == itemNumber);
         if (!row) {
