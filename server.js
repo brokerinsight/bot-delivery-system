@@ -30,7 +30,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice (Ensuring correct item number)
+// ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -47,7 +47,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`,  // ✅ Store actual item number in order_id
+                order_id: `bot-${item}`, // ✅ Keep item consistent
                 success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -67,19 +67,18 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (FIXED: Extract item correctly)
+// ✅ NOWPayments Webhook Handler (Keep "item" intact)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.rawBody;
 
-        // ✅ Sign only NOWPayments' payload
+        // ✅ Use NOWPayments' raw payload to generate signature
         const receivedData = JSON.parse(rawPayload);
         const validPayload = JSON.stringify(receivedData);
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
-        // Debugging logs
         console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:");
         console.log(validPayload);
         console.log("✅ Expected Signature:", expectedSig);
@@ -91,13 +90,13 @@ app.post("/webhook", async (req, res) => {
         }
 
         const { payment_status, price_amount, order_id } = receivedData;
-        const itemNumber = order_id.replace("bot-", ""); // ✅ Extract actual item number
+        const item = order_id.replace("bot-", ""); // ✅ Extract "item" correctly
 
         if (payment_status === "finished") {
-            console.log(`✅ Crypto Payment Successful: ${price_amount} USD for ${order_id}`);
+            console.log(`✅ Crypto Payment Successful: ${price_amount} USD for order ${order_id}`);
 
-            // ✅ Fetch the bot file ID using the correct item number
-            const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
+            // ✅ Fetch bot download link using correct "item"
+            const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
             const linkData = await generateLinkResponse.json();
 
             if (linkData.success && linkData.downloadLink) {
@@ -120,8 +119,8 @@ app.post("/webhook", async (req, res) => {
 // ✅ Route to generate a one-time bot download link
 app.get("/generate-link", async (req, res) => {
     try {
-        const itemNumber = req.query.item;
-        if (!itemNumber) return res.status(400).json({ error: "Item number is required" });
+        const item = req.query.item;
+        if (!item) return res.status(400).json({ error: "Item number is required" });
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -133,7 +132,7 @@ app.get("/generate-link", async (req, res) => {
             return res.status(404).json({ error: "No data found in Google Sheet" });
         }
 
-        const row = response.data.values.find(r => r[0] == itemNumber);
+        const row = response.data.values.find(r => r[0] == item);
         if (!row) return res.status(404).json({ error: "File ID not found for this item" });
 
         const fileId = row[1];
@@ -146,10 +145,10 @@ app.get("/generate-link", async (req, res) => {
 
 // ✅ Route that triggers automatic bot download (Fix for Redirect Issue)
 app.get("/success", async (req, res) => {
-    const itemNumber = req.query.item;
-    if (!itemNumber) return res.status(400).send("Invalid request");
+    const item = req.query.item;
+    if (!item) return res.status(400).send("Invalid request");
 
-    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
+    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
     const linkData = await linkResponse.json();
 
     if (linkData.success && linkData.downloadLink) {
