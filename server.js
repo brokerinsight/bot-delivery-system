@@ -12,7 +12,7 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.raw({ type: "application/json" }));
+app.use(express.json()); // ✅ Ensure correct parsing of JSON payloads
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -24,6 +24,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
+// ✅ Load Google Credentials directly from environment variable
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -33,77 +34,68 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-app.post("/create-invoice", async (req, res) => {
+// ✅ Paystack Webhook Handler (Fix: Ensure item number is included)
+app.post("/paystack-webhook", async (req, res) => {
     try {
-        const { item, price } = JSON.parse(req.body.toString());
-        if (!item || !price) {
-            return res.status(400).json({ error: "Item and price are required" });
-        }
-
-        const response = await fetch("https://api.nowpayments.io/v1/invoice", {
-            method: "POST",
-            headers: {
-                "x-api-key": process.env.NOWPAYMENTS_API_KEY,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                price_amount: parseFloat(price),
-                price_currency: "USD",
-                order_id: `bot-${item}`,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`,
-                cancel_url: GUMROAD_STORE_URL,
-                item: item // ✅ Ensure item is included in the payload
-            })
-        });
-
-        const data = await response.json();
-        if (data.invoice_url) {
-            res.json({ success: true, paymentUrl: data.invoice_url });
-        } else {
-            res.status(400).json({ error: "Failed to create invoice", details: data });
-        }
-    } catch (error) {
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-app.post("/webhook", async (req, res) => {
-    try {
-        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const receivedSig = req.headers["x-nowpayments-sig"];
-        const payload = req.body.toString();
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
+        const secret = process.env.PAYSTACK_SECRET_KEY;
+        const receivedSig = req.headers["x-paystack-signature"];
+        const expectedSig = crypto.createHmac("sha512", secret).update(JSON.stringify(req.body)).digest("hex");
 
         if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid Paystack Signature");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const data = JSON.parse(payload);
-        const { payment_status, price_amount, order_id, item } = data; // ✅ Ensure item is extracted
-        const itemNumber = order_id.replace("bot-", "");
+        const { event, data } = req.body;
+        if (event === "charge.success") {
+            const itemNumber = data.metadata?.item || "";
+            const amountPaid = data.amount / 100; // Convert from kobo to actual currency
 
-        if (payment_status === "finished") {
-            const generateLinkResponse = await fetch(`${process.env.SUCCESS_URL}/generate-link?item=${itemNumber}`);
-            const linkData = await generateLinkResponse.json();
-
-            if (linkData.success && linkData.downloadLink) {
-                return res.json({ success: true, downloadLink: linkData.downloadLink });
-            } else {
-                return res.status(500).json({ error: "Bot link generation failed" });
-            }
+            console.log(`✅ Payment successful: ${amountPaid} KES for item ${itemNumber}`);
+            return processDownload(res, itemNumber);
         } else {
+            console.warn(`⚠️ Payment event ignored: ${event}`);
             return res.json({ success: false });
         }
     } catch (error) {
+        console.error("❌ Error in Paystack webhook handler:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-app.get("/success", async (req, res) => {
+// ✅ NowPayments Webhook Handler
+app.post("/nowpayments-webhook", async (req, res) => {
     try {
-        const itemNumber = req.query.item;
+        const secret = process.env.NOWPAYMENTS_IPN_SECRET;
+        const receivedSig = req.headers["x-nowpayments-sig"];
+        const expectedPayload = JSON.stringify(req.body, Object.keys(req.body).sort()); // Sort keys for consistency
+        const expectedSig = crypto.createHmac("sha256", secret).update(expectedPayload).digest("hex");
+
+        if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid NowPayments Signature");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const { payment_status, order_id, purchase_items } = req.body;
+        if (payment_status === "finished") {
+            const itemNumber = purchase_items?.[0]?.item_id || order_id || "";
+            console.log(`✅ NowPayments payment successful for item ${itemNumber}`);
+            return processDownload(res, itemNumber);
+        } else {
+            console.warn(`⚠️ Payment status ignored: ${payment_status}`);
+            return res.json({ success: false });
+        }
+    } catch (error) {
+        console.error("❌ Error in NowPayments webhook handler:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Unified function to generate a one-time bot download link
+async function processDownload(res, itemNumber) {
+    try {
         if (!itemNumber) {
-            return res.redirect(GUMROAD_STORE_URL);
+            return res.status(400).json({ error: "Item number is required" });
         }
 
         const sheets = google.sheets({ version: "v4", auth: client });
@@ -112,22 +104,26 @@ app.get("/success", async (req, res) => {
             range: `${SHEET_NAME}!A:B`,
         });
 
+        if (!response.data.values || response.data.values.length === 0) {
+            return res.status(404).json({ error: "No data found in Google Sheet" });
+        }
+
         const row = response.data.values.find(r => r[0] == itemNumber);
         if (!row) {
-            return res.redirect(GUMROAD_STORE_URL);
+            return res.status(404).json({ error: "File ID not found for this item" });
         }
 
         const fileId = row[1];
-        res.setHeader("Content-Disposition", `attachment; filename="bot-${itemNumber}.xml"`);
-        res.setHeader("Content-Type", "application/xml");
-        
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-        file.data.pipe(res);
+        const downloadLink = `https://bot-delivery-system.onrender.com/download/${fileId}`;
+        console.log(`✅ Bot delivery link created: ${downloadLink}`);
+        return res.json({ success: true, downloadLink });
     } catch (error) {
-        return res.redirect(GUMROAD_STORE_URL);
+        console.error("❌ Error generating download link:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
-});
+}
 
+// ✅ Start the server
 app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
