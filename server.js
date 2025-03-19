@@ -72,12 +72,17 @@ app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const payload = req.rawBody; // ✅ Use raw body to verify signature
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
+        const rawPayload = req.rawBody; // ✅ Use raw body for verification
+
+        // ✅ Parse and remove unexpected fields before signing
+        const receivedData = JSON.parse(rawPayload);
+        const validPayload = JSON.stringify(receivedData); // Sign only NOWPayments' payload
+
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
         // Debugging logs
         console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:");
-        console.log(payload);
+        console.log(validPayload);
         console.log("✅ Expected Signature:", expectedSig);
         console.log("❌ Received Signature:", receivedSig);
 
@@ -86,7 +91,7 @@ app.post("/webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, price_amount, order_id } = JSON.parse(payload);
+        const { payment_status, price_amount, order_id } = receivedData;
         const itemNumber = order_id.replace("bot-", ""); 
 
         if (payment_status === "finished") {
