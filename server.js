@@ -12,13 +12,9 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({
-    verify: (req, res, buf) => { 
-        req.rawBody = buf.toString();  // ✅ Store raw body for accurate signature verification
-    }
-}));
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for signature verification
 
-// ✅ Ensure all required environment variables are set
+// ✅ Ensure required environment variables are set
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
     console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
@@ -52,7 +48,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price),
                 price_currency: "USD",
                 order_id: `bot-${item}`,
-                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,
+                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  // ✅ Redirect to bot download page
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -76,7 +72,7 @@ app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const payload = req.rawBody;  // ✅ Use raw body to verify signature
+        const payload = req.rawBody; // ✅ Use raw body to verify signature
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
 
         // Debugging logs
