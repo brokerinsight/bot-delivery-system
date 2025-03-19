@@ -12,9 +12,13 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for signature verification
+app.use(express.json({
+    verify: (req, res, buf) => { 
+        req.rawBody = buf.toString();  // ✅ Store raw body for accurate signature verification
+    }
+}));
 
-// ✅ Ensure required environment variables are set
+// ✅ Ensure all required environment variables are set
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
     console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
@@ -30,7 +34,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice (FIXED)
+// ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -47,8 +51,8 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`,  // ✅ Store item number in order_id
-                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
+                order_id: `bot-${item}`,
+                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -67,21 +71,17 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (FIXED)
+// ✅ NOWPayments Webhook Handler (Fix for Signature Verification)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.rawBody;
-
-        // ✅ Sign only NOWPayments' payload
-        const receivedData = JSON.parse(rawPayload);
-        const validPayload = JSON.stringify(receivedData);
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
+        const payload = req.rawBody;  // ✅ Use raw body to verify signature
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
 
         // Debugging logs
         console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:");
-        console.log(validPayload);
+        console.log(payload);
         console.log("✅ Expected Signature:", expectedSig);
         console.log("❌ Received Signature:", receivedSig);
 
@@ -90,13 +90,12 @@ app.post("/webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, price_amount, order_id } = receivedData;
-        const itemNumber = order_id.replace("bot-", ""); // ✅ Extract actual item number
+        const { payment_status, price_amount, order_id } = JSON.parse(payload);
+        const itemNumber = order_id.replace("bot-", ""); 
 
         if (payment_status === "finished") {
             console.log(`✅ Crypto Payment Successful: ${price_amount} USD for ${order_id}`);
 
-            // ✅ Fetch the bot file ID using the correct item number
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
             const linkData = await generateLinkResponse.json();
 
@@ -141,6 +140,21 @@ app.get("/generate-link", async (req, res) => {
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route that triggers automatic bot download (Fix for Redirect Issue)
+app.get("/success", async (req, res) => {
+    const itemNumber = req.query.item;
+    if (!itemNumber) return res.status(400).send("Invalid request");
+
+    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
+    const linkData = await linkResponse.json();
+
+    if (linkData.success && linkData.downloadLink) {
+        return res.redirect(linkData.downloadLink);
+    } else {
+        return res.status(500).send("Error generating bot download link");
     }
 });
 
