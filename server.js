@@ -12,7 +12,7 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json()); // ✅ Middleware to parse JSON
+app.use(express.raw({ type: "application/json" })); // ✅ FIX: Use raw body for IPN verification
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -37,7 +37,7 @@ const drive = google.drive({ version: "v3", auth: client });
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = req.body;
+        const { item, price } = JSON.parse(req.body.toString()); // ✅ Parse raw JSON body
         if (!item || !price) {
             return res.status(400).json({ error: "Item and price are required" });
         }
@@ -70,21 +70,25 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler
+// ✅ NOWPayments Webhook Handler (Fix: Using raw request body)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
 
-        const payload = JSON.stringify(req.body);
+        const payload = req.body.toString(); // ✅ Use raw body
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
 
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature");
+            console.log("Received Signature:", receivedSig);
+            console.log("Expected Signature:", expectedSig);
+            console.log("Payload:", payload);
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, price_amount, order_id } = req.body;
+        const data = JSON.parse(payload); // ✅ Now parse JSON
+        const { payment_status, price_amount, order_id } = data;
         const itemNumber = order_id.replace("bot-", ""); // Extract item number
 
         if (payment_status === "finished") {
