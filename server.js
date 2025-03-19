@@ -34,6 +34,42 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
+// ✅ Create Invoice for NowPayments
+app.post("/create-invoice", async (req, res) => {
+    try {
+        const { item, price } = req.body;
+        if (!item || !price) {
+            return res.status(400).json({ error: "Item and price are required" });
+        }
+
+        const response = await fetch("https://api.nowpayments.io/v1/invoice", {
+            method: "POST",
+            headers: {
+                "x-api-key": process.env.NOWPAYMENTS_API_KEY,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                price_amount: price,
+                price_currency: "usd",
+                order_id: item,
+                success_url: `${process.env.SUCCESS_URL}?item=${item}`,
+                cancel_url: GUMROAD_STORE_URL
+            })
+        });
+
+        const data = await response.json();
+        if (!data || !data.invoice_url) {
+            throw new Error("Failed to create NowPayments invoice");
+        }
+
+        console.log(`✅ NowPayments Invoice Created: ${data.invoice_url}`);
+        return res.json({ success: true, invoiceUrl: data.invoice_url });
+    } catch (error) {
+        console.error("❌ Error creating NowPayments invoice:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 // ✅ Paystack Webhook Handler (Fix: Ensure item number is included)
 app.post("/paystack-webhook", async (req, res) => {
     try {
@@ -52,7 +88,7 @@ app.post("/paystack-webhook", async (req, res) => {
             const amountPaid = data.amount / 100; // Convert from kobo to actual currency
 
             console.log(`✅ Payment successful: ${amountPaid} KES for item ${itemNumber}`);
-            return processDownload(res, itemNumber);
+            return processDownload(res, itemNumber, "Paystack");
         } else {
             console.warn(`⚠️ Payment event ignored: ${event}`);
             return res.json({ success: false });
@@ -63,24 +99,24 @@ app.post("/paystack-webhook", async (req, res) => {
     }
 });
 
-// ✅ NowPayments Webhook Handler
+// ✅ NowPayments Webhook Handler (Refined Payload Handling & Signature Check)
 app.post("/nowpayments-webhook", async (req, res) => {
     try {
         const secret = process.env.NOWPAYMENTS_IPN_SECRET;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const expectedPayload = JSON.stringify(req.body, Object.keys(req.body).sort()); // Sort keys for consistency
-        const expectedSig = crypto.createHmac("sha256", secret).update(expectedPayload).digest("hex");
+        const sortedPayload = JSON.stringify(req.body, Object.keys(req.body).sort()); // Sort keys for consistency
+        const expectedSig = crypto.createHmac("sha256", secret).update(sortedPayload).digest("hex");
 
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid NowPayments Signature");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, order_id, purchase_items } = req.body;
+        const { payment_status, order_id, purchase_units } = req.body;
         if (payment_status === "finished") {
-            const itemNumber = purchase_items?.[0]?.item_id || order_id || "";
+            const itemNumber = purchase_units?.[0]?.invoice_id || order_id || "";
             console.log(`✅ NowPayments payment successful for item ${itemNumber}`);
-            return processDownload(res, itemNumber);
+            return processDownload(res, itemNumber, "NowPayments");
         } else {
             console.warn(`⚠️ Payment status ignored: ${payment_status}`);
             return res.json({ success: false });
@@ -92,7 +128,7 @@ app.post("/nowpayments-webhook", async (req, res) => {
 });
 
 // ✅ Unified function to generate a one-time bot download link
-async function processDownload(res, itemNumber) {
+async function processDownload(res, itemNumber, source) {
     try {
         if (!itemNumber) {
             return res.status(400).json({ error: "Item number is required" });
@@ -115,7 +151,7 @@ async function processDownload(res, itemNumber) {
 
         const fileId = row[1];
         const downloadLink = `https://bot-delivery-system.onrender.com/download/${fileId}`;
-        console.log(`✅ Bot delivery link created: ${downloadLink}`);
+        console.log(`✅ [${source}] Bot delivery link created: ${downloadLink}`);
         return res.json({ success: true, downloadLink });
     } catch (error) {
         console.error("❌ Error generating download link:", error);
