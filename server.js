@@ -30,7 +30,10 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice
+// ✅ Store pending transactions (Used for NOWPayments Webhook)
+const pendingTransactions = new Map();
+
+// ✅ Create NOWPayments Invoice (Use item directly from frontend)
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -47,7 +50,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`, // ✅ Keep item consistent
+                order_id: `bot-${Date.now()}`,  // 🔹 No need to store item here
                 success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -56,46 +59,48 @@ app.post("/create-invoice", async (req, res) => {
         const data = await response.json();
         if (data.invoice_url) {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
-            res.json({ success: true, paymentUrl: data.invoice_url });
+
+            // 🔹 Store item in pendingTransactions (to use in Webhook)
+            pendingTransactions.set(data.invoice_id, item);
+
+            return res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
-            res.status(400).json({ error: "Failed to create invoice", details: data });
+            return res.status(400).json({ error: "Failed to create invoice", details: data });
         }
     } catch (error) {
         console.error("❌ Error creating invoice:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Keep "item" intact)
+// ✅ NOWPayments Webhook (Use stored "item")
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.rawBody;
 
-        // ✅ Use NOWPayments' raw payload to generate signature
-        const receivedData = JSON.parse(rawPayload);
-        const validPayload = JSON.stringify(receivedData);
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
-
-        console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:");
-        console.log(validPayload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("❌ Received Signature:", receivedSig);
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
 
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature! Webhook request might be modified.");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, price_amount, order_id } = receivedData;
-        const item = order_id.replace("bot-", ""); // ✅ Extract "item" correctly
+        const receivedData = JSON.parse(rawPayload);
+        const { payment_status, price_amount, invoice_id } = receivedData;
+
+        const item = pendingTransactions.get(invoice_id); // ✅ Get stored "item"
+        if (!item) {
+            console.error("❌ No item found for invoice:", invoice_id);
+            return res.status(400).json({ error: "Invalid invoice ID" });
+        }
 
         if (payment_status === "finished") {
-            console.log(`✅ Crypto Payment Successful: ${price_amount} USD for order ${order_id}`);
+            console.log(`✅ Payment Successful: ${price_amount} USD for item ${item}`);
 
-            // ✅ Fetch bot download link using correct "item"
+            // ✅ Fetch bot download link
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
             const linkData = await generateLinkResponse.json();
 
@@ -112,11 +117,11 @@ app.post("/webhook", async (req, res) => {
         }
     } catch (error) {
         console.error("❌ Error in webhook handler:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Route to generate a one-time bot download link
+// ✅ Generate a one-time bot download link
 app.get("/generate-link", async (req, res) => {
     try {
         const item = req.query.item;
@@ -136,14 +141,14 @@ app.get("/generate-link", async (req, res) => {
         if (!row) return res.status(404).json({ error: "File ID not found for this item" });
 
         const fileId = row[1];
-        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${fileId}` });
+        return res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${fileId}` });
     } catch (error) {
         console.error("❌ Error generating download link:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Route that triggers automatic bot download (Fix for Redirect Issue)
+// ✅ Success Page: Instant download after payment
 app.get("/success", async (req, res) => {
     const item = req.query.item;
     if (!item) return res.status(400).send("Invalid request");
