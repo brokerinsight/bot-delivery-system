@@ -12,15 +12,15 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for IPN verification
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 
-// ✅ Ensure required environment variables are set
+// Ensure required environment variables are set
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
     console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
 }
 
-// ✅ Load Google Credentials from environment variables
+// Load Google Credentials
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -29,11 +29,9 @@ const client = new google.auth.JWT(
     ["https://www.googleapis.com/auth/drive"]
 );
 const drive = google.drive({ version: "v3", auth: client });
-
-// ✅ Store pending transactions (Used for NOWPayments Webhook)
 const pendingTransactions = new Map();
 
-// ✅ Create NOWPayments Invoice (Use item directly from frontend)
+// Create NOWPayments Invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -50,8 +48,8 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${Date.now()}`,  // 🔹 No need to store item here
-                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
+                order_id: `bot-${Date.now()}`,
+                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -59,10 +57,7 @@ app.post("/create-invoice", async (req, res) => {
         const data = await response.json();
         if (data.invoice_url) {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
-
-            // 🔹 Store item in pendingTransactions (to use in Webhook)
             pendingTransactions.set(data.invoice_id, item);
-
             return res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
@@ -74,33 +69,31 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook (Use stored "item")
+// NOWPayments Webhook
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.rawBody;
-
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
 
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature! Webhook request might be modified.");
+            console.warn("❌ Invalid IPN Signature!");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
         const receivedData = JSON.parse(rawPayload);
-        const { payment_status, price_amount, invoice_id } = receivedData;
+        console.log("🔹 Webhook Data:", JSON.stringify(receivedData, null, 2));
+        const { payment_status, invoice_id } = receivedData;
+        const item = pendingTransactions.get(invoice_id);
 
-        const item = pendingTransactions.get(invoice_id); // ✅ Get stored "item"
         if (!item) {
             console.error("❌ No item found for invoice:", invoice_id);
             return res.status(400).json({ error: "Invalid invoice ID" });
         }
 
         if (payment_status === "finished") {
-            console.log(`✅ Payment Successful: ${price_amount} USD for item ${item}`);
-
-            // ✅ Fetch bot download link
+            console.log(`✅ Payment Successful for item ${item}`);
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
             const linkData = await generateLinkResponse.json();
 
@@ -121,10 +114,11 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Generate a one-time bot download link
+// Generate a one-time bot download link
 app.get("/generate-link", async (req, res) => {
     try {
         const item = req.query.item;
+        console.log(`🔍 Received item: ${item}`);
         if (!item) return res.status(400).json({ error: "Item number is required" });
 
         const sheets = google.sheets({ version: "v4", auth: client });
@@ -134,36 +128,25 @@ app.get("/generate-link", async (req, res) => {
         });
 
         if (!response.data.values || response.data.values.length === 0) {
-            return res.status(404).json({ error: "No data found in Google Sheet" });
+            console.error("❌ No data found in Google Sheets!");
+            return res.status(404).json({ error: "No data found" });
         }
 
+        console.log("✅ Google Sheets Data:", response.data.values);
         const row = response.data.values.find(r => r[0] == item);
-        if (!row) return res.status(404).json({ error: "File ID not found for this item" });
+        if (!row || !row[1]) {
+            console.error(`❌ No file found for item: ${item}`);
+            return res.status(404).json({ error: "File ID not found" });
+        }
 
-        const fileId = row[1];
-        return res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${fileId}` });
+        return res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${row[1]}` });
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Success Page: Instant download after payment
-app.get("/success", async (req, res) => {
-    const item = req.query.item;
-    if (!item) return res.status(400).send("Invalid request");
-
-    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
-    const linkData = await linkResponse.json();
-
-    if (linkData.success && linkData.downloadLink) {
-        return res.redirect(linkData.downloadLink);
-    } else {
-        return res.status(500).send("Error generating bot download link");
-    }
-});
-
-// ✅ Start the server
+// Start the server
 app.listen(PORT, () => {
     console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
