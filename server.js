@@ -12,7 +12,7 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for signature verification
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for IPN verification
 
 // ✅ Ensure required environment variables are set
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
@@ -30,7 +30,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice (FIXED)
+// ✅ Route to create NOWPayments invoice (Ensuring correct item number)
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -47,7 +47,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`,  // ✅ Store item number in order_id
+                order_id: `bot-${item}`,  // ✅ Store actual item number in order_id
                 success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -67,7 +67,7 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (FIXED)
+// ✅ NOWPayments Webhook Handler (FIXED: Extract item correctly)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
@@ -141,6 +141,21 @@ app.get("/generate-link", async (req, res) => {
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route that triggers automatic bot download (Fix for Redirect Issue)
+app.get("/success", async (req, res) => {
+    const itemNumber = req.query.item;
+    if (!itemNumber) return res.status(400).send("Invalid request");
+
+    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
+    const linkData = await linkResponse.json();
+
+    if (linkData.success && linkData.downloadLink) {
+        return res.redirect(linkData.downloadLink);
+    } else {
+        return res.status(500).send("Error generating bot download link");
     }
 });
 
