@@ -12,15 +12,15 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ Store raw body for signature verification
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } })); // ✅ FIX: Store raw body for IPN verification
 
-// ✅ Ensure required environment variables are set
+// ✅ Check for missing environment variables
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
     console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
 }
 
-// ✅ Load Google Credentials from environment variables
+// ✅ Load Google Credentials directly from environment variable
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -48,7 +48,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price),
                 price_currency: "USD",
                 order_id: `bot-${item}`,
-                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  // ✅ Redirect to bot download page
+                success_url: `https://bot-delivery-system.onrender.com/success?item=${item}`,  // ✅ FIX: Redirect to bot download page
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -67,22 +67,19 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Fix for Signature Verification)
+// ✅ NOWPayments Webhook Handler (Now correctly verifies IPN signature)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const payload = req.rawBody; // ✅ Use raw body to verify signature
+        const payload = req.rawBody;  // ✅ FIX: Use raw body for signature verification
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
 
-        // Debugging logs
-        console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:");
-        console.log(payload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("❌ Received Signature:", receivedSig);
-
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature! Webhook request might be modified.");
+            console.warn("❌ Invalid IPN Signature");
+            console.log("Received Signature:", receivedSig);
+            console.log("Expected Signature:", expectedSig);
+            console.log("Payload:", payload);
             return res.status(403).json({ error: "Unauthorized" });
         }
 
