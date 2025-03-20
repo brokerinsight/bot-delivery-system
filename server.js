@@ -11,7 +11,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
-// In-memory store for mapping order_id to item (NOWPayments)
+// In-memory store for mapping iid (invoice ID) to item
 const itemStore = {};
 
 app.use(cors());
@@ -55,24 +55,25 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `${item}`, // Use item as initial order_id
+                order_id: `${item}`, // Set order_id to the item for initial mapping
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
-        if (data.invoice_url && data.order_id) {
-            console.log(`✅ Invoice Created: ${data.invoice_url}`);
+        if (data.invoice_url) {
+            const invoiceId = new URL(data.invoice_url).searchParams.get("iid"); // Extract `iid` from URL
+            console.log(`✅ Extracted invoice_id (iid): ${invoiceId}`);
 
-            // ✅ Store item with the NOWPayments-generated order_id
-            itemStore[data.order_id] = item; // Use order_id from NOWPayments
-            console.log(`✅ Stored item: ${item} for order_id: ${data.order_id}`);
+            // ✅ Store item with the invoice_id (iid)
+            itemStore[invoiceId] = item;
+            console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
 
             // Auto-clear stored item after 30 minutes
             setTimeout(() => {
-                delete itemStore[data.order_id];
-                console.log(`🗑️ Cleared item for order_id: ${data.order_id}`);
+                delete itemStore[invoiceId];
+                console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
             }, 30 * 60 * 1000);
 
             res.json({ success: true, paymentUrl: data.invoice_url });
@@ -108,12 +109,12 @@ app.post("/webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, order_id } = JSON.parse(rawPayload);
+        const { payment_status, order_id } = JSON.parse(rawPayload); // `order_id` matches `iid`
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
-            // Retrieve item using the NOWPayments order_id
+            // Retrieve item using the NOWPayments order_id (which matches the `iid`)
             const item = itemStore[order_id];
             if (!item) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
