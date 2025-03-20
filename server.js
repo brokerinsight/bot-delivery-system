@@ -44,12 +44,6 @@ app.post("/create-invoice", async (req, res) => {
             return res.status(400).json({ error: "Item and price are required" });
         }
 
-        const orderId = `bot-${item}`;
-        itemStore[orderId] = item;
-
-        // Auto-clear item after 30 minutes
-        setTimeout(() => delete itemStore[orderId], 30 * 60 * 1000);
-
         const response = await fetch("https://api.nowpayments.io/v1/invoice", {
             method: "POST",
             headers: {
@@ -59,14 +53,20 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: orderId,
+                order_id: `bot-${item}`,
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
-        if (data.invoice_url) {
+        if (data.invoice_url && data.order_id) {
+            // Store item after invoice ID is created
+            itemStore[data.order_id] = item;
+
+            // Automatically clear stored item after 30 minutes
+            setTimeout(() => delete itemStore[data.order_id], 30 * 60 * 1000);
+
             res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
@@ -97,21 +97,23 @@ app.post("/webhook", async (req, res) => {
         const data = JSON.parse(payload);
         const { payment_status, price_amount, order_id } = data;
 
+        // Retrieve stored item using order_id
         const item = itemStore[order_id];
         if (!item) {
-            console.warn("⚠️ Item not found for order_id:", order_id);
+            console.warn(`⚠️ Item not found for order_id: ${order_id}`);
             return res.status(404).json({ error: "Item not found" });
         }
 
         if (payment_status === "finished") {
             console.log(`✅ Crypto Payment Successful: ${price_amount} USD for ${order_id}`);
 
+            // Generate the bot download link
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
             const linkData = await generateLinkResponse.json();
 
             if (linkData.success && linkData.downloadLink) {
                 console.log(`✅ Bot delivery link created: ${linkData.downloadLink}`);
-                delete itemStore[order_id];
+                delete itemStore[order_id]; // Clear item after use
                 return res.json({ success: true, downloadLink: linkData.downloadLink });
             } else {
                 console.warn("⚠️ Failed to generate bot link:", linkData);
@@ -130,8 +132,8 @@ app.post("/webhook", async (req, res) => {
 // ✅ Route to generate a one-time bot download link
 app.get("/generate-link", async (req, res) => {
     try {
-        const item = req.query.item;
-        if (!item) {
+        const itemNumber = req.query.item;
+        if (!itemNumber) {
             return res.status(400).json({ error: "Item number is required" });
         }
 
@@ -145,7 +147,7 @@ app.get("/generate-link", async (req, res) => {
             return res.status(404).json({ error: "No data found in Google Sheet" });
         }
 
-        const row = response.data.values.find(r => r[0] == item);
+        const row = response.data.values.find(r => r[0] == itemNumber);
         if (!row) {
             return res.status(404).json({ error: "File ID not found for this item" });
         }
@@ -158,7 +160,7 @@ app.get("/generate-link", async (req, res) => {
     }
 });
 
-// ✅ Route to instantly deliver the bot file
+// ✅ Route to instantly deliver the bot file (with correct filename)
 app.get("/download/:fileId", async (req, res) => {
     const fileId = req.params.fileId;
 
