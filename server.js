@@ -93,10 +93,14 @@ app.post("/webhook", async (req, res) => {
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString();
 
-        // Signature verification
+        // Signature verification (Preserved exactly as resolved before)
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        console.log("Generated Signature:", expectedSig);
+        console.log("Received Signature:", receivedSig);
+
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature!");
+            console.log("Raw Payload:", rawPayload);
             return res.status(403).json({ error: "Unauthorized" });
         }
 
