@@ -15,7 +15,7 @@ const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 const itemStore = {};
 
 app.use(cors());
-app.use(express.raw({ type: "application/json" })); // ✅ Use raw body for IPN verification
+app.use(express.raw({ type: "application/json" }));
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -55,7 +55,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `${item}`, // Set order_id to the item for initial mapping
+                order_id: `${item}`,
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -63,14 +63,11 @@ app.post("/create-invoice", async (req, res) => {
 
         const data = await response.json();
         if (data.invoice_url) {
-            const invoiceId = new URL(data.invoice_url).searchParams.get("iid"); // Extract `iid` from URL
-            console.log(`✅ Extracted invoice_id (iid): ${invoiceId}`);
-
-            // ✅ Store item with the invoice_id (iid)
+            const invoiceId = new URL(data.invoice_url).searchParams.get("iid");
             itemStore[invoiceId] = item;
+
             console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
 
-            // Auto-clear stored item after 30 minutes
             setTimeout(() => {
                 delete itemStore[invoiceId];
                 console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
@@ -94,8 +91,7 @@ app.post("/webhook", async (req, res) => {
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString();
 
-        // Parse and re-serialize payload for signature generation
-        const validPayload = JSON.stringify(JSON.parse(rawPayload)); // Re-serialize for comparison
+        const validPayload = JSON.stringify(JSON.parse(rawPayload));
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
         console.log("🔍 FULL PAYLOAD RECEIVED:");
@@ -103,9 +99,8 @@ app.post("/webhook", async (req, res) => {
         console.log("✅ Expected Signature:", expectedSig);
         console.log("✅ Received Signature:", receivedSig);
 
-        // Check for exact match between expected and received signature
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature! Payload might have been tampered with.");
+            console.warn("❌ Invalid IPN Signature!");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
@@ -122,7 +117,6 @@ app.post("/webhook", async (req, res) => {
 
             console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
 
-            // Generate the bot download link
             const sheets = google.sheets({ version: "v4", auth: client });
             const response = await sheets.spreadsheets.values.get({
                 spreadsheetId: SPREADSHEET_ID,
@@ -132,13 +126,12 @@ app.post("/webhook", async (req, res) => {
             const row = response.data.values.find(r => r[0] == item);
             if (!row) {
                 console.warn(`⚠️ File ID not found for item: ${item}`);
-                return res.status(404).json({ error: "File ID not found for this item" });
+                return res.status(404).json({ error: "File ID not found" });
             }
 
             const fileId = row[1];
             console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
 
-            // Stream the file instantly without redirecting to Google Drive
             const fileMetadata = await drive.files.get({ fileId, fields: "name" });
             const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
@@ -146,7 +139,6 @@ app.post("/webhook", async (req, res) => {
 
             res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
             res.setHeader("Content-Type", "application/xml");
-
             file.data.pipe(res);
             console.log(`✅ Bot file streamed successfully: ${fileName}`);
         } else {
@@ -157,4 +149,9 @@ app.post("/webhook", async (req, res) => {
         console.error("❌ Error in webhook handler:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
+});
+
+// ✅ Start the server and bind to the specified port
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
