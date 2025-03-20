@@ -15,7 +15,8 @@ const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 const itemStore = {};
 
 app.use(cors());
-app.use(express.raw({ type: "application/json" })); // Raw body for IPN verification
+app.use(express.json());
+app.use(express.raw({ type: "application/json" }));
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -27,6 +28,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
+// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -39,7 +41,7 @@ const drive = google.drive({ version: "v3", auth: client });
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = JSON.parse(req.body.toString());
+        const { item, price } = req.body;
         if (!item || !price) {
             return res.status(400).json({ error: "Item and price are required" });
         }
@@ -84,69 +86,41 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler
-app.post("/webhook", async (req, res) => {
+// ✅ Route to handle bot delivery (for Paystack and Crypto workflows)
+app.post("/deliver-bot", async (req, res) => {
     try {
-        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.body.toString();
+        const { payment_method, item } = req.body;
 
-        const validPayload = JSON.stringify(JSON.parse(rawPayload));
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
-
-        console.log("🔍 FULL PAYLOAD RECEIVED:");
-        console.log(validPayload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("✅ Received Signature:", receivedSig);
-
-        if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature!");
-            return res.status(403).json({ error: "Unauthorized" });
+        if (!payment_method || !item) {
+            return res.status(400).json({ error: "Payment method and item are required" });
         }
 
-        const { payment_status, order_id } = JSON.parse(rawPayload);
+        console.log(`📢 Processing bot delivery for payment_method: ${payment_method}, item: ${item}`);
 
-        if (payment_status === "finished") {
-            console.log(`✅ Payment Successful for order_id: ${order_id}`);
+        const sheets = google.sheets({ version: "v4", auth: client });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `${SHEET_NAME}!A:B`,
+        });
 
-            const item = itemStore[order_id];
-            if (!item) {
-                console.warn(`⚠️ Item not found for order_id: ${order_id}`);
-                return res.status(404).json({ error: "Item not found" });
-            }
-
-            console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
-
-            const sheets = google.sheets({ version: "v4", auth: client });
-            const response = await sheets.spreadsheets.values.get({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `${SHEET_NAME}!A:B`,
-            });
-
-            const row = response.data.values.find(r => r[0] == item);
-            if (!row) {
-                console.warn(`⚠️ File ID not found for item: ${item}`);
-                return res.status(404).json({ error: "File ID not found" });
-            }
-
-            const fileId = row[1];
-            console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
-
-            const fileMetadata = await drive.files.get({ fileId, fields: "name" });
-            const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
-
-            const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-
-            res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-            res.setHeader("Content-Type", "application/xml");
-            file.data.pipe(res);
-            console.log(`✅ Bot file streamed successfully: ${fileName}`);
-        } else {
-            console.warn(`⚠️ Payment not completed: ${payment_status}`);
-            return res.json({ success: false });
+        const row = response.data.values.find(r => r[0] == item);
+        if (!row) {
+            console.warn(`⚠️ File ID not found for item: ${item}`);
+            return res.status(404).json({ error: "File ID not found for this item" });
         }
+
+        const fileId = row[1];
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+        console.log(`✅ Retrieved File Name: ${fileName}`);
+
+        const downloadLink = `https://bot-delivery-system.onrender.com/download/${fileId}`;
+        console.log(`✅ Generated Download Link: ${downloadLink}`);
+
+        res.json({ success: true, downloadLink });
     } catch (error) {
-        console.error("❌ Error in webhook handler:", error);
+        console.error("❌ Error generating bot delivery link:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
