@@ -11,7 +11,7 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
-// In-memory store for mapping iid (invoice ID) to item
+// In-memory store for mapping order_id to item
 const itemStore = {};
 
 app.use(cors());
@@ -92,9 +92,9 @@ app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.body.toString(); // Use raw body for verification
+        const rawPayload = req.body.toString();
 
-        // ✅ Parse and re-serialize payload for signature generation
+        // Parse and re-serialize payload for signature generation
         const validPayload = JSON.stringify(JSON.parse(rawPayload)); // Re-serialize for comparison
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
@@ -109,12 +109,11 @@ app.post("/webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, order_id } = JSON.parse(rawPayload); // `order_id` matches `iid`
+        const { payment_status, order_id } = JSON.parse(rawPayload);
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
-            // Retrieve item using the NOWPayments order_id (which matches the `iid`)
             const item = itemStore[order_id];
             if (!item) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
@@ -124,17 +123,32 @@ app.post("/webhook", async (req, res) => {
             console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
 
             // Generate the bot download link
-            const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
-            const linkData = await generateLinkResponse.json();
+            const sheets = google.sheets({ version: "v4", auth: client });
+            const response = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `${SHEET_NAME}!A:B`,
+            });
 
-            if (linkData.success && linkData.downloadLink) {
-                console.log(`✅ Bot delivery link created: ${linkData.downloadLink}`);
-                delete itemStore[order_id]; // Clear item after successful use
-                return res.json({ success: true, downloadLink: linkData.downloadLink });
-            } else {
-                console.warn("⚠️ Failed to generate bot link:", linkData);
-                return res.status(500).json({ error: "Bot link generation failed" });
+            const row = response.data.values.find(r => r[0] == item);
+            if (!row) {
+                console.warn(`⚠️ File ID not found for item: ${item}`);
+                return res.status(404).json({ error: "File ID not found for this item" });
             }
+
+            const fileId = row[1];
+            console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
+
+            // Stream the file instantly without redirecting to Google Drive
+            const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+            const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+            const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+
+            res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+            res.setHeader("Content-Type", "application/xml");
+
+            file.data.pipe(res);
+            console.log(`✅ Bot file streamed successfully: ${fileName}`);
         } else {
             console.warn(`⚠️ Payment not completed: ${payment_status}`);
             return res.json({ success: false });
@@ -143,40 +157,4 @@ app.post("/webhook", async (req, res) => {
         console.error("❌ Error in webhook handler:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
-});
-
-// ✅ Route to generate a one-time bot download link
-app.get("/generate-link", async (req, res) => {
-    try {
-        const item = req.query.item;
-        if (!item) {
-            return res.status(400).json({ error: "Item is required" });
-        }
-
-        const sheets = google.sheets({ version: "v4", auth: client });
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:B`,
-        });
-
-        if (!response.data.values || response.data.values.length === 0) {
-            return res.status(404).json({ error: "No data found in Google Sheet" });
-        }
-
-        const row = response.data.values.find(r => r[0] == item);
-        if (!row) {
-            return res.status(404).json({ error: "File ID not found for this item" });
-        }
-
-        const fileId = row[1];
-        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${fileId}` });
-    } catch (error) {
-        console.error("❌ Error generating download link:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Start the server
-app.listen(PORT, () => {
-    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
 });
