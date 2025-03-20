@@ -149,6 +149,38 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
+// ✅ Route to instantly deliver the bot file
+app.get("/download/:fileId", async (req, res) => {
+    const fileId = req.params.fileId;
+
+    try {
+        console.log(`📢 Download request received for File ID: ${fileId}`);
+
+        // Fetch the file metadata (to get the original file name)
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+        console.log(`✅ Retrieved File Name: ${fileName}`);
+
+        // Fetch the file content from Google Drive
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+
+        // Set headers to trigger the file download
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", "application/xml");
+
+        // Pipe the file stream directly to the response
+        file.data.pipe(res);
+
+        console.log(`✅ File streaming to client: ${fileName}`);
+    } catch (error) {
+        console.error("❌ Error fetching file from Drive:", error);
+
+        // Redirect to cancel URL if file retrieval fails
+        return res.redirect(GUMROAD_STORE_URL);
+    }
+});
+
 // ✅ Start the server and bind to the specified port
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
