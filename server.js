@@ -39,10 +39,12 @@ const drive = google.drive({ version: "v3", auth: client });
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = JSON.parse(req.body.toString());
+        const { item, price } = JSON.parse(req.body.toString()); // ✅ Parse raw JSON body
         if (!item || !price) {
             return res.status(400).json({ error: "Item and price are required" });
         }
+
+        console.log(`📢 Creating invoice for item: ${item}, price: ${price} USD`);
 
         const response = await fetch("https://api.nowpayments.io/v1/invoice", {
             method: "POST",
@@ -54,7 +56,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price), // ✅ Ensure price is a number
                 price_currency: "USD",          // ✅ Always use USD
                 order_id: `bot-${item}`,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`,
+                success_url: `${process.env.SUCCESS_URL}?item=${item}`, // ✅ Redirect to bot download page
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -63,7 +65,7 @@ app.post("/create-invoice", async (req, res) => {
         if (data.invoice_url && data.order_id) {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
             
-            // ✅ Store item with order_id for NOWPayments
+            // ✅ Store item AFTER invoice is created
             itemStore[data.order_id] = item;
             console.log(`✅ Stored item: ${item} for order_id: ${data.order_id}`);
 
@@ -84,38 +86,90 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Corrected)
+// ✅ NOWPayments Webhook Handler
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.body.toString();
+        const rawPayload = req.body.toString(); // ✅ Use raw body for signature verification
 
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        // ✅ Parse and re-serialize payload for signature generation (excluding item)
+        const receivedData = JSON.parse(rawPayload);
+        const validPayload = JSON.stringify(receivedData); // Re-serialize without modifications
+
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
+
+        console.log("🔍 FULL PAYLOAD RECEIVED:");
+        console.log(validPayload);
+        console.log("✅ Expected Signature:", expectedSig);
+        console.log("❌ Received Signature:", receivedSig);
+
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature!");
+            console.warn("❌ Invalid IPN Signature! Payload might have been tampered with.");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const data = JSON.parse(rawPayload);
-        const { payment_status, order_id } = data;
+        const { payment_status, order_id } = receivedData; // Remove item reference
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
+            // Retrieve item from storage
             const item = itemStore[order_id];
             if (!item) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
                 return res.status(404).json({ error: "Item not found" });
             }
 
-            res.json({ success: true, message: "Payment processed successfully" });
+            // Generate the bot download link
+            const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
+            const linkData = await generateLinkResponse.json();
+
+            if (linkData.success && linkData.downloadLink) {
+                console.log(`✅ Bot delivery link created: ${linkData.downloadLink}`);
+                delete itemStore[order_id]; // Clear item after use
+                return res.json({ success: true, downloadLink: linkData.downloadLink });
+            } else {
+                console.warn("⚠️ Failed to generate bot link:", linkData);
+                return res.status(500).json({ error: "Bot link generation failed" });
+            }
         } else {
-            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
-            res.status(200).json({ success: false, message: "Payment not completed" });
+            console.warn(`⚠️ Payment not completed: ${payment_status}`);
+            return res.json({ success: false });
         }
     } catch (error) {
         console.error("❌ Error in webhook handler:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route to generate a one-time bot download link
+app.get("/generate-link", async (req, res) => {
+    try {
+        const item = req.query.item;
+        if (!item) {
+            return res.status(400).json({ error: "Item is required" });
+        }
+
+        const sheets = google.sheets({ version: "v4", auth: client });
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `${SHEET_NAME}!A:B`,
+        });
+
+        if (!response.data.values || response.data.values.length === 0) {
+            return res.status(404).json({ error: "No data found in Google Sheet" });
+        }
+
+        const row = response.data.values.find(r => r[0] == item);
+        if (!row) {
+            return res.status(404).json({ error: "File ID not found for this item" });
+        }
+
+        const fileId = row[1];
+        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${fileId}` });
+    } catch (error) {
+        console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
