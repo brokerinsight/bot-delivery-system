@@ -58,7 +58,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price),
                 price_currency: "USD",
                 order_id: `${item}`,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`, // Include item in the query
+                success_url: `${process.env.SUCCESS_URL}?item=${item}`, // Include item in success URL
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -86,7 +86,49 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Route to instantly handle the `SUCCESS_URL` and trigger bot download
+// ✅ Route to handle NOWPayments webhook
+app.post("/webhook", async (req, res) => {
+    try {
+        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
+        const receivedSig = req.headers["x-nowpayments-sig"];
+        const rawPayload = req.body.toString();
+
+        // Validate IPN Signature
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        console.log("🔍 FULL PAYLOAD RECEIVED:");
+        console.log(rawPayload);
+        console.log("✅ Expected Signature:", expectedSig);
+        console.log("✅ Received Signature:", receivedSig);
+
+        if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid IPN Signature!");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const { payment_status, order_id } = JSON.parse(rawPayload);
+
+        if (payment_status === "finished") {
+            console.log(`✅ Payment Successful for order_id: ${order_id}`);
+
+            const item = itemStore[order_id];
+            if (!item) {
+                console.warn(`⚠️ Item not found for order_id: ${order_id}`);
+                return res.status(404).json({ error: "Item not found" });
+            }
+
+            console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
+            res.json({ success: true, message: "Webhook processed successfully" });
+        } else {
+            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
+            res.json({ success: false });
+        }
+    } catch (error) {
+        console.error("❌ Error processing webhook:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route to handle success URL and trigger bot download
 app.get("/success", async (req, res) => {
     const item = req.query.item;
     if (!item) {
@@ -95,7 +137,7 @@ app.get("/success", async (req, res) => {
     }
 
     try {
-        console.log(`📢 Success page triggered for item: ${item}`);
+        console.log(`📢 Processing success URL for item: ${item}`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -117,7 +159,6 @@ app.get("/success", async (req, res) => {
 
         const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
-        // Redirect the buyer to success page with auto-download
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
@@ -129,32 +170,7 @@ app.get("/success", async (req, res) => {
     }
 });
 
-// ✅ Route to instantly deliver the bot file (for manual download)
-app.get("/download/:fileId", async (req, res) => {
-    const fileId = req.params.fileId;
-
-    try {
-        console.log(`📢 Download request received for File ID: ${fileId}`);
-
-        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
-        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
-
-        console.log(`✅ Retrieved File Name: ${fileName}`);
-
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-
-        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-        res.setHeader("Content-Type", "application/xml");
-        file.data.pipe(res);
-
-        console.log(`✅ Bot file streamed successfully: ${fileName}`);
-    } catch (error) {
-        console.error("❌ Error fetching file:", error);
-        res.status(500).send("Error fetching file.");
-    }
-});
-
-// ✅ Start the server and bind to the specified port
+// ✅ Start the server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
