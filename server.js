@@ -77,32 +77,34 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Fix: Using exact payload for signature)
+// ✅ NOWPayments Webhook Handler (FIXED Signature & Item Handling)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
+        const rawPayload = req.body.toString(); // ✅ Use raw body exactly as received
 
-        const payload = req.body.toString(); // ✅ Use raw body exactly as received
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
+        // ✅ Generate signature using the exact NOWPayments payload
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+
+        console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:", rawPayload);
+        console.log("✅ Expected Signature:", expectedSig);
+        console.log("❌ Received Signature:", receivedSig);
 
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature");
-            console.log("Received Signature:", receivedSig);
-            console.log("Expected Signature:", expectedSig);
-            console.log("Payload:", payload);
+            console.warn("❌ Invalid IPN Signature! Webhook request might be modified.");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const data = JSON.parse(payload); // ✅ Parse JSON
+        const data = JSON.parse(rawPayload); // ✅ Parse JSON
         const { payment_status, order_id } = data;
 
-        // ✅ Retrieve the correct item from temporary storage
-        const item = orderItemMap.get(order_id);
-        if (!item) {
+        // ✅ Fetch the correct item from orderItemMap
+        if (!orderItemMap.has(order_id)) {
             console.error(`⚠️ Item not found for order_id: ${order_id}`);
             return res.status(500).json({ error: "Invalid item reference" });
         }
+        const item = orderItemMap.get(order_id);
 
         if (payment_status === "finished") {
             console.log(`✅ Crypto Payment Successful for order ${order_id}`);
@@ -163,28 +165,6 @@ app.get("/generate-link", async (req, res) => {
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Route to instantly deliver the bot file (with correct filename)
-app.get("/download/:fileId", async (req, res) => {
-    const fileId = req.params.fileId;
-
-    try {
-        // Get the original file name from Google Drive
-        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
-        const originalFilename = fileMetadata.data.name || `bot-${fileId}.xml`;
-
-        // Fetch and stream the file
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-
-        res.setHeader("Content-Disposition", `attachment; filename="${originalFilename}"`);
-        res.setHeader("Content-Type", "application/xml");
-
-        file.data.pipe(res);
-    } catch (error) {
-        console.error("❌ Error fetching file from Drive:", error);
-        return res.redirect(GUMROAD_STORE_URL);
     }
 });
 
