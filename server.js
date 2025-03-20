@@ -84,65 +84,7 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Unified Bot Delivery Route (for both Paystack and NOWPayments)
-app.post("/deliver-bot", async (req, res) => {
-    try {
-        const { payment_method, item, order_id } = JSON.parse(req.body.toString());
-
-        let resolvedItem = null;
-
-        if (payment_method === "paystack") {
-            resolvedItem = item;
-        } else if (payment_method === "nowpayments") {
-            resolvedItem = itemStore[order_id];
-            if (!resolvedItem) {
-                console.warn(`⚠️ Item not found for order_id: ${order_id}`);
-                return res.status(404).json({ error: "Item not found" });
-            }
-        } else {
-            return res.status(400).json({ error: "Invalid payment method" });
-        }
-
-        const sheets = google.sheets({ version: "v4", auth: client });
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:B`,
-        });
-
-        if (!response.data.values) {
-            console.error("❌ No data found in Google Sheet");
-            return res.status(404).json({ error: "No data found" });
-        }
-
-        const row = response.data.values.find(r => r[0] == resolvedItem);
-        if (!row) {
-            console.warn(`⚠️ File ID not found for item: ${resolvedItem}`);
-            return res.status(404).json({ error: "File ID not found" });
-        }
-
-        const fileId = row[1];
-        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
-        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
-
-        console.log(`✅ Found bot file: ${fileName} for item: ${resolvedItem}`);
-
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-
-        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-        res.setHeader("Content-Type", "application/xml");
-
-        file.data.pipe(res);
-
-        if (payment_method === "nowpayments") {
-            delete itemStore[order_id];
-        }
-    } catch (error) {
-        console.error("❌ Error delivering bot:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ NOWPayments Webhook Handler
+// ✅ NOWPayments Webhook Handler (Corrected)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
@@ -151,3 +93,34 @@ app.post("/webhook", async (req, res) => {
 
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
         if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid IPN Signature!");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const data = JSON.parse(rawPayload);
+        const { payment_status, order_id } = data;
+
+        if (payment_status === "finished") {
+            console.log(`✅ Payment Successful for order_id: ${order_id}`);
+
+            const item = itemStore[order_id];
+            if (!item) {
+                console.warn(`⚠️ Item not found for order_id: ${order_id}`);
+                return res.status(404).json({ error: "Item not found" });
+            }
+
+            res.json({ success: true, message: "Payment processed successfully" });
+        } else {
+            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
+            res.status(200).json({ success: false, message: "Payment not completed" });
+        }
+    } catch (error) {
+        console.error("❌ Error in webhook handler:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Start the server
+app.listen(PORT, () => {
+    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
+});
