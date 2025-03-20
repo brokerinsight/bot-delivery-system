@@ -12,15 +12,10 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.raw({ type: "application/json" })); // ✅ Fix for IPN signature verification
+app.use(express.raw({ type: "application/json" })); // ✅ Use raw body for signature verification
 
-if (!process.env.GOOGLE_CREDENTIALS) {
-    console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
-    process.exit(1);
-}
-
-if (!SPREADSHEET_ID) {
-    console.error("❌ ERROR: SPREADSHEET_ID environment variable is missing.");
+if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
+    console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
 }
 
@@ -34,29 +29,24 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Store item data temporarily for correct bot allocation
-const invoiceStore = new Map(); // { "invoice_id": "item_number" }
-
-// ✅ Auto-delete expired items after 30 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (let [orderId, { item, timestamp }] of invoiceStore) {
-        if (now - timestamp > 30 * 60 * 1000) { // 30 minutes
-            invoiceStore.delete(orderId);
-            console.log(`🗑️ Deleted expired item ${item} for order ${orderId}`);
-        }
-    }
-}, 5 * 60 * 1000); // Runs every 5 minutes
+// 🟢 TEMP STORAGE for order-item mapping
+const orderItemMap = new Map(); // { "order_id": "item" }
 
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = JSON.parse(req.body.toString()); // ✅ Parse raw JSON body
-        if (!item || !price) return res.status(400).json({ error: "Item and price are required" });
+        if (!item || !price) {
+            return res.status(400).json({ error: "Item and price are required" });
+        }
 
-        const orderId = `bot-${Date.now()}`; // ✅ Generate unique order_id
+        // ✅ Generate unique order ID
+        const orderId = `bot-${Date.now()}`;
 
-        console.log(`📢 Creating invoice for item: ${item}, price: ${price} USD, order: ${orderId}`);
+        // ✅ Store item in temporary storage
+        orderItemMap.set(orderId, item);
+
+        console.log(`📢 Creating invoice for item: ${item}, price: ${price} USD`);
 
         const response = await fetch("https://api.nowpayments.io/v1/invoice", {
             method: "POST",
@@ -67,15 +57,14 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: orderId,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`,
+                order_id: orderId,  // ✅ Store unique order ID
+                success_url: `${process.env.SUCCESS_URL}?order_id=${orderId}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
         if (data.invoice_url) {
-            invoiceStore.set(orderId, { item, timestamp: Date.now() }); // ✅ Store correct item temporarily
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
             res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
@@ -88,41 +77,38 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Fix: Signature & Item Retrieval)
+// ✅ NOWPayments Webhook Handler (Fix: Using exact payload for signature)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
 
-        const payload = req.body.toString(); // ✅ Use raw body
+        const payload = req.body.toString(); // ✅ Use raw body exactly as received
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(payload).digest("hex");
 
-        console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:", payload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("❌ Received Signature:", receivedSig);
-
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature!");
+            console.warn("❌ Invalid IPN Signature");
+            console.log("Received Signature:", receivedSig);
+            console.log("Expected Signature:", expectedSig);
+            console.log("Payload:", payload);
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const data = JSON.parse(payload);
-        const { payment_status, price_amount, order_id } = data;
+        const data = JSON.parse(payload); // ✅ Parse JSON
+        const { payment_status, order_id } = data;
 
         // ✅ Retrieve the correct item from temporary storage
-        const storedData = invoiceStore.get(order_id);
-        if (!storedData) {
+        const item = orderItemMap.get(order_id);
+        if (!item) {
             console.error(`⚠️ Item not found for order_id: ${order_id}`);
             return res.status(500).json({ error: "Invalid item reference" });
         }
-        const item = storedData.item;
 
         if (payment_status === "finished") {
-            console.log(`✅ Crypto Payment Successful: ${price_amount} USD for order ${order_id}`);
+            console.log(`✅ Crypto Payment Successful for order ${order_id}`);
 
-            // ✅ Remove stored item immediately after successful payment
-            invoiceStore.delete(order_id);
-            console.log(`🗑️ Deleted stored item ${item} after successful payment`);
+            // ✅ Remove item from storage after use
+            orderItemMap.delete(order_id);
 
             return res.json({
                 success: true,
@@ -135,6 +121,21 @@ app.post("/webhook", async (req, res) => {
     } catch (error) {
         console.error("❌ Error in webhook handler:", error);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route that triggers automatic bot download
+app.get("/success", async (req, res) => {
+    const item = req.query.item;
+    if (!item) return res.status(400).send("Invalid request");
+
+    const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
+    const linkData = await linkResponse.json();
+
+    if (linkData.success && linkData.downloadLink) {
+        return res.redirect(linkData.downloadLink);
+    } else {
+        return res.status(500).send("Error generating bot download link");
     }
 });
 
@@ -162,6 +163,28 @@ app.get("/generate-link", async (req, res) => {
     } catch (error) {
         console.error("❌ Error generating download link:", error);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Route to instantly deliver the bot file (with correct filename)
+app.get("/download/:fileId", async (req, res) => {
+    const fileId = req.params.fileId;
+
+    try {
+        // Get the original file name from Google Drive
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const originalFilename = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+        // Fetch and stream the file
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+
+        res.setHeader("Content-Disposition", `attachment; filename="${originalFilename}"`);
+        res.setHeader("Content-Type", "application/xml");
+
+        file.data.pipe(res);
+    } catch (error) {
+        console.error("❌ Error fetching file from Drive:", error);
+        return res.redirect(GUMROAD_STORE_URL);
     }
 });
 
