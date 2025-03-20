@@ -92,10 +92,8 @@ app.post("/deliver-bot", async (req, res) => {
         let resolvedItem = null;
 
         if (payment_method === "paystack") {
-            // For Paystack, use the `item` directly
             resolvedItem = item;
         } else if (payment_method === "nowpayments") {
-            // For NOWPayments, retrieve the `item` from storage using `order_id`
             resolvedItem = itemStore[order_id];
             if (!resolvedItem) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
@@ -105,11 +103,10 @@ app.post("/deliver-bot", async (req, res) => {
             return res.status(400).json({ error: "Invalid payment method" });
         }
 
-        // Query the Google Sheet to retrieve file ID for the item
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${SHEET_NAME}!A:B`, // Columns A and B: item and file ID
+            range: `${SHEET_NAME}!A:B`,
         });
 
         if (!response.data.values) {
@@ -120,12 +117,10 @@ app.post("/deliver-bot", async (req, res) => {
         const row = response.data.values.find(r => r[0] == resolvedItem);
         if (!row) {
             console.warn(`⚠️ File ID not found for item: ${resolvedItem}`);
-            return res.status(404).json({ error: "File ID not found for this item" });
+            return res.status(404).json({ error: "File ID not found" });
         }
 
         const fileId = row[1];
-
-        // Deliver the bot file for download
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
@@ -138,7 +133,6 @@ app.post("/deliver-bot", async (req, res) => {
 
         file.data.pipe(res);
 
-        // Clear item for NOWPayments to avoid stale data
         if (payment_method === "nowpayments") {
             delete itemStore[order_id];
         }
@@ -148,7 +142,12 @@ app.post("/deliver-bot", async (req, res) => {
     }
 });
 
-// ✅ Start the server
-app.listen(PORT, () => {
-    console.log(`✅ Server running on https://bot-delivery-system.onrender.com`);
-});
+// ✅ NOWPayments Webhook Handler
+app.post("/webhook", async (req, res) => {
+    try {
+        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
+        const receivedSig = req.headers["x-nowpayments-sig"];
+        const rawPayload = req.body.toString();
+
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        if (receivedSig !== expectedSig) {
