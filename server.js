@@ -55,7 +55,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price), // ✅ Ensure price is a number
                 price_currency: "USD",          // ✅ Always use USD
-                order_id: `bot-${item}`,
+                order_id: `${item}`,            // Use item directly as order_id
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`, // ✅ Redirect to bot download page
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -65,7 +65,7 @@ app.post("/create-invoice", async (req, res) => {
         if (data.invoice_url && data.order_id) {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
             
-            // ✅ Store item AFTER invoice is created
+            // ✅ Store item AFTER invoice is created using NOWPayments order_id
             itemStore[data.order_id] = item;
             console.log(`✅ Stored item: ${item} for order_id: ${data.order_id}`);
 
@@ -93,23 +93,22 @@ app.post("/webhook", async (req, res) => {
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString(); // ✅ Use raw body for signature verification
 
-        // ✅ Parse and re-serialize payload for signature generation (excluding item)
-        const receivedData = JSON.parse(rawPayload);
-        const validPayload = JSON.stringify(receivedData); // Re-serialize without modifications
+        // ✅ Parse and re-serialize payload for signature generation
+        const validPayload = JSON.stringify(JSON.parse(rawPayload)); // Re-serialize raw payload for comparison
 
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
 
         console.log("🔍 FULL PAYLOAD RECEIVED:");
         console.log(validPayload);
         console.log("✅ Expected Signature:", expectedSig);
-        console.log("❌ Received Signature:", receivedSig);
+        console.log("✅ Received Signature:", receivedSig);
 
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature! Payload might have been tampered with.");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, order_id } = receivedData; // Remove item reference
+        const { payment_status, order_id } = JSON.parse(rawPayload); // Order ID from NOWPayments
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
@@ -120,6 +119,8 @@ app.post("/webhook", async (req, res) => {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
                 return res.status(404).json({ error: "Item not found" });
             }
+
+            console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
 
             // Generate the bot download link
             const generateLinkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${item}`);
