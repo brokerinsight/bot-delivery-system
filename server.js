@@ -27,7 +27,6 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -56,7 +55,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`, // Generate order_id with a prefix
+                order_id: `${item}`,
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -69,7 +68,6 @@ app.post("/create-invoice", async (req, res) => {
 
             console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
 
-            // Auto-clear stored item after 30 minutes
             setTimeout(() => {
                 delete itemStore[invoiceId];
                 console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
@@ -93,14 +91,16 @@ app.post("/webhook", async (req, res) => {
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString();
 
-        // Signature verification (Preserved exactly as resolved before)
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
-        console.log("Generated Signature:", expectedSig);
-        console.log("Received Signature:", receivedSig);
+        const validPayload = JSON.stringify(JSON.parse(rawPayload));
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
+
+        console.log("🔍 FULL PAYLOAD RECEIVED:");
+        console.log(validPayload);
+        console.log("✅ Expected Signature:", expectedSig);
+        console.log("✅ Received Signature:", receivedSig);
 
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature!");
-            console.log("Raw Payload:", rawPayload);
             return res.status(403).json({ error: "Unauthorized" });
         }
 
@@ -109,8 +109,7 @@ app.post("/webhook", async (req, res) => {
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
-            // Retrieve item using the invoice_id (order_id matches it)
-            const item = itemStore[order_id.replace("bot-", "")];
+            const item = itemStore[order_id];
             if (!item) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
                 return res.status(404).json({ error: "Item not found" });
@@ -126,25 +125,24 @@ app.post("/webhook", async (req, res) => {
 
             const row = response.data.values.find(r => r[0] == item);
             if (!row) {
-                return res.status(404).json({ error: "File ID not found for this item" });
+                console.warn(`⚠️ File ID not found for item: ${item}`);
+                return res.status(404).json({ error: "File ID not found" });
             }
 
             const fileId = row[1];
+            console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
+
             const fileMetadata = await drive.files.get({ fileId, fields: "name" });
             const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
-            console.log(`✅ Retrieved File Name: ${fileName}`);
-
             const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
-            // Set headers to trigger an immediate download
             res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
             res.setHeader("Content-Type", "application/xml");
             file.data.pipe(res);
-
-            console.log(`✅ File streaming to client: ${fileName}`);
+            console.log(`✅ Bot file streamed successfully: ${fileName}`);
         } else {
-            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
+            console.warn(`⚠️ Payment not completed: ${payment_status}`);
             return res.json({ success: false });
         }
     } catch (error) {
@@ -160,27 +158,21 @@ app.get("/download/:fileId", async (req, res) => {
     try {
         console.log(`📢 Download request received for File ID: ${fileId}`);
 
-        // Fetch the file metadata (to get the original file name)
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
         console.log(`✅ Retrieved File Name: ${fileName}`);
 
-        // Fetch the file content from Google Drive
         const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
-        // Set headers to trigger the file download
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("Content-Type", "application/xml");
-
-        // Pipe the file stream directly to the response
         file.data.pipe(res);
 
         console.log(`✅ File streaming to client: ${fileName}`);
     } catch (error) {
         console.error("❌ Error fetching file from Drive:", error);
 
-        // Redirect to cancel URL if file retrieval fails
         return res.redirect(GUMROAD_STORE_URL);
     }
 });
