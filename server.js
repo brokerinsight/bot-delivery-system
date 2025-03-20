@@ -58,7 +58,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price),
                 price_currency: "USD",
                 order_id: `${item}`,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`,
+                success_url: `${process.env.SUCCESS_URL}?item=${item}`, // Include item in the query
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -86,16 +86,16 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Route to handle bot delivery (for Paystack and Crypto workflows)
-app.post("/deliver-bot", async (req, res) => {
+// ✅ Route to instantly handle the `SUCCESS_URL` and trigger bot download
+app.get("/success", async (req, res) => {
+    const item = req.query.item;
+    if (!item) {
+        console.warn("⚠️ Item parameter is missing in success URL.");
+        return res.status(400).send("Missing item parameter.");
+    }
+
     try {
-        const { payment_method, item } = req.body;
-
-        if (!payment_method || !item) {
-            return res.status(400).json({ error: "Payment method and item are required" });
-        }
-
-        console.log(`📢 Processing bot delivery for payment_method: ${payment_method}, item: ${item}`);
+        console.log(`📢 Success page triggered for item: ${item}`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -106,26 +106,30 @@ app.post("/deliver-bot", async (req, res) => {
         const row = response.data.values.find(r => r[0] == item);
         if (!row) {
             console.warn(`⚠️ File ID not found for item: ${item}`);
-            return res.status(404).json({ error: "File ID not found for this item" });
+            return res.status(404).send("File not found.");
         }
 
         const fileId = row[1];
+        console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
+
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
-        console.log(`✅ Retrieved File Name: ${fileName}`);
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
-        const downloadLink = `https://bot-delivery-system.onrender.com/download/${fileId}`;
-        console.log(`✅ Generated Download Link: ${downloadLink}`);
+        // Redirect the buyer to success page with auto-download
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", "application/xml");
+        file.data.pipe(res);
 
-        res.json({ success: true, downloadLink });
+        console.log(`✅ Bot download triggered for item: ${item}`);
     } catch (error) {
-        console.error("❌ Error generating bot delivery link:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error("❌ Error handling success URL:", error);
+        res.status(500).send("Error handling success URL.");
     }
 });
 
-// ✅ Route to instantly deliver the bot file
+// ✅ Route to instantly deliver the bot file (for manual download)
 app.get("/download/:fileId", async (req, res) => {
     const fileId = req.params.fileId;
 
@@ -143,11 +147,10 @@ app.get("/download/:fileId", async (req, res) => {
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
 
-        console.log(`✅ File streaming to client: ${fileName}`);
+        console.log(`✅ Bot file streamed successfully: ${fileName}`);
     } catch (error) {
-        console.error("❌ Error fetching file from Drive:", error);
-
-        return res.redirect(GUMROAD_STORE_URL);
+        console.error("❌ Error fetching file:", error);
+        res.status(500).send("Error fetching file.");
     }
 });
 
