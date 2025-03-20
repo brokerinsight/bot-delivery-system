@@ -15,7 +15,7 @@ const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 const itemStore = {};
 
 app.use(cors());
-app.use(express.raw({ type: "application/json" }));
+app.use(express.raw({ type: "application/json" })); // Raw body for IPN verification
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -27,6 +27,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
+// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -55,7 +56,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `${item}`,
+                order_id: `bot-${item}`, // Generate order_id with a prefix
                 success_url: `${process.env.SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -68,6 +69,7 @@ app.post("/create-invoice", async (req, res) => {
 
             console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
 
+            // Auto-clear stored item after 30 minutes
             setTimeout(() => {
                 delete itemStore[invoiceId];
                 console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
@@ -91,14 +93,8 @@ app.post("/webhook", async (req, res) => {
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString();
 
-        const validPayload = JSON.stringify(JSON.parse(rawPayload));
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
-
-        console.log("🔍 FULL PAYLOAD RECEIVED:");
-        console.log(validPayload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("✅ Received Signature:", receivedSig);
-
+        // Signature verification
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature!");
             return res.status(403).json({ error: "Unauthorized" });
@@ -109,7 +105,8 @@ app.post("/webhook", async (req, res) => {
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
-            const item = itemStore[order_id];
+            // Retrieve item using the invoice_id (order_id matches it)
+            const item = itemStore[order_id.replace("bot-", "")];
             if (!item) {
                 console.warn(`⚠️ Item not found for order_id: ${order_id}`);
                 return res.status(404).json({ error: "Item not found" });
@@ -125,24 +122,25 @@ app.post("/webhook", async (req, res) => {
 
             const row = response.data.values.find(r => r[0] == item);
             if (!row) {
-                console.warn(`⚠️ File ID not found for item: ${item}`);
-                return res.status(404).json({ error: "File ID not found" });
+                return res.status(404).json({ error: "File ID not found for this item" });
             }
 
             const fileId = row[1];
-            console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
-
             const fileMetadata = await drive.files.get({ fileId, fields: "name" });
             const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
+            console.log(`✅ Retrieved File Name: ${fileName}`);
+
             const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
+            // Set headers to trigger an immediate download
             res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
             res.setHeader("Content-Type", "application/xml");
             file.data.pipe(res);
-            console.log(`✅ Bot file streamed successfully: ${fileName}`);
+
+            console.log(`✅ File streaming to client: ${fileName}`);
         } else {
-            console.warn(`⚠️ Payment not completed: ${payment_status}`);
+            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
             return res.json({ success: false });
         }
     } catch (error) {
