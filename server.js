@@ -12,14 +12,14 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 
 app.use(cors());
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
+app.use(express.raw({ type: "application/json" })); // ✅ Store raw body for accurate signature verification
 
 if (!process.env.GOOGLE_CREDENTIALS || !SPREADSHEET_ID || !process.env.NOWPAYMENTS_IPN_KEY) {
     console.error("❌ ERROR: Missing required environment variables.");
     process.exit(1);
 }
 
-// ✅ Load Google Credentials from environment variables
+// ✅ Load Google Credentials
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -29,14 +29,17 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// 🟢 Store item data to track correct bot files
-const invoiceStore = new Map(); // { "invoice_id": "item_number" }
+// ✅ Store item data temporarily (auto-delete after 30 min)
+const invoiceStore = new Map();
 
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = req.body;
+        const { item, price } = JSON.parse(req.body.toString()); // ✅ Parse raw JSON body
         if (!item || !price) return res.status(400).json({ error: "Item and price are required" });
+
+        const orderId = `bot-${Date.now()}`; // ✅ Generate unique order ID
+        invoiceStore.set(orderId, { item, timestamp: Date.now() }); // ✅ Store item data
 
         console.log(`📢 Creating invoice for item: ${item}, price: ${price} USD`);
 
@@ -49,17 +52,24 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${Date.now()}`,  // ✅ Generate unique order_id
-                success_url: `https://bot-delivery-system.onrender.com/nowpayments-delivery`,  
+                order_id: orderId, // ✅ Use generated order_id
+                success_url: `${process.env.SUCCESS_URL}?order_id=${orderId}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
-        if (data.invoice_id) {
-            invoiceStore.set(data.invoice_id, item); // ✅ Store correct item number
+        if (data.invoice_url) {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
             res.json({ success: true, paymentUrl: data.invoice_url });
+
+            // ✅ Delete stored item after 30 minutes if order is not completed
+            setTimeout(() => {
+                if (invoiceStore.has(orderId)) {
+                    console.log(`🗑️ Deleting expired order: ${orderId}`);
+                    invoiceStore.delete(orderId);
+                }
+            }, 30 * 60 * 1000); // 30 minutes
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
             res.status(400).json({ error: "Failed to create invoice", details: data });
@@ -70,14 +80,12 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler (Fix Signature & Item Handling)
+// ✅ NOWPayments Webhook Handler (Fix Signature & Retrieve Correct Item)
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
-        const rawPayload = req.rawBody;
-
-        // ✅ Use exact payload from NOWPayments to generate signature
+        const rawPayload = req.body.toString(); // ✅ Use raw body for signature verification
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
 
         console.log("🔍 FULL PAYLOAD RECEIVED FROM NOWPAYMENTS:", rawPayload);
@@ -85,21 +93,23 @@ app.post("/webhook", async (req, res) => {
         console.log("❌ Received Signature:", receivedSig);
 
         if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature! Webhook request might be modified.");
+            console.warn("❌ Invalid IPN Signature! Possible modified request.");
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        const { payment_status, invoice_id } = JSON.parse(rawPayload);
-        
-        // ✅ Fetch correct item number from invoiceStore
-        const item = invoiceStore.get(invoice_id);
-        if (!item) {
-            console.error(`⚠️ Item not found for invoice_id: ${invoice_id}`);
+        const { payment_status, order_id } = JSON.parse(rawPayload);
+        const storedData = invoiceStore.get(order_id);
+
+        if (!storedData) {
+            console.error(`⚠️ No matching item found for order_id: ${order_id}`);
             return res.status(500).json({ error: "Invalid item reference" });
         }
 
         if (payment_status === "finished") {
-            console.log(`✅ Crypto Payment Successful for invoice ${invoice_id}`);
+            console.log(`✅ Crypto Payment Successful for order: ${order_id}`);
+
+            const item = storedData.item;
+            invoiceStore.delete(order_id); // ✅ Remove stored item after successful payment
 
             return res.json({ 
                 success: true, 
