@@ -10,12 +10,12 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
+const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Use the defined SUCCESS_URL
 
 // In-memory store for mapping order_id to item
 const itemStore = {};
 
 app.use(cors());
-app.use(express.json());
 app.use(express.raw({ type: "application/json" }));
 
 if (!process.env.GOOGLE_CREDENTIALS) {
@@ -28,7 +28,6 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -41,7 +40,7 @@ const drive = google.drive({ version: "v3", auth: client });
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = req.body;
+        const { item, price } = JSON.parse(req.body.toString());
         if (!item || !price) {
             return res.status(400).json({ error: "Item and price are required" });
         }
@@ -58,7 +57,7 @@ app.post("/create-invoice", async (req, res) => {
                 price_amount: parseFloat(price),
                 price_currency: "USD",
                 order_id: `${item}`,
-                success_url: `${process.env.SUCCESS_URL}?item=${item}`, // Include item in success URL
+                success_url: `${SUCCESS_URL}?item=${item}`, // Redirect with item info
                 cancel_url: GUMROAD_STORE_URL
             })
         });
@@ -86,17 +85,18 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Route to handle NOWPayments webhook
+// ✅ NOWPayments Webhook Handler
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
         const receivedSig = req.headers["x-nowpayments-sig"];
         const rawPayload = req.body.toString();
 
-        // Validate IPN Signature
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        const validPayload = JSON.stringify(JSON.parse(rawPayload));
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
+
         console.log("🔍 FULL PAYLOAD RECEIVED:");
-        console.log(rawPayload);
+        console.log(validPayload);
         console.log("✅ Expected Signature:", expectedSig);
         console.log("✅ Received Signature:", receivedSig);
 
@@ -116,28 +116,30 @@ app.post("/webhook", async (req, res) => {
                 return res.status(404).json({ error: "Item not found" });
             }
 
-            console.log(`✅ Found item: ${item} for order_id: ${order_id}`);
-            res.json({ success: true, message: "Webhook processed successfully" });
+            console.log(`✅ Redirecting to SUCCESS_URL for item: ${item}`);
+
+            // Redirect to SUCCESS_URL
+            res.redirect(`${SUCCESS_URL}?item=${item}`);
         } else {
             console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
             res.json({ success: false });
         }
     } catch (error) {
-        console.error("❌ Error processing webhook:", error);
+        console.error("❌ Error in webhook handler:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Route to handle success URL and trigger bot download
+// ✅ Handle bot download via SUCCESS_URL
 app.get("/success", async (req, res) => {
     const item = req.query.item;
     if (!item) {
-        console.warn("⚠️ Item parameter is missing in success URL.");
+        console.warn("⚠️ Item parameter is missing in SUCCESS_URL.");
         return res.status(400).send("Missing item parameter.");
     }
 
     try {
-        console.log(`📢 Processing success URL for item: ${item}`);
+        console.log(`📢 Handling bot download for SUCCESS_URL with item: ${item}`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -163,10 +165,10 @@ app.get("/success", async (req, res) => {
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
 
-        console.log(`✅ Bot download triggered for item: ${item}`);
+        console.log(`✅ Bot download triggered successfully for item: ${item}`);
     } catch (error) {
-        console.error("❌ Error handling success URL:", error);
-        res.status(500).send("Error handling success URL.");
+        console.error("❌ Error handling SUCCESS_URL:", error);
+        res.status(500).send("Error handling SUCCESS_URL.");
     }
 });
 
