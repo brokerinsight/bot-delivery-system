@@ -66,7 +66,7 @@ app.post("/create-invoice", async (req, res) => {
             console.log(`✅ Invoice Created: ${data.invoice_url}`);
 
             // ✅ Store item with the NOWPayments-generated order_id
-            itemStore[data.order_id] = item;
+            itemStore[data.order_id] = item; // Use order_id from NOWPayments
             console.log(`✅ Stored item: ${item} for order_id: ${data.order_id}`);
 
             // Auto-clear stored item after 30 minutes
@@ -90,8 +90,8 @@ app.post("/create-invoice", async (req, res) => {
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const receivedSig = req.headers["x-nowpayments-sig"]; // Signature from header
-        const rawPayload = req.body.toString(); // Raw payload for verification
+        const receivedSig = req.headers["x-nowpayments-sig"];
+        const rawPayload = req.body.toString(); // Use raw body for verification
 
         // ✅ Parse and re-serialize payload for signature generation
         const validPayload = JSON.stringify(JSON.parse(rawPayload)); // Re-serialize for comparison
