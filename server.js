@@ -10,20 +10,12 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
-const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Your defined SUCCESS_URL
+const SUCCESS_URL = process.env.SUCCESS_URL;
 
-// In-memory store for mapping order_id to item
-const orderStore = {};
+// In-memory store for mapping order_id to item (NOWPayments only)
+const itemStore = {};
 
-// Enable CORS to allow your front-end domain access
-app.use(
-    cors({
-        origin: "https://www.brokerinsight.co.ke", // Allow requests from your domain only
-        methods: ["GET", "POST"],
-        allowedHeaders: ["Content-Type", "x-nowpayments-sig"],
-    })
-);
-
+app.use(cors());
 app.use(express.json());
 app.use(express.raw({ type: "application/json" }));
 
@@ -37,7 +29,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Google Drive Authentication
+// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -47,7 +39,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Create NOWPayments Invoice
+// ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -66,15 +58,24 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`,
-                success_url: `${SUCCESS_URL}?item=${item}&NP_id=bot-${item}`,
+                order_id: `${item}`,
+                success_url: `${SUCCESS_URL}?item=${item}&NW_id=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
         if (data.invoice_url) {
-            console.log(`✅ Invoice created successfully for item: ${item}`);
+            const invoiceId = new URL(data.invoice_url).searchParams.get("iid");
+            itemStore[invoiceId] = item;
+
+            console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
+
+            setTimeout(() => {
+                delete itemStore[invoiceId];
+                console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
+            }, 30 * 60 * 1000);
+
             res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
@@ -86,64 +87,29 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook
-app.post("/webhook", async (req, res) => {
-    try {
-        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const rawPayload = req.body.toString();
-        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
-        const receivedSig = req.headers["x-nowpayments-sig"];
-
-        console.log("🔍 FULL PAYLOAD RECEIVED:");
-        console.log(rawPayload);
-        console.log("✅ Expected Signature:", expectedSig);
-        console.log("✅ Received Signature:", receivedSig);
-
-        if (receivedSig !== expectedSig) {
-            console.warn("❌ Invalid IPN Signature!");
-            return res.status(403).json({ error: "Unauthorized" });
-        }
-
-        const parsedPayload = JSON.parse(rawPayload);
-        const { payment_status, order_id } = parsedPayload;
-
-        if (payment_status === "finished") {
-            console.log(`✅ Payment Successful for order_id: ${order_id}`);
-            const item = order_id.replace("bot-", "");
-            orderStore[order_id] = item;
-            console.log(`✅ Stored item: ${item} for order_id: ${order_id}`);
-            res.json({ success: true, message: "Webhook processed successfully" });
-        } else {
-            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
-            res.json({ success: false });
-        }
-    } catch (error) {
-        console.error("❌ Error processing webhook:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Deliver Bot Based on Success Page Request
+// ✅ Route to handle success page download request
 app.post("/deliver-bot", async (req, res) => {
     try {
-        const { item, NP_id } = req.body;
-        if (!item || !NP_id) {
-            return res.status(400).json({ error: "Both item and NP_id are required." });
+        const { item, NW_id } = req.body;
+        if (!item || !NW_id) {
+            return res.status(400).json({ error: "Both item and NW_id are required." });
         }
 
-        console.log(`📢 Bot download requested for item: ${item} with NP_id: ${NP_id}`);
+        console.log(`📢 Bot download requested for item: ${item} with NW_id: ${NW_id}`);
 
-        if (!orderStore[NP_id]) {
-            console.warn(`⚠️ Invalid NP_id: ${NP_id}. Bot download denied.`);
+        // Verify the NW_id exists in itemStore
+        if (!itemStore[NW_id]) {
+            console.warn(`⚠️ Invalid NW_id: ${NW_id}. Bot download denied.`);
             return res.status(403).json({ error: "Unauthorized access. Invalid order_id." });
         }
 
-        if (orderStore[NP_id] !== item) {
-            console.warn(`⚠️ Item mismatch for NP_id: ${NP_id}. Expected item: ${orderStore[NP_id]}, received item: ${item}`);
+        // Check if the item matches the NW_id stored
+        if (itemStore[NW_id] !== item) {
+            console.warn(`⚠️ Item mismatch for NW_id: ${NW_id}. Expected item: ${itemStore[NW_id]}, received item: ${item}`);
             return res.status(403).json({ error: "Unauthorized access. Item mismatch." });
         }
 
-        console.log(`✅ Valid NP_id: ${NP_id}. Proceeding with bot download.`);
+        console.log(`✅ Valid NW_id: ${NW_id}. Proceeding with bot download.`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -158,10 +124,10 @@ app.post("/deliver-bot", async (req, res) => {
         }
 
         const fileId = row[1];
-        console.log(`✅ Retrieved File ID: ${fileId} for item: ${item}`);
-
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+        console.log(`✅ Retrieved File Name: ${fileName}`);
 
         const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
@@ -176,7 +142,33 @@ app.post("/deliver-bot", async (req, res) => {
     }
 });
 
-// ✅ Start Server
+// ✅ Route to instantly deliver the bot file (Paystack workflow unchanged)
+app.get("/download/:fileId", async (req, res) => {
+    const fileId = req.params.fileId;
+
+    try {
+        console.log(`📢 Download request received for File ID: ${fileId}`);
+
+        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
+        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+
+        console.log(`✅ Retrieved File Name: ${fileName}`);
+
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+
+        res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", "application/xml");
+        file.data.pipe(res);
+
+        console.log(`✅ File streaming to client: ${fileName}`);
+    } catch (error) {
+        console.error("❌ Error fetching file from Drive:", error);
+
+        return res.redirect(GUMROAD_STORE_URL);
+    }
+});
+
+// ✅ Start the server and bind to the specified port
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
