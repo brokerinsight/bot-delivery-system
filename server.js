@@ -12,7 +12,7 @@ const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
 const SUCCESS_URL = process.env.SUCCESS_URL;
 
-// In-memory store for mapping order_id to item (NOWPayments only)
+// Store order_id mapped to item
 const itemStore = {};
 
 app.use(cors());
@@ -39,7 +39,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice
+// ✅ NOWPayments Invoice Creation Route
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -87,29 +87,63 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Route to handle success page download request
+// ✅ NOWPayments Webhook Handler
+app.post("/webhook", async (req, res) => {
+    try {
+        const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
+        const rawPayload = req.body.toString();
+        const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
+        const receivedSig = req.headers["x-nowpayments-sig"];
+
+        console.log("🔍 FULL PAYLOAD RECEIVED:", rawPayload);
+        console.log("✅ Expected Signature:", expectedSig);
+        console.log("✅ Received Signature:", receivedSig);
+
+        if (receivedSig !== expectedSig) {
+            console.warn("❌ Invalid IPN Signature!");
+            return res.status(403).json({ error: "Unauthorized" });
+        }
+
+        const parsedPayload = JSON.parse(rawPayload);
+        const { payment_status, order_id } = parsedPayload;
+
+        if (payment_status === "finished") {
+            console.log(`✅ Payment Successful for order_id: ${order_id}`);
+            const item = order_id;
+            itemStore[order_id] = item;
+
+            console.log(`✅ Stored item: ${item} for order_id: ${order_id}`);
+            res.json({ success: true, message: "Webhook processed successfully" });
+        } else {
+            console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
+            res.json({ success: false });
+        }
+    } catch (error) {
+        console.error("❌ Error processing webhook:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// ✅ Success Page Download Route
 app.post("/deliver-bot", async (req, res) => {
     try {
         const { item, NW_id } = req.body;
         if (!item || !NW_id) {
-            return res.status(400).json({ error: "Both item and NW_id are required." });
+            console.warn(`⚠️ Missing parameters. Received: item=${item}, NW_id=${NW_id}`);
+            return res.status(400).json({ error: "Both 'item' and 'NW_id' are required." });
         }
 
-        console.log(`📢 Bot download requested for item: ${item} with NW_id: ${NW_id}`);
+        console.log(`📢 Processing bot delivery for item: ${item}, NW_id: ${NW_id}`);
 
-        // Verify the NW_id exists in itemStore
         if (!itemStore[NW_id]) {
-            console.warn(`⚠️ Invalid NW_id: ${NW_id}. Bot download denied.`);
-            return res.status(403).json({ error: "Unauthorized access. Invalid order_id." });
+            console.warn(`⚠️ Invalid NW_id: ${NW_id}.`);
+            return res.status(403).json({ error: "Invalid NW_id. Authorization failed." });
         }
 
-        // Check if the item matches the NW_id stored
         if (itemStore[NW_id] !== item) {
-            console.warn(`⚠️ Item mismatch for NW_id: ${NW_id}. Expected item: ${itemStore[NW_id]}, received item: ${item}`);
-            return res.status(403).json({ error: "Unauthorized access. Item mismatch." });
+            console.warn(`⚠️ Item mismatch. Expected item=${itemStore[NW_id]}, but received item=${item}.`);
+            return res.status(403).json({ error: "Item and NW_id mismatch." });
         }
-
-        console.log(`✅ Valid NW_id: ${NW_id}. Proceeding with bot download.`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -119,8 +153,8 @@ app.post("/deliver-bot", async (req, res) => {
 
         const row = response.data.values.find(r => r[0] == item);
         if (!row) {
-            console.warn(`⚠️ File ID not found for item: ${item}`);
-            return res.status(404).json({ error: "File ID not found for this item." });
+            console.warn(`⚠️ No file found for item: ${item}`);
+            return res.status(404).json({ error: "File not found for this item." });
         }
 
         const fileId = row[1];
@@ -135,14 +169,14 @@ app.post("/deliver-bot", async (req, res) => {
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
 
-        console.log(`✅ Bot file downloaded successfully for item: ${item}`);
+        console.log(`✅ Bot file delivered for item: ${item}`);
     } catch (error) {
-        console.error("❌ Error delivering bot:", error);
+        console.error("❌ Error in deliver-bot route:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Route to instantly deliver the bot file (Paystack workflow unchanged)
+// ✅ Paystack Bot Download Route
 app.get("/download/:fileId", async (req, res) => {
     const fileId = req.params.fileId;
 
@@ -152,23 +186,18 @@ app.get("/download/:fileId", async (req, res) => {
         const fileMetadata = await drive.files.get({ fileId, fields: "name" });
         const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
 
-        console.log(`✅ Retrieved File Name: ${fileName}`);
-
         const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
 
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
-
-        console.log(`✅ File streaming to client: ${fileName}`);
     } catch (error) {
-        console.error("❌ Error fetching file from Drive:", error);
-
-        return res.redirect(GUMROAD_STORE_URL);
+        console.error("❌ Error fetching file:", error);
+        res.redirect(GUMROAD_STORE_URL);
     }
 });
 
-// ✅ Start the server and bind to the specified port
+// ✅ Start Server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
