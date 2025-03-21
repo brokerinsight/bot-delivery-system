@@ -10,15 +10,15 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
-const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Ensure SUCCESS_URL is integrated
+const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Your defined SUCCESS_URL
 
 // In-memory store for mapping order_id to item
 const orderStore = {};
 
-// Enable CORS for your front-end domain
+// Enable CORS to allow your front-end domain access
 app.use(
     cors({
-        origin: "https://www.brokerinsight.co.ke", // Only allow requests from your front-end domain
+        origin: "https://www.brokerinsight.co.ke", // Allow requests from your domain only
         methods: ["GET", "POST"],
         allowedHeaders: ["Content-Type", "x-nowpayments-sig"],
     })
@@ -37,7 +37,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Authenticate with Google Drive
+// ✅ Google Drive Authentication
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -47,7 +47,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Route to create NOWPayments invoice
+// ✅ Create NOWPayments Invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -66,7 +66,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `bot-${item}`, // Include order_id linked to item
+                order_id: `bot-${item}`,
                 success_url: `${SUCCESS_URL}?item=${item}&NP_id=bot-${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -86,13 +86,12 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ NOWPayments Webhook Handler
+// ✅ NOWPayments Webhook
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const rawPayload = req.body.toString(); // Use raw payload directly
+        const rawPayload = req.body.toString();
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(rawPayload).digest("hex");
-
         const receivedSig = req.headers["x-nowpayments-sig"];
 
         console.log("🔍 FULL PAYLOAD RECEIVED:");
@@ -100,7 +99,6 @@ app.post("/webhook", async (req, res) => {
         console.log("✅ Expected Signature:", expectedSig);
         console.log("✅ Received Signature:", receivedSig);
 
-        // Compare signatures
         if (receivedSig !== expectedSig) {
             console.warn("❌ Invalid IPN Signature!");
             return res.status(403).json({ error: "Unauthorized" });
@@ -111,11 +109,8 @@ app.post("/webhook", async (req, res) => {
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
-
-            // Store order_id for future validation on success page
-            const item = order_id.replace("bot-", ""); // Extract item from order_id
+            const item = order_id.replace("bot-", "");
             orderStore[order_id] = item;
-
             console.log(`✅ Stored item: ${item} for order_id: ${order_id}`);
             res.json({ success: true, message: "Webhook processed successfully" });
         } else {
@@ -128,7 +123,7 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Route to handle success page download request
+// ✅ Deliver Bot Based on Success Page Request
 app.post("/deliver-bot", async (req, res) => {
     try {
         const { item, NP_id } = req.body;
@@ -138,13 +133,11 @@ app.post("/deliver-bot", async (req, res) => {
 
         console.log(`📢 Bot download requested for item: ${item} with NP_id: ${NP_id}`);
 
-        // Validate NP_id
         if (!orderStore[NP_id]) {
             console.warn(`⚠️ Invalid NP_id: ${NP_id}. Bot download denied.`);
             return res.status(403).json({ error: "Unauthorized access. Invalid order_id." });
         }
 
-        // Validate item matches NP_id
         if (orderStore[NP_id] !== item) {
             console.warn(`⚠️ Item mismatch for NP_id: ${NP_id}. Expected item: ${orderStore[NP_id]}, received item: ${item}`);
             return res.status(403).json({ error: "Unauthorized access. Item mismatch." });
@@ -183,7 +176,7 @@ app.post("/deliver-bot", async (req, res) => {
     }
 });
 
-// ✅ Start the server
+// ✅ Start Server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
 });
