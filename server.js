@@ -15,7 +15,15 @@ const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // En
 // In-memory store for mapping order_id to item
 const orderStore = {};
 
-app.use(cors());
+// Enable CORS for your front-end domain
+app.use(
+    cors({
+        origin: "https://www.brokerinsight.co.ke", // Only allow requests from your front-end domain
+        methods: ["GET", "POST"],
+        allowedHeaders: ["Content-Type", "x-nowpayments-sig"],
+    })
+);
+
 app.use(express.json());
 app.use(express.raw({ type: "application/json" }));
 
@@ -82,8 +90,8 @@ app.post("/create-invoice", async (req, res) => {
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
-        const rawPayload = req.body.toString(); // Ensure rawPayload is a string
-        const validPayload = JSON.stringify(JSON.parse(rawPayload)); // Parse and re-stringify
+        const rawPayload = req.body; // Use raw payload directly
+        const validPayload = rawPayload.toString(); // Convert buffer to string
 
         const receivedSig = req.headers["x-nowpayments-sig"];
         const expectedSig = crypto.createHmac("sha256", ipnSecret).update(validPayload).digest("hex");
@@ -99,8 +107,9 @@ app.post("/webhook", async (req, res) => {
             return res.status(403).json({ error: "Unauthorized" });
         }
 
-        // Extract necessary parameters from validPayload
-        const { payment_status, order_id } = JSON.parse(validPayload);
+        // Parse valid JSON payload
+        const parsedPayload = JSON.parse(validPayload);
+        const { payment_status, order_id } = parsedPayload;
 
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
