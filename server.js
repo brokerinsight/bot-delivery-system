@@ -10,12 +10,13 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
-const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Use the defined SUCCESS_URL
+const SUCCESS_URL = "https://www.brokerinsight.co.ke/p/payment-page.html"; // Ensure SUCCESS_URL is integrated
 
 // In-memory store for mapping order_id to item
-const itemStore = {};
+const orderStore = {};
 
 app.use(cors());
+app.use(express.json());
 app.use(express.raw({ type: "application/json" }));
 
 if (!process.env.GOOGLE_CREDENTIALS) {
@@ -28,6 +29,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
+// ✅ Authenticate with Google Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -40,7 +42,7 @@ const drive = google.drive({ version: "v3", auth: client });
 // ✅ Route to create NOWPayments invoice
 app.post("/create-invoice", async (req, res) => {
     try {
-        const { item, price } = JSON.parse(req.body.toString());
+        const { item, price } = req.body;
         if (!item || !price) {
             return res.status(400).json({ error: "Item and price are required" });
         }
@@ -56,24 +58,15 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: parseFloat(price),
                 price_currency: "USD",
-                order_id: `${item}`,
-                success_url: `${SUCCESS_URL}?item=${item}`, // Redirect with item info
+                order_id: `bot-${item}`, // Include order_id linked to item
+                success_url: `${SUCCESS_URL}?item=${item}&NP_id=bot-${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
         });
 
         const data = await response.json();
         if (data.invoice_url) {
-            const invoiceId = new URL(data.invoice_url).searchParams.get("iid");
-            itemStore[invoiceId] = item;
-
-            console.log(`✅ Stored item: ${item} for invoice_id: ${invoiceId}`);
-
-            setTimeout(() => {
-                delete itemStore[invoiceId];
-                console.log(`🗑️ Cleared item for invoice_id: ${invoiceId}`);
-            }, 30 * 60 * 1000);
-
+            console.log(`✅ Invoice created successfully for item: ${item}`);
             res.json({ success: true, paymentUrl: data.invoice_url });
         } else {
             console.error("❌ NOWPayments Invoice Error:", data);
@@ -110,36 +103,45 @@ app.post("/webhook", async (req, res) => {
         if (payment_status === "finished") {
             console.log(`✅ Payment Successful for order_id: ${order_id}`);
 
-            const item = itemStore[order_id];
-            if (!item) {
-                console.warn(`⚠️ Item not found for order_id: ${order_id}`);
-                return res.status(404).json({ error: "Item not found" });
-            }
+            // Store order_id for future validation on success page
+            const item = order_id.replace("bot-", ""); // Extract item from order_id
+            orderStore[order_id] = item;
 
-            console.log(`✅ Redirecting to SUCCESS_URL for item: ${item}`);
-
-            // Redirect to SUCCESS_URL
-            res.redirect(`${SUCCESS_URL}?item=${item}`);
+            console.log(`✅ Stored item: ${item} for order_id: ${order_id}`);
+            res.json({ success: true, message: "Webhook processed successfully" });
         } else {
             console.warn(`⚠️ Payment not completed for order_id: ${order_id}`);
             res.json({ success: false });
         }
     } catch (error) {
-        console.error("❌ Error in webhook handler:", error);
+        console.error("❌ Error processing webhook:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Handle bot download via SUCCESS_URL
-app.get("/success", async (req, res) => {
-    const item = req.query.item;
-    if (!item) {
-        console.warn("⚠️ Item parameter is missing in SUCCESS_URL.");
-        return res.status(400).send("Missing item parameter.");
-    }
-
+// ✅ Route to handle success page download request
+app.post("/deliver-bot", async (req, res) => {
     try {
-        console.log(`📢 Handling bot download for SUCCESS_URL with item: ${item}`);
+        const { item, NP_id } = req.body;
+        if (!item || !NP_id) {
+            return res.status(400).json({ error: "Both item and NP_id are required." });
+        }
+
+        console.log(`📢 Bot download requested for item: ${item} with NP_id: ${NP_id}`);
+
+        // Validate NP_id
+        if (!orderStore[NP_id]) {
+            console.warn(`⚠️ Invalid NP_id: ${NP_id}. Bot download denied.`);
+            return res.status(403).json({ error: "Unauthorized access. Invalid order_id." });
+        }
+
+        // Validate item matches NP_id
+        if (orderStore[NP_id] !== item) {
+            console.warn(`⚠️ Item mismatch for NP_id: ${NP_id}. Expected item: ${orderStore[NP_id]}, received item: ${item}`);
+            return res.status(403).json({ error: "Unauthorized access. Item mismatch." });
+        }
+
+        console.log(`✅ Valid NP_id: ${NP_id}. Proceeding with bot download.`);
 
         const sheets = google.sheets({ version: "v4", auth: client });
         const response = await sheets.spreadsheets.values.get({
@@ -150,7 +152,7 @@ app.get("/success", async (req, res) => {
         const row = response.data.values.find(r => r[0] == item);
         if (!row) {
             console.warn(`⚠️ File ID not found for item: ${item}`);
-            return res.status(404).send("File not found.");
+            return res.status(404).json({ error: "File ID not found for this item." });
         }
 
         const fileId = row[1];
@@ -165,10 +167,10 @@ app.get("/success", async (req, res) => {
         res.setHeader("Content-Type", "application/xml");
         file.data.pipe(res);
 
-        console.log(`✅ Bot download triggered successfully for item: ${item}`);
+        console.log(`✅ Bot file downloaded successfully for item: ${item}`);
     } catch (error) {
-        console.error("❌ Error handling SUCCESS_URL:", error);
-        res.status(500).send("Error handling SUCCESS_URL.");
+        console.error("❌ Error delivering bot:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
