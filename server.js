@@ -10,17 +10,16 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "Sheet1";
 const GUMROAD_STORE_URL = process.env.CANCEL_URL;
-const SUCCESS_URL = process.env.SUCCESS_URL;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.raw({ type: "application/json" })); // ✅ Use raw body for IPN validation
 
+// ✅ Validate environment variables
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
     process.exit(1);
 }
-
 if (!SPREADSHEET_ID) {
     console.error("❌ ERROR: SPREADSHEET_ID environment variable is missing.");
     process.exit(1);
@@ -51,49 +50,7 @@ async function getItemDetails(itemNumber) {
     return { fileId: row[1], price: parseFloat(row[2]) }; // Return fileId and price
 }
 
-// ✅ Create NOWPayments Invoice
-app.post("/create-invoice", async (req, res) => {
-    try {
-        const { item, price } = req.body;
-
-        if (!item || !price) {
-            return res.status(400).json({ error: "Item and price are required" });
-        }
-
-        // Validate price from Google Sheets
-        const itemDetails = await getItemDetails(item);
-        if (price !== itemDetails.price) {
-            return res.status(400).json({ error: "Invalid price. Please contact support." });
-        }
-
-        const response = await fetch("https://api.nowpayments.io/v1/invoice", {
-            method: "POST",
-            headers: {
-                "x-api-key": process.env.NOWPAYMENTS_API_KEY,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                price_amount: price,
-                price_currency: "USD",
-                order_id: `bot-${item}`,
-                success_url: `${SUCCESS_URL}?item=${item}`,
-                cancel_url: GUMROAD_STORE_URL
-            })
-        });
-
-        const data = await response.json();
-        if (data.invoice_url) {
-            res.json({ success: true, paymentUrl: data.invoice_url });
-        } else {
-            res.status(400).json({ error: "Failed to create invoice", details: data });
-        }
-    } catch (error) {
-        console.error("❌ Error creating invoice:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Webhook Handler for NOWPayments
+// ✅ NOWPayments Webhook Handler
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
@@ -112,17 +69,12 @@ app.post("/webhook", async (req, res) => {
 
         if (payment_status === "finished") {
             console.log(`✅ Payment successful for ${order_id} (${price_amount} USD)`);
-
-            const linkResponse = await fetch(`https://bot-delivery-system.onrender.com/generate-link?item=${itemNumber}`);
-            const linkData = await linkResponse.json();
-
-            if (linkData.success && linkData.downloadLink) {
-                res.json({ success: true, downloadLink: linkData.downloadLink });
-            } else {
-                res.status(500).json({ error: "Failed to generate download link" });
-            }
+            // Save NW_id and related information for later use (e.g., in memory or a database)
+            itemStore[order_id] = true; // Simplified for demonstration
+            res.json({ success: true });
         } else {
-            res.status(400).json({ success: false, error: "Payment not completed." });
+            console.warn(`⚠️ Payment not completed: ${payment_status}`);
+            res.json({ success: false });
         }
     } catch (error) {
         console.error("❌ Error in webhook handler:", error);
@@ -130,42 +82,28 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Deliver Bot for Paystack or NOWPayments
+// ✅ Deliver Bot on Download Request (Paystack or NOWPayments)
 app.post("/deliver-bot", async (req, res) => {
     try {
-        const { item, price, payment_method } = req.body;
+        const { item, NP_id } = req.body; // NP_id replaces NW_id for consistency
 
-        if (!item || !price || !payment_method) {
-            return res.status(400).json({ error: "Missing required parameters" });
+        if (!item || !NP_id) {
+            return res.status(400).json({ error: "Missing required parameters." });
         }
 
-        // Validate item and price against Google Sheets
+        // Validate NP_id (NOWPayments order ID) is authorized
+        if (!itemStore[NP_id]) {
+            return res.status(403).json({ error: "Unauthorized access. Invalid NP_id." });
+        }
+
+        // Fetch item details
         const itemDetails = await getItemDetails(item);
-        if (price !== itemDetails.price) {
-            return res.status(400).json({ error: "You tampered with the price. Contact support." });
-        }
 
-        // Generate download link
+        // Generate the bot download link
         const downloadLink = `https://bot-delivery-system.onrender.com/download/${itemDetails.fileId}`;
         res.json({ success: true, downloadLink });
     } catch (error) {
-        console.error("❌ Error delivering bot:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
-});
-
-// ✅ Generate Bot Download Link
-app.get("/generate-link", async (req, res) => {
-    try {
-        const item = req.query.item;
-        if (!item) {
-            return res.status(400).json({ error: "Item is required" });
-        }
-
-        const itemDetails = await getItemDetails(item);
-        res.json({ success: true, downloadLink: `https://bot-delivery-system.onrender.com/download/${itemDetails.fileId}` });
-    } catch (error) {
-        console.error("❌ Error generating link:", error);
+        console.error("❌ Error in deliver-bot:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
@@ -190,3 +128,4 @@ app.get("/download/:fileId", async (req, res) => {
 app.listen(PORT, () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
 });
+
