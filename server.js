@@ -14,7 +14,7 @@ const SUCCESS_URL = process.env.SUCCESS_URL;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.raw({ type: "application/json" })); // ✅ Use raw body for IPN validation
+app.use(express.raw({ type: "application/json" }));
 
 if (!process.env.GOOGLE_CREDENTIALS) {
     console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
@@ -26,7 +26,7 @@ if (!SPREADSHEET_ID) {
     process.exit(1);
 }
 
-// ✅ Authenticate with Google Sheets and Drive
+// Authenticate with Google Sheets and Drive
 const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 const client = new google.auth.JWT(
     credentials.client_email,
@@ -36,7 +36,7 @@ const client = new google.auth.JWT(
 );
 const drive = google.drive({ version: "v3", auth: client });
 
-// ✅ Helper function to fetch item details
+// Helper function to fetch item details
 async function getItemDetails(itemNumber) {
     const sheets = google.sheets({ version: "v4", auth: client });
     const response = await sheets.spreadsheets.values.get({
@@ -48,10 +48,10 @@ async function getItemDetails(itemNumber) {
     if (!row) {
         throw new Error("Item not found");
     }
-    return { fileId: row[1], price: parseFloat(row[2]) }; // Return fileId and price
+    return { fileId: row[1], price: parseFloat(row[2]) };
 }
 
-// ✅ Create NOWPayments Invoice
+// Create NOWPayments Invoice
 app.post("/create-invoice", async (req, res) => {
     try {
         const { item, price } = req.body;
@@ -60,7 +60,6 @@ app.post("/create-invoice", async (req, res) => {
             return res.status(400).json({ error: "Item and price are required" });
         }
 
-        // Validate price from Google Sheets
         const itemDetails = await getItemDetails(item);
         if (price !== itemDetails.price) {
             return res.status(400).json({ error: "Invalid price. Please contact support." });
@@ -75,7 +74,7 @@ app.post("/create-invoice", async (req, res) => {
             body: JSON.stringify({
                 price_amount: price,
                 price_currency: "USD",
-                order_id: `bot-${item}`,
+                order_id: `file-${item}`, // Changed "bot" to "file"
                 success_url: `${SUCCESS_URL}?item=${item}`,
                 cancel_url: GUMROAD_STORE_URL
             })
@@ -93,7 +92,7 @@ app.post("/create-invoice", async (req, res) => {
     }
 });
 
-// ✅ Webhook Handler for NOWPayments
+// Webhook Handler for NOWPayments
 app.post("/webhook", async (req, res) => {
     try {
         const ipnSecret = process.env.NOWPAYMENTS_IPN_KEY;
@@ -108,7 +107,7 @@ app.post("/webhook", async (req, res) => {
         }
 
         const { payment_status, order_id, price_amount } = JSON.parse(payload);
-        const itemNumber = order_id.replace("bot-", "");
+        const itemNumber = order_id.replace("file-", ""); // Changed "bot" to "file"
 
         if (payment_status === "finished") {
             console.log(`✅ Payment successful for ${order_id} (${price_amount} USD)`);
@@ -130,7 +129,7 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Deliver Bot for Paystack or NOWPayments
+// Deliver File for Paystack or NOWPayments
 app.post("/deliver-bot", async (req, res) => {
     try {
         const { item, price, payment_method } = req.body;
@@ -139,22 +138,20 @@ app.post("/deliver-bot", async (req, res) => {
             return res.status(400).json({ error: "Missing required parameters" });
         }
 
-        // Validate item and price against Google Sheets
         const itemDetails = await getItemDetails(item);
         if (price !== itemDetails.price) {
             return res.status(400).json({ error: "You tampered with the price. Contact support." });
         }
 
-        // Generate download link
         const downloadLink = `https://bot-delivery-system.onrender.com/download/${itemDetails.fileId}`;
         res.json({ success: true, downloadLink });
     } catch (error) {
-        console.error("❌ Error delivering bot:", error);
+        console.error("❌ Error delivering file:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// ✅ Generate Bot Download Link
+// Generate File Download Link
 app.get("/generate-link", async (req, res) => {
     try {
         const item = req.query.item;
@@ -170,15 +167,20 @@ app.get("/generate-link", async (req, res) => {
     }
 });
 
-// ✅ File Download Route
+// File Download Route with Dynamic Extension Support
 app.get("/download/:fileId", async (req, res) => {
     const fileId = req.params.fileId;
     try {
-        const fileMetadata = await drive.files.get({ fileId, fields: "name" });
-        const fileName = fileMetadata.data.name || `bot-${fileId}.xml`;
+        // Get file metadata to determine the actual file name and extension
+        const fileMetadata = await drive.files.get({ fileId, fields: "name, mimeType" });
+        const fileName = fileMetadata.data.name || `file-${fileId}`; // Use actual name or fallback
 
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+        // Set appropriate headers for download
         res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+        res.setHeader("Content-Type", fileMetadata.data.mimeType || "application/octet-stream");
+
+        // Stream the file from Google Drive
+        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
         file.data.pipe(res);
     } catch (error) {
         console.error("❌ Error downloading file:", error);
@@ -186,7 +188,7 @@ app.get("/download/:fileId", async (req, res) => {
     }
 });
 
-// ✅ Start Server
+// Start Server
 app.listen(PORT, () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
 });
