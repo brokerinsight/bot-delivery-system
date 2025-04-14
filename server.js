@@ -10,7 +10,6 @@ const PORT = process.env.PORT || 3000;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID || "1eUZ0pcxFDiCqa3ZS1kZ2XJEz-XGJrGoSVwTThNDipNQ";
 const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1wZyaAL_kQYMxRm2PzH0ChEimwoBPattx";
 const WATI_API_KEY = process.env.WATI_API_KEY;
-const WATI_PHONE = process.env.WATI_PHONE || "0710160851"; // Editable via admin
 
 app.use(cors());
 app.use(express.json());
@@ -35,7 +34,7 @@ const drive = google.drive({ version: "v3", auth: client });
 // Initialize Google Sheets
 async function initializeSheets() {
     try {
-        const sheetNames = ["Products", "Pending Orders", "Confirmed Orders"];
+        const sheetNames = ["Products", "Pending Orders", "Confirmed Orders", "Settings"];
         const existingSheets = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
         const currentSheets = existingSheets.data.sheets.map(s => s.properties.title);
 
@@ -53,7 +52,8 @@ async function initializeSheets() {
         const headers = {
             "Products": ["Item", "Name", "Price", "File ID"],
             "Pending Orders": ["Timestamp", "Item", "Name", "Price", "Email", "Phone", "MPESA Code", "Status"],
-            "Confirmed Orders": ["Timestamp", "Item", "Name", "Price", "Email", "Phone", "MPESA Code", "Status", "File ID"]
+            "Confirmed Orders": ["Timestamp", "Item", "Name", "Price", "Email", "Phone", "MPESA Code", "Status", "File ID"],
+            "Settings": ["Key", "Value"]
         };
 
         for (const [sheet, cols] of Object.entries(headers)) {
@@ -64,6 +64,33 @@ async function initializeSheets() {
                 resource: { values: [cols] }
             });
         }
+
+        // Initialize default settings
+        const defaultSettings = [
+            ["tillNumber", "4933614"],
+            ["whatsappNumber", "0710160851"],
+            ["supportEmail", "kaylie254.business@gmail.com"],
+            ["urgentMessageEnabled", "true"],
+            ["urgentMessageText", "We do not Promise you success always risk what you can afford to lose!!"],
+            ["logoUrl", ""],
+            ["contactUsContent", "Contact us at kaylie254.business@gmail.com or WhatsApp +254710160851."],
+            ["aboutUsContent", "Deriv Bot Store provides automated trading bots for Deriv platforms."],
+            ["privacyPolicyContent", "We value your privacy. Your data is stored securely and not shared."]
+        ];
+
+        const settingsSheet = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "Settings!A:B"
+        });
+        if (!settingsSheet.data.values || settingsSheet.data.values.length <= 1) {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SPREADSHEET_ID,
+                range: "Settings!A:A",
+                valueInputOption: "RAW",
+                resource: { values: defaultSettings }
+            });
+        }
+
         console.log("✅ Sheets initialized with headers.");
     } catch (error) {
         console.error("❌ Error initializing sheets:", error);
@@ -75,10 +102,10 @@ async function getUSDtoKESRate() {
     try {
         const response = await fetch("https://open.er-api.com/v6/latest/USD");
         const data = await response.json();
-        return data.rates.KES || 130; // Fallback rate
+        return data.rates.KES || 130;
     } catch (error) {
         console.error("❌ Error fetching exchange rate:", error);
-        return 130; // Fallback rate
+        return 130;
     }
 }
 
@@ -125,6 +152,25 @@ async function getItemDetails(itemNumber) {
     }
 }
 
+// Get Settings
+async function getSettings() {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "Settings!A:B"
+        });
+        const rows = response.data.values.slice(1); // Skip header
+        const settings = {};
+        rows.forEach(([key, value]) => {
+            settings[key] = value;
+        });
+        return settings;
+    } catch (error) {
+        console.error("❌ Error fetching settings:", error);
+        return {};
+    }
+}
+
 // Create Invoice
 app.post("/create-invoice", async (req, res) => {
     try {
@@ -147,9 +193,10 @@ app.post("/create-invoice", async (req, res) => {
             resource: { values: [row] }
         });
 
+        const settings = await getSettings();
         // Send WhatsApp notification
         await sendWhatsAppNotification(
-            WATI_PHONE,
+            settings.whatsappNumber || "0710160851",
             `New Order: ${name} (Item ${item}, $${price})\nEmail: ${email}\nPhone: ${phone}\nMPESA Code: ${mpesaCode}\nPlease confirm in admin panel.`
         );
 
@@ -177,6 +224,27 @@ app.get("/pending-invoices", async (req, res) => {
         res.json({ success: true, invoices });
     } catch (error) {
         console.error("❌ Error fetching pending invoices:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// Get Confirmed Invoices
+app.get("/confirmed-invoices", async (req, res) => {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "Confirmed Orders!A:I"
+        });
+        const rows = response.data.values || [];
+        const headers = rows.shift() || [];
+        const invoices = rows.map(row => {
+            let invoice = {};
+            headers.forEach((header, i) => { invoice[header.toLowerCase()] = row[i]; });
+            return invoice;
+        });
+        res.json({ success: true, invoices });
+    } catch (error) {
+        console.error("❌ Error fetching confirmed invoices:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
@@ -211,10 +279,6 @@ app.post("/update-invoice", async (req, res) => {
                 valueInputOption: "RAW",
                 resource: { values: [confirmedRow] }
             });
-        }
-
-        // Update or delete pending order
-        if (status === "paid") {
             rows.splice(rowIndex, 1); // Remove from pending
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SPREADSHEET_ID,
@@ -280,6 +344,51 @@ app.post("/upload-file", async (req, res) => {
         res.json({ success: true, fileId: response.data.id });
     } catch (error) {
         console.error("❌ Error uploading file:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// Get Settings
+app.get("/settings", async (req, res) => {
+    try {
+        const settings = await getSettings();
+        res.json({ success: true, settings });
+    } catch (error) {
+        console.error("❌ Error fetching settings:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// Update Settings
+app.post("/update-settings", async (req, res) => {
+    try {
+        const newSettings = req.body;
+        const settingsSheet = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "Settings!A:B"
+        });
+        let rows = settingsSheet.data.values || [settingsSheet.data.values[0]];
+        const headers = rows.shift();
+
+        for (const [key, value] of Object.entries(newSettings)) {
+            const rowIndex = rows.findIndex(row => row[0] === key);
+            if (rowIndex !== -1) {
+                rows[rowIndex][1] = value;
+            } else {
+                rows.push([key, value]);
+            }
+        }
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: "Settings!A1:B",
+            valueInputOption: "RAW",
+            resource: { values: [headers, ...rows] }
+        });
+
+        res.json({ success: true, message: "Settings updated" });
+    } catch (error) {
+        console.error("❌ Error updating settings:", error);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
