@@ -12,9 +12,35 @@
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
     }
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body class="bg-gray-100">
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -275,11 +301,35 @@
       button.dataset.originalText = button.dataset.originalText || button.textContent;
       button.textContent = isLoading ? 'Saving...' : button.dataset.originalText;
     }
+    
+    // Show/hide loading overlay
+    const loadingOverlay = document.getElementById('loading-overlay');
+    function showLoadingOverlay() {
+      loadingOverlay.style.display = 'flex';
+    }
+    function hideLoadingOverlay() {
+      loadingOverlay.style.display = 'none';
+    }
+
+    // Retry fetch with exponential backoff
+    async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await fetch(url, options);
+          if (response.ok) return response;
+          throw new Error(`Fetch failed with status ${response.status}`);
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          console.warn(`Retry ${i + 1}/${retries} for ${url}: ${error.message}`);
+          await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        }
+      }
+    }
 
     // Fetch data from server
     async function fetchData() {
       try {
-        const response = await fetch('/api/data', { credentials: 'include' });
+        const response = await fetchWithRetry('/api/data', { credentials: 'include' });
         const data = await response.json();
         products = data.products || [];
         categories = data.categories || [];
@@ -294,7 +344,7 @@
     // Fetch orders
     async function fetchOrders() {
       try {
-        const response = await fetch('/api/orders', { credentials: 'include' });
+        const response = await fetchWithRetry('/api/orders', { credentials: 'include' });
         const data = await response.json();
         if (data.success) {
           orders = data.orders || [];
@@ -533,11 +583,12 @@
       formData.append('isNew', document.getElementById('isNew').checked);
 
       try {
-        const response = await fetch('/api/add-bot', {
+        showLoadingOverlay();
+        const response = await fetchWithRetry('/api/add-bot', {
           method: 'POST',
           body: formData,
           credentials: 'include'
-        });
+        }, 3, 2000); // 3 retries with 2-second base delay
         const data = await response.json();
         if (data.success) {
           products.push(data.product);
@@ -551,6 +602,8 @@
         }
       } catch {
         alert('Error adding bot.');
+      } finally {
+        hideLoadingOverlay();
       }
       setButtonLoading(button, false);
     });
@@ -724,6 +777,8 @@
       const title = document.getElementById('page-title').value;
       const slug = document.getElementById('page-slug').value;
       const content = document.getElementById('page-content').value;
+      const existingPageIndex = staticPages.findIndex(page => page.slug === slug);
+
       if (!title || !slug || !content) {
         alert('Please fill in all fields.');
         setButtonLoading(button, false);
@@ -734,18 +789,31 @@
         setButtonLoading(button, false);
         return;
       }
-      if (staticPages.some(page => page.slug === slug)) {
-        alert('A page with this slug already exists.');
-        setButtonLoading(button, false);
-        return;
-      }
-      staticPages.push({ title, slug, content });
-      if (await saveData()) {
-        renderStaticPages();
-        document.getElementById('page-title').value = '';
-        document.getElementById('page-slug').value = '';
-        document.getElementById('page-content').value = '';
-        alert('Page added.');
+      if (existingPageIndex !== -1) {
+        // Update existing page
+        staticPages[existingPageIndex] = { title, slug, content };
+        if (await saveData()) {
+          renderStaticPages();
+          document.getElementById('page-title').value = '';
+          document.getElementById('page-slug').value = '';
+          document.getElementById('page-content').value = '';
+          alert('Page updated.');
+        }
+      } else {
+        // Add new page
+        if (staticPages.some(page => page.slug === slug)) {
+          alert('A page with this slug already exists.');
+          setButtonLoading(button, false);
+          return;
+        }
+        staticPages.push({ title, slug, content });
+        if (await saveData()) {
+          renderStaticPages();
+          document.getElementById('page-title').value = '';
+          document.getElementById('page-slug').value = '';
+          document.getElementById('page-content').value = '';
+          alert('Page added.');
+        }
       }
       setButtonLoading(button, false);
     });
@@ -756,8 +824,7 @@
       document.getElementById('page-title').value = page.title;
       document.getElementById('page-slug').value = page.slug;
       document.getElementById('page-content').value = page.content;
-      staticPages.splice(index, 1); // Remove temporarily for editing
-      renderStaticPages();
+      // No need to remove the page; it will be updated on save
     }
 
     // Delete page
@@ -797,5 +864,5 @@
     initialize();
   </script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930ce3dc0aa27221',t:'MTc0NDczNTI4Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930e8c411bf4bd1b',t:'MTc0NDc1MjY2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
