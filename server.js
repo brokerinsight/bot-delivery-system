@@ -7,6 +7,7 @@ const marked = require('marked');
 const sanitizeHtml = require('sanitize-html');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
+const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -23,6 +24,12 @@ if (!fs.existsSync(sessionsDir)) {
   console.log('Created sessions directory:', sessionsDir);
 }
 
+// CORS configuration
+app.use(cors({
+  origin: 'https://bot-delivery-system.onrender.com', // Allow requests from this origin
+  credentials: true // Allow cookies to be sent
+}));
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -35,24 +42,26 @@ app.use(session({
     path: sessionsDir,
     ttl: 24 * 60 * 60,
     retries: 2,
-    logFn: console.log // Add logging for session store operations
+    logFn: console.log
   }),
-  name: 'sid', // Explicitly name the session cookie
+  name: 'sid',
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production' ? true : false, // Ensure secure is false in non-HTTPS environments
+    secure: 'auto', // Let Express determine based on the protocol
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
 // Log session details for debugging
 app.use((req, res, next) => {
+  console.log('Request URL:', req.url);
   console.log('Session ID:', req.sessionID);
   console.log('Session Data:', req.session);
+  console.log('Cookies:', req.cookies);
   next();
 });
 
@@ -213,7 +222,7 @@ function isAuthenticated(req, res, next) {
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
-// Add a session check endpoint for debugging
+// Session check endpoint
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
 });
@@ -241,7 +250,6 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
 
-    // Upload file to Google Drive
     const fileMetadata = {
       name: `${item}_${name}.${file.originalname.split('.').pop()}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
@@ -281,7 +289,6 @@ app.post('/api/submit-ref', async (req, res) => {
     const product = cachedData.products.find(p => p.item === item);
     if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    // Log order
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:D',
@@ -289,13 +296,11 @@ app.post('/api/submit-ref', async (req, res) => {
       resource: { values: [[item, refCode, amount, timestamp]] }
     });
 
-    // Generate download link
     const fileRes = await drive.files.get({
       fileId: product.fileId,
       fields: 'webContentLink'
     });
 
-    // Send email to admin
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: cachedData.settings.supportEmail,
@@ -320,7 +325,6 @@ app.post('/api/submit-ref', async (req, res) => {
   }
 });
 
-// Add /api/orders endpoint
 app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
@@ -345,7 +349,6 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
   }
 });
 
-// Add /api/confirm-order endpoint (used by virus.html)
 app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
@@ -361,11 +364,10 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     });
 
     const downloadLink = fileResponse.data.webContentLink;
-    const email = cachedData.settings.supportEmail; // Use the support email as the recipient for now
+    const email = cachedData.settings.supportEmail;
     const subject = `Your Deriv Bot Purchase - ${item}`;
     const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
 
-    // Log the email to be sent (you might want to store this in a separate sheet)
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'emails!A:C',
@@ -375,7 +377,6 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       }
     });
 
-    // Remove the order from the orders sheet
     const ordersResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:D'
@@ -414,7 +415,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Static page routes
 app.get(['/', '/index.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -455,8 +455,7 @@ app.get('/:slug', async (req, res) => {
   `);
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
