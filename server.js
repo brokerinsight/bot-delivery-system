@@ -26,8 +26,8 @@ if (!fs.existsSync(sessionsDir)) {
 
 // CORS configuration
 app.use(cors({
-  origin: 'https://bot-delivery-system.onrender.com', // Allow requests from this origin
-  credentials: true // Allow cookies to be sent
+  origin: 'https://bot-delivery-system.onrender.com',
+  credentials: true
 }));
 
 // Middleware
@@ -49,7 +49,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: 'auto', // Let Express determine based on the protocol
+    secure: 'auto',
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000
@@ -102,7 +102,7 @@ async function loadData() {
   try {
     const productRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:D'
+      range: 'Sheet1!A:J'
     });
     const products = productRes.data.values?.slice(1).map(row => ({
       item: row[0],
@@ -126,8 +126,8 @@ async function loadData() {
       supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
       logoUrl: settingsData.logoUrl || '',
-      socials: JSON.parse(settingsData.socials || '{}'),
-      urgentMessage: JSON.parse(settingsData.urgentMessage || '{"enabled":false,"text":""}'),
+      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
+      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
       adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
       adminPassword: settingsData.adminPassword || 'securepassword123'
@@ -181,12 +181,20 @@ async function saveData() {
       }
     });
 
+    // Serialize nested objects as JSON strings
+    const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        return [key, JSON.stringify(value)];
+      }
+      return [key, value];
+    });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'settings!A:B',
       valueInputOption: 'RAW',
       resource: {
-        values: Object.entries(cachedData.settings)
+        values: settingsForSheet
       }
     });
 
