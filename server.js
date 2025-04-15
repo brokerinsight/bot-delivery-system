@@ -18,7 +18,7 @@ const app = express();
 
 // Ensure the sessions directory exists
 const sessionsDir = path.join(__dirname, 'sessions');
-const uploadsDir = path.join(__dirname, 'uploads'); // Directory for file uploads
+const uploadsDir = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(sessionsDir)) {
   fs.mkdirSync(sessionsDir, { recursive: true });
@@ -32,7 +32,9 @@ if (!fs.existsSync(uploadsDir)) {
 // CORS configuration
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Middleware
@@ -40,9 +42,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static('public'));
-// Increase request timeout for file uploads
 app.use((req, res, next) => {
-  req.setTimeout(300000); // 5 minutes timeout
+  req.setTimeout(300000);
   res.setTimeout(300000);
   next();
 });
@@ -53,7 +54,7 @@ const upload = multer({
     destination: uploadsDir,
     filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
   }),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // Session middleware with FileStore
@@ -69,19 +70,20 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true, // Force secure cookies in production
+    secure: process.env.NODE_ENV === 'production', // Only secure in production
     httpOnly: true,
-    sameSite: 'none', // Allow cross-origin requests
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Adjust for development
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
-// Log session details for debugging
+// Enhanced session logging
 app.use((req, res, next) => {
-  console.log('Request URL:', req.url);
-  console.log('Session ID:', req.sessionID);
-  console.log('Session Data:', req.session);
-  console.log('Cookies:', req.cookies);
+  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
+  console.log(`Session ID: ${req.sessionID}`);
+  console.log(`Session Data: ${JSON.stringify(req.session)}`);
+  console.log(`Cookies: ${JSON.stringify(req.cookies)}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   next();
 });
 
@@ -178,7 +180,6 @@ async function loadData() {
 // Save data to Google Sheets
 async function saveData() {
   try {
-    // Update Sheet1 in both SPREADSHEET_ID and PRODUCTS_SHEET_ID
     const productValues = [
       ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
       ...cachedData.products.map(p => [
@@ -195,27 +196,20 @@ async function saveData() {
       ])
     ];
 
-    // Update SPREADSHEET_ID
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J',
       valueInputOption: 'RAW',
-      resource: {
-        values: productValues
-      }
+      resource: { values: productValues }
     });
 
-    // Update PRODUCTS_SHEET_ID
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'Sheet1!A:J',
       valueInputOption: 'RAW',
-      resource: {
-        values: productValues
-      }
+      resource: { values: productValues }
     });
 
-    // Serialize nested objects as JSON strings for settings
     const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
       if (typeof value === 'object' && value !== null) {
         return [key, JSON.stringify(value)];
@@ -227,9 +221,7 @@ async function saveData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'settings!A:B',
       valueInputOption: 'RAW',
-      resource: {
-        values: settingsForSheet
-      }
+      resource: { values: settingsForSheet }
     });
 
     await sheets.spreadsheets.values.update({
@@ -258,6 +250,8 @@ async function saveData() {
 
 // Middleware to check admin session
 function isAuthenticated(req, res, next) {
+  console.log(`[${new Date().toISOString()}] Checking authentication for ${req.url}`);
+  console.log(`Session isAuthenticated: ${req.session.isAuthenticated}`);
   if (req.session.isAuthenticated) {
     return next();
   }
@@ -291,7 +285,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   try {
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
-    console.log('File received:', file); // Debug log
+    console.log('File received:', file);
 
     const fileMetadata = {
       name: `${item}_${name}.${file.originalname.split('.').pop()}`,
@@ -303,7 +297,6 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
       media,
       fields: 'id'
     });
-    // Delete the temporary file after upload to Google Drive
     fs.unlinkSync(file.path);
 
     const product = {
@@ -325,7 +318,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   } catch (error) {
     console.error('Error adding bot:', error);
     if (req.file && req.file.path) {
-      fs.unlinkSync(req.file.path); // Clean up on error
+      fs.unlinkSync(req.file.path);
     }
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
@@ -454,11 +447,13 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log(`[${new Date().toISOString()}] Login attempt - Email: ${email}`);
   if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
     req.session.isAuthenticated = true;
-    console.log('User logged in successfully, session:', req.session);
+    console.log(`[${new Date().toISOString()}] Login successful, session:`, req.session);
     res.json({ success: true });
   } else {
+    console.log(`[${new Date().toISOString()}] Login failed: Invalid credentials`);
     res.status(401).json({ success: false, error: 'Invalid credentials' });
   }
 });
