@@ -25,6 +25,7 @@
             <a href="#manage-bots" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Manage Bots</a>
             <a href="#settings" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Settings</a>
             <a href="#static-pages" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Static Pages</a>
+            <a href="#orders" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Orders</a>
           </div>
         </div>
       </div>
@@ -100,7 +101,7 @@
       <div class="mb-6">
         <label class="flex items-center">
           <input type="checkbox" id="urgent-toggle" class="mr-2">
-          <span class="text-sm font-medium text-gray-700">Show Urgent Message</span>
+          <span class="text-sm font-medium text-gray-700">Show Urgent Message (Pop-up on Front End)</span>
         </label>
         <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
         <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
@@ -119,6 +120,11 @@
         <label for="logo-url" class="block text-sm font-medium text-gray-700">Logo URL</label>
         <input type="url" id="logo-url" class="mt-1 w-full p-2 border rounded-md">
         <button id="save-logo" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Logo</button>
+      </div>
+      <div class="mb-6">
+        <label for="mpesa-till" class="block text-sm font-medium text-gray-700">MPESA Till Number</label>
+        <input type="text" id="mpesa-till" class="mt-1 w-full p-2 border rounded-md">
+        <button id="save-mpesa-till" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Till Number</button>
       </div>
       <div class="mb-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-2">Social Media Links</h3>
@@ -161,6 +167,7 @@
     <!-- Static Pages -->
     <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
+      <p class="text-sm text-gray-600 mb-4">To edit the Payment Modal, create a page with slug <code>/payment-modal</code>. For the Ref Code Modal, use <code>/ref-code-modal</code>. Use HTML in the content field.</p>
       <div class="mb-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-2">Add New Page</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -173,13 +180,19 @@
             <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
           </div>
           <div class="sm:col-span-2">
-            <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown)</label>
+            <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
             <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
           </div>
         </div>
         <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
       </div>
       <ul id="page-list" class="space-y-4"></ul>
+    </section>
+
+    <!-- Orders -->
+    <section id="orders" class="section bg-white rounded-lg shadow-md p-6 hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Orders</h2>
+      <ul id="order-list" class="space-y-4"></ul>
     </section>
   </main>
 
@@ -254,6 +267,7 @@
     let categories = [];
     let settings = {};
     let staticPages = [];
+    let orders = [];
 
     // Button loading state
     function setButtonLoading(button, isLoading) {
@@ -274,6 +288,22 @@
       } catch (error) {
         console.error('Error fetching data:', error);
         alert('Failed to load data.');
+      }
+    }
+
+    // Fetch orders
+    async function fetchOrders() {
+      try {
+        const response = await fetch('/api/orders');
+        const data = await response.json();
+        if (data.success) {
+          orders = data.orders || [];
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        alert('Failed to load orders.');
       }
     }
 
@@ -337,6 +367,9 @@
         document.getElementById(target).classList.remove('hidden');
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
         link.classList.add('border-b-2', 'border-green-500');
+        if (target === 'orders') {
+          fetchOrders().then(renderOrders);
+        }
       });
     });
 
@@ -515,6 +548,44 @@
       setButtonLoading(button, false);
     });
 
+    // Render orders
+    function renderOrders() {
+      const orderList = document.getElementById('order-list');
+      orderList.innerHTML = orders.map((order, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${order.item}</span> - Ref: ${order.refCode}, Amount: ${order.amount}, Time: ${order.timestamp}
+          </div>
+          <div class="space-x-2">
+            <button onclick="confirmOrder(${index})" class="text-green-600 hover:text-green-800">Confirm</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    // Confirm order
+    async function confirmOrder(index) {
+      const order = orders[index];
+      try {
+        const response = await fetch('/api/confirm-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(order)
+        });
+        const data = await response.json();
+        if (data.success) {
+          orders.splice(index, 1);
+          renderOrders();
+          alert('Order confirmed.');
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        console.error('Error confirming order:', error);
+        alert('Failed to confirm order.');
+      }
+    }
+
     // Save settings
     document.getElementById('save-urgent').addEventListener('click', async e => {
       const button = e.target;
@@ -559,6 +630,16 @@
       setButtonLoading(button, false);
     });
 
+    document.getElementById('save-mpesa-till').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.mpesaTill = document.getElementById('mpesa-till').value;
+      if (await saveData()) {
+        alert('MPESA Till Number saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
     document.getElementById('save-socials').addEventListener('click', async e => {
       const button = e.target;
       setButtonLoading(button, true);
@@ -593,9 +674,8 @@
       const newEmail = document.getElementById('new-email').value;
       const newPassword = document.getElementById('new-password').value;
       const confirmPassword = document.getElementById('confirm-password').value;
-
-      if (!newEmail || !newPassword) {
-        alert('Please fill in both email and password.');
+      if (!newEmail || !newPassword || !confirmPassword) {
+        alert('Please fill in all fields.');
         setButtonLoading(button, false);
         return;
       }
@@ -604,26 +684,22 @@
         setButtonLoading(button, false);
         return;
       }
-
       settings.adminEmail = newEmail;
       settings.adminPassword = newPassword;
       if (await saveData()) {
         alert('Credentials updated. Please log in again.');
         loginModal.classList.remove('hidden');
-        document.getElementById('new-email').value = '';
-        document.getElementById('new-password').value = '';
-        document.getElementById('confirm-password').value = '';
       }
       setButtonLoading(button, false);
     });
 
-    // Static pages
+    // Render static pages
     function renderStaticPages() {
       const pageList = document.getElementById('page-list');
       pageList.innerHTML = staticPages.map((page, index) => `
         <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
           <div>
-            <span class="font-semibold">${page.title}</span> (${page.slug})
+            <span class="font-semibold">${page.title}</span> - ${page.slug}
           </div>
           <div class="space-x-2">
             <button onclick="editPage(${index})" class="text-green-600 hover:text-green-800">Edit</button>
@@ -633,113 +709,58 @@
       `).join('');
     }
 
+    // Add page
     document.getElementById('add-page').addEventListener('click', async e => {
       const button = e.target;
       setButtonLoading(button, true);
-      const title = document.getElementById('page-title').value.trim();
-      const slug = document.getElementById('page-slug').value.trim();
-      const content = document.getElementById('page-content').value.trim();
-
+      const title = document.getElementById('page-title').value;
+      const slug = document.getElementById('page-slug').value;
+      const content = document.getElementById('page-content').value;
       if (!title || !slug || !content) {
         alert('Please fill in all fields.');
         setButtonLoading(button, false);
         return;
       }
       if (!slug.startsWith('/')) {
-        alert('Slug must start with a slash (e.g., /my-page).');
+        alert('Slug must start with "/".');
         setButtonLoading(button, false);
         return;
       }
-      if (staticPages.some(p => p.slug === slug)) {
-        alert('Slug already exists.');
+      if (staticPages.some(page => page.slug === slug)) {
+        alert('A page with this slug already exists.');
         setButtonLoading(button, false);
         return;
       }
-
       staticPages.push({ title, slug, content });
       if (await saveData()) {
-        alert('Page added.');
+        renderStaticPages();
         document.getElementById('page-title').value = '';
         document.getElementById('page-slug').value = '';
         document.getElementById('page-content').value = '';
-        renderStaticPages();
+        alert('Page added.');
       }
       setButtonLoading(button, false);
     });
 
+    // Edit page
     async function editPage(index) {
       const page = staticPages[index];
       document.getElementById('page-title').value = page.title;
       document.getElementById('page-slug').value = page.slug;
       document.getElementById('page-content').value = page.content;
-
-      const addButton = document.getElementById('add-page');
-      addButton.textContent = 'Save Changes';
-      addButton.onclick = async e => {
-        const button = e.target;
-        setButtonLoading(button, true);
-        const title = document.getElementById('page-title').value.trim();
-        const slug = document.getElementById('page-slug').value.trim();
-        const content = document.getElementById('page-content').value.trim();
-
-        if (!title || !slug || !content) {
-          alert('Please fill in all fields.');
-          setButtonLoading(button, false);
-          return;
-        }
-        if (!slug.startsWith('/')) {
-          alert('Slug must start with a slash (e.g., /my-page).');
-          setButtonLoading(button, false);
-          return;
-        }
-        if (staticPages.some((p, i) => i !== index && p.slug === slug)) {
-          alert('Slug already exists.');
-          setButtonLoading(button, false);
-          return;
-        }
-
-        staticPages[index] = { title, slug, content };
-        if (await saveData()) {
-          alert('Page updated.');
-          document.getElementById('page-title').value = '';
-          document.getElementById('page-slug').value = '';
-          document.getElementById('page-content').value = '';
-          renderStaticPages();
-          addButton.textContent = 'Add Page';
-          addButton.onclick = addPageHandler; // Restore original handler
-        }
-        setButtonLoading(button, false);
-      };
+      staticPages.splice(index, 1); // Remove temporarily for editing
+      renderStaticPages();
     }
 
+    // Delete page
     async function deletePage(index) {
       if (confirm('Are you sure you want to delete this page?')) {
         staticPages.splice(index, 1);
         if (await saveData()) {
-          alert('Page deleted.');
           renderStaticPages();
+          alert('Page deleted.');
         }
       }
-    }
-
-    // Store original add page handler
-    const addPageHandler = document.getElementById('add-page').onclick;
-
-    // Initialize settings form
-    function initializeSettings() {
-      document.getElementById('support-email').value = settings.supportEmail || '';
-      document.getElementById('copyright-text').value = settings.copyrightText || '';
-      document.getElementById('logo-url').value = settings.logoUrl || '';
-      document.getElementById('tiktok').value = settings.socials?.tiktok || '';
-      document.getElementById('whatsapp').value = settings.socials?.whatsapp || '';
-      document.getElementById('call').value = settings.socials?.call || '';
-      document.getElementById('instagram').value = settings.socials?.instagram || '';
-      document.getElementById('x').value = settings.socials?.x || '';
-      document.getElementById('facebook').value = settings.socials?.facebook || '';
-      document.getElementById('youtube').value = settings.socials?.youtube || '';
-      document.getElementById('fallback-rate').value = settings.fallbackRate || '';
-      document.getElementById('urgent-toggle').checked = settings.urgentMessage?.enabled || false;
-      document.getElementById('urgent-message').value = settings.urgentMessage?.text || '';
     }
 
     // Initialize
@@ -749,7 +770,20 @@
       renderCategoryList();
       renderBots();
       renderStaticPages();
-      initializeSettings();
+      document.getElementById('urgent-toggle').checked = settings.urgentMessage?.enabled || false;
+      document.getElementById('urgent-message').value = settings.urgentMessage?.text || '';
+      document.getElementById('support-email').value = settings.supportEmail || '';
+      document.getElementById('copyright-text').value = settings.copyrightText || '';
+      document.getElementById('logo-url').value = settings.logoUrl || '';
+      document.getElementById('mpesa-till').value = settings.mpesaTill || '4933614';
+      document.getElementById('tiktok').value = settings.socials?.tiktok || '';
+      document.getElementById('whatsapp').value = settings.socials?.whatsapp || '';
+      document.getElementById('call').value = settings.socials?.call || '';
+      document.getElementById('instagram').value = settings.socials?.instagram || '';
+      document.getElementById('x').value = settings.socials?.x || '';
+      document.getElementById('facebook').value = settings.socials?.facebook || '';
+      document.getElementById('youtube').value = settings.socials?.youtube || '';
+      document.getElementById('fallback-rate').value = settings.fallbackRate || 130;
     }
 
     initialize();
