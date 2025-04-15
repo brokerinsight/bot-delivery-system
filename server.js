@@ -1,31 +1,52 @@
 const express = require('express');
-const { google } = require('googleapis');
-const nodemailer = require('nodemailer');
-const cookieParser = require('cookie-parser');
-const multer = require('multer');
-const marked = require('marked');
-const sanitizeHtml = require('sanitize-html');
 const session = require('express-session');
-const dotenv = require('dotenv');
+const FileStore = require('session-file-store')(session);
+const { google } = require('googleapis');
+const multer = require('multer');
+const fs = require('fs');
 const path = require('path');
-
-dotenv.config();
+const mime = require('mime-types');
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ dest: 'uploads/' });
 
+// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
 app.use(express.static('public'));
+
+// Session middleware with FileStore
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  store: new FileStore({
+    path: './sessions',
+    ttl: 24 * 60 * 60,
+    retries: 2
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  cookie: {
+    secure: true,
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 }));
 
-// Google API setup
+// Load spreadsheet IDs from environment variables
+const SPREADSHEET_ID = process.env.PRODUCTS_SHEET_ID;
+const ORDERS_SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+
+// Validate environment variables
+if (!SPREADSHEET_ID) {
+  console.error('ERROR: PRODUCTS_SHEET_ID environment variable is not set. Please set it in Render environment variables.');
+  process.exit(1);
+}
+if (!ORDERS_SPREADSHEET_ID) {
+  console.error('ERROR: SPREADSHEET_ID environment variable is not set. Please set it in Render environment variables.');
+  process.exit(1);
+}
+
+// Google Sheets and Drive setup
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -33,224 +54,225 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const drive = google.drive({ version: 'v3', auth });
 
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+// Middleware to check authentication
+const isAuthenticated = (req, res, next) => {
+  if (req.session.isAuthenticated) {
+    return next();
   }
-});
-
-// Cache for data
-let cachedData = {
-  products: [],
-  categories: [],
-  settings: {
-    supportEmail: 'kaylie254.business@gmail.com',
-    copyrightText: '© 2025 Deriv Bot Store',
-    logoUrl: '',
-    socials: {},
-    urgentMessage: { enabled: false, text: '' },
-    fallbackRate: 130,
-    adminEmail: 'admin@kaylie254.com',
-    adminPassword: 'securepassword123',
-    mpesaTill: '4933614'
-  },
-  staticPages: []
+  res.status(401).json({ success: false, error: 'Unauthorized' });
 };
 
-// Load data from Google Sheets
-async function loadData() {
-  try {
-    const productRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J'
-    });
-    const products = productRes.data.values?.slice(1).map(row => ({
-      item: row[0],
-      fileId: row[1],
-      price: parseFloat(row[2]),
-      name: row[3],
-      desc: row[4] || '',
-      img: row[5] || 'https://via.placeholder.com/300',
-      category: row[6] || 'General',
-      embed: row[7] || '',
-      isNew: row[8] === 'TRUE',
-      isArchived: row[9] === 'TRUE'
-    })) || [];
-
-    const settingsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B'
-    });
-    let settingsData = settingsRes.data.values?.slice(1) || [];
-    // If settings sheet is empty, initialize with default values
-    if (settingsData.length === 0) {
-      settingsData = Object.entries(cachedData.settings).map(([key, value]) => [
-        key,
-        typeof value === 'object' ? JSON.stringify(value) : value
-      ]);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-        range: 'settings!A:B',
-        valueInputOption: 'RAW',
-        resource: { values: [['key', 'value'], ...settingsData] }
-      });
-    }
-    const settingsObj = Object.fromEntries(settingsData);
-    const settings = {
-      supportEmail: settingsObj.supportEmail || 'kaylie254.business@gmail.com',
-      copyrightText: settingsObj.copyrightText || '© 2025 Deriv Bot Store',
-      logoUrl: settingsObj.logoUrl || '',
-      socials: JSON.parse(settingsObj.socials || '{}'),
-      urgentMessage: JSON.parse(settingsObj.urgentMessage || '{"enabled":false,"text":""}'),
-      fallbackRate: parseFloat(settingsObj.fallbackRate) || 130,
-      adminEmail: settingsObj.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsObj.adminPassword || 'securepassword123',
-      mpesaTill: settingsObj.mpesaTill || '4933614'
-    };
-
-    const categoriesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A'
-    });
-    const categories = categoriesRes.data.values?.flat().slice(1) || ['General'];
-
-    const pagesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C'
-    });
-    const staticPages = pagesRes.data.values?.slice(1).map(row => ({
-      title: row[0],
-      slug: row[1],
-      content: row[2]
-    })) || [];
-
-    cachedData = { products, categories, settings, staticPages };
-  } catch (error) {
-    console.error('Error loading data:', error.message);
-  }
-}
-
-// Save data to Google Sheets
-async function saveData() {
-  try {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [
-          ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-          ...cachedData.products.map(p => [
-            p.item,
-            p.fileId,
-            p.price,
-            p.name,
-            p.desc,
-            p.img,
-            p.category,
-            p.embed,
-            p.isNew ? 'TRUE' : 'FALSE',
-            p.isArchived ? 'TRUE' : 'FALSE'
-          ])
-        ]
-      }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [['key', 'value'], ...Object.entries(cachedData.settings).map(([key, value]) => [
-          key,
-          typeof value === 'object' ? JSON.stringify(value) : value
-        ])]
-      }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A',
-      valueInputOption: 'RAW',
-      resource: { values: [['CATEGORY'], ...cachedData.categories.map(c => [c])] }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [
-          ['TITLE', 'SLUG', 'CONTENT'],
-          ...cachedData.staticPages.map(p => [p.title, p.slug, p.content])
-        ]
-      }
-    });
-  } catch (error) {
-    console.error('Error saving data:', error.message);
-    throw error;
-  }
-}
-
-// Middleware to check admin session
-function isAuthenticated(req, res, next) {
-  if (req.session.isAuthenticated) return next();
-  res.status(401).json({ success: false, error: 'Unauthorized' });
-}
-
-// Load data on startup
-loadData();
-
-// API Routes
-app.get('/api/data', async (req, res) => {
-  res.json(cachedData);
+// Check session endpoint
+app.get('/api/check-session', (req, res) => {
+  res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
 });
 
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'settings!A1:B100'
+    });
+    const rows = response.data.values || [];
+    const adminEmailRow = rows.find(row => row[0] === 'adminEmail');
+    const adminPasswordRow = rows.find(row => row[0] === 'adminPassword');
+    const adminEmail = adminEmailRow ? adminEmailRow[1] : 'admin@kaylie254.com';
+    const adminPassword = adminPasswordRow ? adminPasswordRow[1] : 'securepassword123';
+
+    if (email === adminEmail && password === adminPassword) {
+      req.session.isAuthenticated = true;
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+  } catch (error) {
+    console.error('Error during login:', error.message);
+    res.status(500).json({ success: false, error: 'Login failed' });
+  }
+});
+
+// Fetch data endpoint
+app.get('/api/data', isAuthenticated, async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A1:G1000'
+    });
+    const settingsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'settings!A1:B100'
+    });
+    const staticPagesResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'staticPages!A1:C100'
+    });
+
+    const rows = response.data.values || [];
+    const settingsRows = settingsResponse.data.values || [];
+    const staticPagesRows = staticPagesResponse.data.values || [];
+
+    const products = rows.slice(1).map(row => ({
+      name: row[0] || '',
+      price: parseFloat(row[1]) || 0,
+      desc: row[2] || '',
+      embed: row[3] || '',
+      category: row[4] || '',
+      item: row[5] || '',
+      img: row[6] || '',
+      fileId: row[7] || '',
+      isNew: row[8] === 'TRUE',
+      isArchived: row[9] === 'TRUE'
+    }));
+
+    const categories = settingsRows.find(row => row[0] === 'categories')?.[1]?.split(',') || [];
+    const settings = {
+      urgentMessage: {
+        enabled: settingsRows.find(row => row[0] === 'urgentMessageEnabled')?.[1] === 'TRUE',
+        text: settingsRows.find(row => row[0] === 'urgentMessageText')?.[1] || ''
+      },
+      supportEmail: settingsRows.find(row => row[0] === 'supportEmail')?.[1] || '',
+      copyrightText: settingsRows.find(row => row[0] === 'copyrightText')?.[1] || '',
+      logoUrl: settingsRows.find(row => row[0] === 'logoUrl')?.[1] || '',
+      mpesaTill: settingsRows.find(row => row[0] === 'mpesaTill')?.[1] || '4933614',
+      socials: {
+        tiktok: settingsRows.find(row => row[0] === 'socialTikTok')?.[1] || '',
+        whatsapp: settingsRows.find(row => row[0] === 'socialWhatsApp')?.[1] || '',
+        call: settingsRows.find(row => row[0] === 'socialCall')?.[1] || '',
+        instagram: settingsRows.find(row => row[0] === 'socialInstagram')?.[1] || '',
+        x: settingsRows.find(row => row[0] === 'socialX')?.[1] || '',
+        facebook: settingsRows.find(row => row[0] === 'socialFacebook')?.[1] || '',
+        youtube: settingsRows.find(row => row[0] === 'socialYouTube')?.[1] || ''
+      },
+      fallbackRate: parseFloat(settingsRows.find(row => row[0] === 'fallbackRate')?.[1]) || 130
+    };
+
+    const staticPages = staticPagesRows.slice(1).map(row => ({
+      title: row[0] || '',
+      slug: row[1] || '',
+      content: row[2] || ''
+    }));
+
+    res.json({ products, categories, settings, staticPages });
+  } catch (error) {
+    console.error('Error fetching data:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch data' });
+  }
+});
+
+// Save data endpoint
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    cachedData = req.body;
-    await saveData();
+    const { products, categories, settings, staticPages } = req.body;
+
+    // Prepare products data for Google Sheets
+    const productRows = [['name', 'price', 'desc', 'embed', 'category', 'item', 'img', 'fileId', 'isNew', 'isArchived']].concat(
+      products.map(p => [
+        p.name, p.price, p.desc, p.embed || '', p.category, p.item, p.img, p.fileId || '', p.isNew ? 'TRUE' : 'FALSE', p.isArchived ? 'TRUE' : 'FALSE'
+      ])
+    );
+
+    // Prepare settings data
+    const settingsRows = [
+      ['key', 'value'],
+      ['categories', categories.join(',')],
+      ['urgentMessageEnabled', settings.urgentMessage.enabled ? 'TRUE' : 'FALSE'],
+      ['urgentMessageText', settings.urgentMessage.text],
+      ['supportEmail', settings.supportEmail],
+      ['copyrightText', settings.copyrightText],
+      ['logoUrl', settings.logoUrl],
+      ['mpesaTill', settings.mpesaTill],
+      ['socialTikTok', settings.socials.tiktok],
+      ['socialWhatsApp', settings.socials.whatsapp],
+      ['socialCall', settings.socials.call],
+      ['socialInstagram', settings.socials.instagram],
+      ['socialX', settings.socials.x],
+      ['socialFacebook', settings.socials.facebook],
+      ['socialYouTube', settings.socials.youtube],
+      ['fallbackRate', settings.fallbackRate],
+      ['adminEmail', settings.adminEmail || 'admin@kaylie254.com'],
+      ['adminPassword', settings.adminPassword || 'securepassword123']
+    ];
+
+    // Prepare static pages data
+    const staticPagesRows = [['title', 'slug', 'content']].concat(
+      staticPages.map(page => [page.title, page.slug, page.content])
+    );
+
+    // Update Google Sheets
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A1:J1000',
+      valueInputOption: 'RAW',
+      resource: { values: productRows }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'settings!A1:B100',
+      valueInputOption: 'RAW',
+      resource: { values: settingsRows }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'staticPages!A1:C100',
+      valueInputOption: 'RAW',
+      resource: { values: staticPagesRows }
+    });
+
     res.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error('Error saving data:', error.message);
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
 
+// Add bot endpoint
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
-    const { item, name, price, desc, embed, category, img, isNew } = req.body;
+    const { name, price, desc, embed, category, item, img, isNew } = req.body;
     const file = req.file;
 
-    // Upload file to Google Drive
     const fileMetadata = {
-      name: `${item}_${name}.${file.originalname.split('.').pop()}`,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
+      name: file.originalname,
+      parents: ['1Y2Z3X4W5V6U7T8S9R0Q1P2O3N4M5L6K7J']
     };
-    const media = { mimeType: file.mimetype, body: file.buffer };
-    const driveRes = await drive.files.create({
+    const media = {
+      mimeType: file.mimetype,
+      body: fs.createReadStream(file.path)
+    };
+    const driveResponse = await drive.files.create({
       resource: fileMetadata,
       media,
       fields: 'id'
     });
+    const fileId = driveResponse.data.id;
+
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
+      }
+    });
+
+    fs.unlinkSync(file.path);
 
     const product = {
-      item,
-      fileId: driveRes.data.id,
-      price: parseFloat(price),
       name,
+      price: parseFloat(price),
       desc,
-      img,
+      embed: embed || '',
       category,
-      embed,
+      item,
+      img,
+      fileId,
       isNew: isNew === 'true',
       isArchived: false
     };
 
-    cachedData.products.push(product);
-    await saveData();
     res.json({ success: true, product });
   } catch (error) {
     console.error('Error adding bot:', error.message);
@@ -258,148 +280,135 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   }
 });
 
+// Submit ref code endpoint
 app.post('/api/submit-ref', async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
-
-    // Log order
     await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:D',
+      spreadsheetId: ORDERS_SPREADSHEET_ID,
+      range: 'Sheet1!A1:D1',
       valueInputOption: 'RAW',
-      resource: { values: [[item, refCode, amount, timestamp]] }
+      resource: {
+        values: [[item, refCode, amount, timestamp]]
+      }
     });
-
-    // Generate download link
-    const fileRes = await drive.files.get({
-      fileId: product.fileId,
-      fields: 'webContentLink'
-    });
-
-    // Send email to admin
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: cachedData.settings.supportEmail,
-      subject: 'New Order - Ref Code Submitted',
-      html: `
-        <p><strong>Item:</strong> ${product.name} (${item})</p>
-        <p><strong>Ref Code:</strong> ${refCode}</p>
-        <p><strong>Amount:</strong> ${amount} KES</p>
-        <p><strong>Timestamp:</strong> ${timestamp}</p>
-        <p><strong>Download Link:</strong> <a href="${fileRes.data.webContentLink}">${product.name}</a></p>
-      `
-    });
-
     res.json({ success: true });
   } catch (error) {
     console.error('Error submitting ref code:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to submit ref code' });
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: `Invalid ORDERS_SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.` });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to submit ref code' });
+    }
   }
 });
 
-app.get('/api/orders', async (req, res) => {
+// Fetch orders endpoint
+app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
-    const ordersRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:D'
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: ORDERS_SPREADSHEET_ID,
+      range: 'Sheet1!A1:D1000'
     });
-    const orders = ordersRes.data.values?.slice(1)?.map(row => ({
+    const rows = response.data.values || [];
+    const orders = rows.slice(1).map(row => ({
       item: row[0],
       refCode: row[1],
       amount: row[2],
       timestamp: row[3]
-    })) || [];
+    }));
     res.json({ success: true, orders });
   } catch (error) {
     console.error('Error fetching orders:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: `Invalid ORDERS_SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.` });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+    }
   }
 });
 
-app.post('/api/confirm-order', async (req, res) => {
+// Confirm order endpoint
+app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
-    // Log to Confirmed_Orders in SPREADSHEET_ID
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A1:J1000'
+    });
+    const rows = response.data.values || [];
+    const productRow = rows.slice(1).find(row => row[5] === item);
+    if (!productRow) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    const fileId = productRow[7];
+
+    const fileResponse = await drive.files.get({
+      fileId,
+      fields: 'webContentLink, mimeType, name'
+    });
+
+    const downloadLink = fileResponse.data.webContentLink;
+    const email = 'recipient@example.com'; // Replace with actual recipient email
+    const subject = `Your Deriv Bot Purchase - ${item}`;
+    const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
+
     await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Confirmed_Orders!A:D',
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'emails!A1:C1',
       valueInputOption: 'RAW',
-      resource: { values: [[item, refCode, amount, timestamp]] }
+      resource: {
+        values: [[email, subject, body]]
+      }
     });
-    // Remove from orders in PRODUCTS_SHEET_ID
-    const ordersRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:D'
+
+    const ordersResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: ORDERS_SPREADSHEET_ID,
+      range: 'Sheet1!A1:D1000'
     });
-    const orders = ordersRes.data.values || [];
-    const updatedOrders = orders.filter(row => row[1] !== refCode); // Remove by refCode
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:D',
-      valueInputOption: 'RAW',
-      resource: { values: updatedOrders.length > 1 ? updatedOrders : [['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP']] }
-    });
-    res.json({ success: true });
+    const ordersRows = ordersResponse.data.values || [];
+    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+    if (orderIndex !== -1) {
+      ordersRows.splice(orderIndex + 1, 1);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: ORDERS_SPREADSHEET_ID,
+        range: 'Sheet1!A1:D1000',
+        valueInputOption: 'RAW',
+        resource: { values: ordersRows }
+      });
+    }
+
+    res.json({ success: true, downloadLink });
   } catch (error) {
     console.error('Error confirming order:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to confirm order' });
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: `Invalid ORDERS_SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.` });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to confirm order' });
+    }
   }
 });
 
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
-    req.session.isAuthenticated = true;
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
+// Fetch static page content
+app.get('/api/page/:slug', async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'staticPages!A1:C100'
+    });
+    const rows = response.data.values || [];
+    const page = rows.slice(1).find(row => row[1] === `/${req.params.slug}`);
+    if (page) {
+      res.json({ success: true, page: { title: page[0], slug: page[1], content: page[2] } });
+    } else {
+      res.status(404).json({ success: false, error: 'Page not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching page:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch page' });
   }
 });
 
-// Static page routes
-app.get(['/', '/index.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.get('/virus.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'virus.html'));
-});
-
-app.get('/:slug', async (req, res) => {
-  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
-  if (!page) return res.status(404).send('Page not found');
-  const htmlContent = sanitizeHtml(marked(page.content));
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${page.title} - Deriv Bot Store</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-gray-100">
-      <nav class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between h-16">
-            <div class="flex items-center">
-              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
-            </div>
-          </div>
-        </div>
-      </nav>
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
-        <div class="prose">${htmlContent}</div>
-      </main>
-    </body>
-    </html>
-  `);
-});
-
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
