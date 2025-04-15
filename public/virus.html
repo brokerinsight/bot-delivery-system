@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Deriv Bot Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body:has(#login-modal:not(.hidden)) > *:not(#login-modal) {
+      filter: blur(5px);
+    }
+    body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
+      filter: blur(5px);
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <nav class="bg-white shadow-md sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-xl font-bold text-gray-800">Admin Panel</h1>
+          <div class="ml-6 flex space-x-4 sm:space-x-8">
+            <a href="#add-bot" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium border-b-2 border-green-500">Add Bot</a>
+            <a href="#manage-bots" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Manage Bots</a>
+            <a href="#settings" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Settings</a>
+            <a href="#static-pages" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Static Pages</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <!-- Add Bot -->
+    <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
+      <form id="product-form">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+            <input type="text" id="name" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+            <input type="number" id="price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
+            <textarea id="desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
+            <input type="url" id="embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
+          </div>
+          <div>
+            <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+            <select id="category" required class="mt-1 w-full p-2 border rounded-md"></select>
+          </div>
+          <div>
+            <label for="item" class="block text-sm font-medium text-gray-700">Item Number</label>
+            <input type="text" id="item" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="img" class="block text-sm font-medium text-gray-700">Image URL</label>
+            <input type="url" id="img" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="file" class="block text-sm font-medium text-gray-700">Bot File</label>
+            <input type="file" id="file" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="flex items-center">
+              <input type="checkbox" id="isNew" class="mr-2">
+              <span class="text-sm font-medium text-gray-700">Mark as New</span>
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
+      </form>
+    </section>
+
+    <!-- Manage Bots -->
+    <section id="manage-bots" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Bots</h2>
+      <ul id="bot-list" class="space-y-4"></ul>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Settings</h2>
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Manage Categories</h3>
+        <div class="flex gap-4 mb-4">
+          <input type="text" id="new-category" class="w-full p-2 border rounded-md" placeholder="e.g., Volatility Bots">
+          <button id="add-category" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Category</button>
+        </div>
+        <ul id="category-list" class="space-y-2"></ul>
+      </div>
+      <div class="mb-6">
+        <label class="flex items-center">
+          <input type="checkbox" id="urgent-toggle" class="mr-2">
+          <span class="text-sm font-medium text-gray-700">Show Urgent Message</span>
+        </label>
+        <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
+        <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
+      </div>
+      <div class="mb-6">
+        <label for="support-email" class="block text-sm font-medium text-gray-700">Support Email</label>
+        <input type="email" id="support-email" class="mt-1 w-full p-2 border rounded-md">
+        <button id="save-email" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Email</button>
+      </div>
+      <div class="mb-6">
+        <label for="copyright-text" class="block text-sm font-medium text-gray-700">Footer Copyright Text</label>
+        <input type="text" id="copyright-text" class="mt-1 w-full p-2 border rounded-md">
+        <button id="save-copyright" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Copyright</button>
+      </div>
+      <div class="mb-6">
+        <label for="logo-url" class="block text-sm font-medium text-gray-700">Logo URL</label>
+        <input type="url" id="logo-url" class="mt-1 w-full p-2 border rounded-md">
+        <button id="save-logo" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Logo</button>
+      </div>
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Social Media Links</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div><label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok</label><input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="whatsapp" class="block text-sm font-medium text-gray-700">WhatsApp</label><input type="url" id="whatsapp" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="call" class="block text-sm font-medium text-gray-700">Call</label><input type="tel" id="call" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="instagram" class="block text-sm font-medium text-gray-700">Instagram</label><input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="x" class="block text-sm font-medium text-gray-700">X</label><input type="url" id="x" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="facebook" class="block text-sm font-medium text-gray-700">Facebook</label><input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="youtube" class="block text-sm font-medium text-gray-700">YouTube</label><input type="url" id="youtube" class="mt-1 w-full p-2 border rounded-md"></div>
+        </div>
+        <button id="save-socials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Socials</button>
+      </div>
+      <div class="mb-6">
+        <label for="fallback-rate" class="block text-sm font-medium text-gray-700">Fallback Exchange Rate (KES/USD)</label>
+        <input type="number" id="fallback-rate" step="0.01" class="mt-1 w-full p-2 border rounded-md">
+        <button id="save-fallback-rate" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Rate</button>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Change Admin Credentials</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="new-email" class="block text-sm font-medium text-gray-700">New Email</label>
+            <input type="email" id="new-email" class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="new-password" class="block text-sm font-medium text-gray-700">New Password</label>
+            <input type="password" id="new-password" class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+            <input type="password" id="confirm-password" class="mt-1 w-full p-2 border rounded-md">
+          </div>
+        </div>
+        <button id="change-credentials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Change Credentials</button>
+      </div>
+    </section>
+
+    <!-- Static Pages -->
+    <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
+      <div class="mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Add New Page</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="page-title" class="block text-sm font-medium text-gray-700">Page Title</label>
+            <input type="text" id="page-title" class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (e.g., /my-page)</label>
+            <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown)</label>
+            <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
+          </div>
+        </div>
+        <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
+      </div>
+      <ul id="page-list" class="space-y-4"></ul>
+    </section>
+  </main>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Admin Login</h3>
+      <div class="mb-4">
+        <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+        <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
+      </div>
+      <div class="mb-4 relative">
+        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
+        <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
+      </div>
+      <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
+    </div>
+  </div>
+
+  <!-- Edit Bot Modal -->
+  <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 max-w-lg w-full">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
+      <form id="edit-form">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="edit-name" class="block text-sm font-medium text-gray-700">Name</label>
+            <input type="text" id="edit-name" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="edit-price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+            <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
+            <textarea id="edit-desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional)</label>
+            <input type="url" id="edit-embed" class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div>
+            <label for="edit-category" class="block text-sm font-medium text-gray-700">Category</label>
+            <select id="edit-category" required class="mt-1 w-full p-2 border rounded-md"></select>
+          </div>
+          <div>
+            <label for="edit-item" class="block text-sm font-medium text-gray-700">Item Number</label>
+            <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md" readonly>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
+            <input type="url" id="edit-img" required class="mt-1 w-full p-2 border rounded-md">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="flex items-center">
+              <input type="checkbox" id="edit-isNew" class="mr-2">
+              <span class="text-sm font-medium text-gray-700">Mark as New</span>
+            </label>
+          </div>
+        </div>
+        <div class="mt-6 flex justify-end space-x-4">
+          <button type="button" id="edit-cancel" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Cancel</button>
+          <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let products = [];
+    let categories = [];
+    let settings = {};
+    let staticPages = [];
+
+    // Button loading state
+    function setButtonLoading(button, isLoading) {
+      button.disabled = isLoading;
+      button.dataset.originalText = button.dataset.originalText || button.textContent;
+      button.textContent = isLoading ? 'Saving...' : button.dataset.originalText;
+    }
+
+    // Fetch data from server
+    async function fetchData() {
+      try {
+        const response = await fetch('/api/data');
+        const data = await response.json();
+        products = data.products || [];
+        categories = data.categories || [];
+        settings = data.settings || {};
+        staticPages = data.staticPages || [];
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        alert('Failed to load data.');
+      }
+    }
+
+    // Save data to server
+    async function saveData() {
+      try {
+        const response = await fetch('/api/save-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ products, categories, settings, staticPages })
+        });
+        const data = await response.json();
+        if (data.success) {
+          return true;
+        }
+        throw new Error(data.error || 'Failed to save data.');
+      } catch (error) {
+        console.error('Error saving data:', error);
+        alert('Failed to save data.');
+        return false;
+      }
+    }
+
+    // Login handler
+    const loginModal = document.getElementById('login-modal');
+    const loginPassword = document.getElementById('login-password');
+    const togglePassword = document.getElementById('toggle-password');
+    togglePassword.addEventListener('click', () => {
+      const type = loginPassword.type === 'password' ? 'text' : 'password';
+      loginPassword.type = type;
+      togglePassword.textContent = type === 'password' ? 'Show' : 'Hide';
+    });
+
+    document.getElementById('login-submit').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        if (data.success) {
+          loginModal.classList.add('hidden');
+        } else {
+          alert('Invalid email or password.');
+        }
+      } catch {
+        alert('Login failed.');
+      }
+    });
+
+    // Navigation
+    const sections = document.querySelectorAll('.section');
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = link.getAttribute('href').substring(1);
+        sections.forEach(section => section.classList.add('hidden'));
+        document.getElementById(target).classList.remove('hidden');
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+        link.classList.add('border-b-2', 'border-green-500');
+      });
+    });
+
+    // Render categories
+    function renderCategories() {
+      const select = document.getElementById('category');
+      const editSelect = document.getElementById('edit-category');
+      select.innerHTML = '';
+      editSelect.innerHTML = '';
+      categories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option.cloneNode(true));
+        editSelect.appendChild(option);
+      });
+    }
+
+    function renderCategoryList() {
+      const categoryList = document.getElementById('category-list');
+      categoryList.innerHTML = categories.map((cat, index) => `
+        <li class="flex justify-between items-center p-2 bg-gray-50 rounded">
+          <span>${cat}</span>
+          <button onclick="deleteCategory(${index})" class="text-red-600 hover:text-red-800">Delete</button>
+        </li>
+      `).join('');
+    }
+
+    // Add category
+    document.getElementById('add-category').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      const newCat = document.getElementById('new-category').value.trim();
+      if (newCat && !categories.includes(newCat)) {
+        categories.push(newCat);
+        if (await saveData()) {
+          renderCategories();
+          renderCategoryList();
+          document.getElementById('new-category').value = '';
+          alert('Category added.');
+        }
+      } else {
+        alert(newCat ? 'Category already exists.' : 'Please enter a category name.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    // Delete category
+    async function deleteCategory(index) {
+      if (confirm('Are you sure you want to delete this category? Bots will remain but won’t show until reassigned.')) {
+        categories.splice(index, 1);
+        if (await saveData()) {
+          renderCategories();
+          renderCategoryList();
+          alert('Category deleted.');
+        }
+      }
+    }
+
+    // Render bots
+    function renderBots() {
+      const botList = document.getElementById('bot-list');
+      botList.innerHTML = products.map((product, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${product.name}</span> - $${product.price} (${product.category})
+            ${product.isArchived ? '<span class="text-red-600 text-sm ml-2">[Archived]</span>' : ''}
+          </div>
+          <div class="space-x-2">
+            <button onclick="editBot(${index})" class="text-green-600 hover:text-green-800">Edit</button>
+            <button onclick="archiveBot(${index})" class="text-yellow-600 hover:text-yellow-800">${product.isArchived ? 'Unarchive' : 'Archive'}</button>
+            <button onclick="deleteBot(${index})" class="text-red-600 hover:text-red-800">Delete</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    // Edit bot
+    async function editBot(index) {
+      const product = products[index];
+      document.getElementById('edit-name').value = product.name;
+      document.getElementById('edit-price').value = product.price;
+      document.getElementById('edit-desc').value = product.desc;
+      document.getElementById('edit-embed').value = product.embed || '';
+      document.getElementById('edit-category').value = product.category;
+      document.getElementById('edit-item').value = product.item;
+      document.getElementById('edit-img').value = product.img;
+      document.getElementById('edit-isNew').checked = product.isNew;
+
+      const editModal = document.getElementById('edit-modal');
+      editModal.classList.remove('hidden');
+
+      document.getElementById('edit-form').onsubmit = async e => {
+        e.preventDefault();
+        const button = e.target.querySelector('button[type="submit"]');
+        setButtonLoading(button, true);
+        products[index] = {
+          ...products[index],
+          name: document.getElementById('edit-name').value,
+          price: parseFloat(document.getElementById('edit-price').value),
+          desc: document.getElementById('edit-desc').value,
+          embed: document.getElementById('edit-embed').value,
+          category: document.getElementById('edit-category').value,
+          img: document.getElementById('edit-img').value,
+          isNew: document.getElementById('edit-isNew').checked
+        };
+        if (await saveData()) {
+          alert('Bot updated.');
+          renderBots();
+          editModal.classList.add('hidden');
+        }
+        setButtonLoading(button, false);
+      };
+
+      document.getElementById('edit-cancel').onclick = () => {
+        editModal.classList.add('hidden');
+      };
+    }
+
+    // Archive bot
+    async function archiveBot(index) {
+      products[index].isArchived = !products[index].isArchived;
+      if (await saveData()) {
+        renderBots();
+        alert('Bot updated.');
+      }
+    }
+
+    // Delete bot
+    async function deleteBot(index) {
+      if (confirm('Are you sure you want to delete this bot?')) {
+        products.splice(index, 1);
+        if (await saveData()) {
+          renderBots();
+          alert('Bot deleted.');
+        }
+      }
+    }
+
+    // Add bot
+    document.getElementById('product-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const button = e.target.querySelector('button[type="submit"]');
+      setButtonLoading(button, true);
+
+      const formData = new FormData();
+      formData.append('file', document.getElementById('file').files[0]);
+      formData.append('item', document.getElementById('item').value);
+      formData.append('name', document.getElementById('name').value);
+      formData.append('price', document.getElementById('price').value);
+      formData.append('desc', document.getElementById('desc').value);
+      formData.append('embed', document.getElementById('embed').value);
+      formData.append('category', document.getElementById('category').value);
+      formData.append('img', document.getElementById('img').value);
+      formData.append('isNew', document.getElementById('isNew').checked);
+
+      try {
+        const response = await fetch('/api/add-bot', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+          products.push(data.product);
+          if (await saveData()) {
+            alert('Bot added.');
+            e.target.reset();
+            renderBots();
+          }
+        } else {
+          alert(data.error || 'Failed to add bot.');
+        }
+      } catch {
+        alert('Error adding bot.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    // Save settings
+    document.getElementById('save-urgent').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.urgentMessage = {
+        enabled: document.getElementById('urgent-toggle').checked,
+        text: document.getElementById('urgent-message').value
+      };
+      if (await saveData()) {
+        alert('Urgent message saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('save-email').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.supportEmail = document.getElementById('support-email').value;
+      if (await saveData()) {
+        alert('Support email saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('save-copyright').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.copyrightText = document.getElementById('copyright-text').value;
+      if (await saveData()) {
+        alert('Copyright text saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('save-logo').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.logoUrl = document.getElementById('logo-url').value;
+      if (await saveData()) {
+        alert('Logo URL saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('save-socials').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.socials = {
+        tiktok: document.getElementById('tiktok').value,
+        whatsapp: document.getElementById('whatsapp').value,
+        call: document.getElementById('call').value,
+        instagram: document.getElementById('instagram').value,
+        x: document.getElementById('x').value,
+        facebook: document.getElementById('facebook').value,
+        youtube: document.getElementById('youtube').value
+      };
+      if (await saveData()) {
+        alert('Social media links saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('save-fallback-rate').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
+      if (await saveData()) {
+        alert('Fallback rate saved.');
+      }
+      setButtonLoading(button, false);
+    });
+
+    document.getElementById('change-credentials').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      const newEmail = document.getElementById('new-email').value;
+      const newPassword = document.getElementById('new-password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+
+      if (!newEmail || !newPassword) {
+        alert('Please fill in both email and password.');
+        setButtonLoading(button, false);
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        alert('Passwords do not match.');
+        setButtonLoading(button, false);
+        return;
+      }
+
+      settings.adminEmail = newEmail;
+      settings.adminPassword = newPassword;
+      if (await saveData()) {
+        alert('Credentials updated. Please log in again.');
+        loginModal.classList.remove('hidden');
+        document.getElementById('new-email').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+      }
+      setButtonLoading(button, false);
+    });
+
+    // Static pages
+    function renderStaticPages() {
+      const pageList = document.getElementById('page-list');
+      pageList.innerHTML = staticPages.map((page, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${page.title}</span> (${page.slug})
+          </div>
+          <div class="space-x-2">
+            <button onclick="editPage(${index})" class="text-green-600 hover:text-green-800">Edit</button>
+            <button onclick="deletePage(${index})" class="text-red-600 hover:text-red-800">Delete</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    document.getElementById('add-page').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, true);
+      const title = document.getElementById('page-title').value.trim();
+      const slug = document.getElementById('page-slug').value.trim();
+      const content = document.getElementById('page-content').value.trim();
+
+      if (!title || !slug || !content) {
+        alert('Please fill in all fields.');
+        setButtonLoading(button, false);
+        return;
+      }
+      if (!slug.startsWith('/')) {
+        alert('Slug must start with a slash (e.g., /my-page).');
+        setButtonLoading(button, false);
+        return;
+      }
+      if (staticPages.some(p => p.slug === slug)) {
+        alert('Slug already exists.');
+        setButtonLoading(button, false);
+        return;
+      }
+
+      staticPages.push({ title, slug, content });
+      if (await saveData()) {
+        alert('Page added.');
+        document.getElementById('page-title').value = '';
+        document.getElementById('page-slug').value = '';
+        document.getElementById('page-content').value = '';
+        renderStaticPages();
+      }
+      setButtonLoading(button, false);
+    });
+
+    async function editPage(index) {
+      const page = staticPages[index];
+      document.getElementById('page-title').value = page.title;
+      document.getElementById('page-slug').value = page.slug;
+      document.getElementById('page-content').value = page.content;
+
+      const addButton = document.getElementById('add-page');
+      addButton.textContent = 'Save Changes';
+      addButton.onclick = async e => {
+        const button = e.target;
+        setButtonLoading(button, true);
+        const title = document.getElementById('page-title').value.trim();
+        const slug = document.getElementById('page-slug').value.trim();
+        const content = document.getElementById('page-content').value.trim();
+
+        if (!title || !slug || !content) {
+          alert('Please fill in all fields.');
+          setButtonLoading(button, false);
+          return;
+        }
+        if (!slug.startsWith('/')) {
+          alert('Slug must start with a slash (e.g., /my-page).');
+          setButtonLoading(button, false);
+          return;
+        }
+        if (staticPages.some((p, i) => i !== index && p.slug === slug)) {
+          alert('Slug already exists.');
+          setButtonLoading(button, false);
+          return;
+        }
+
+        staticPages[index] = { title, slug, content };
+        if (await saveData()) {
+          alert('Page updated.');
+          document.getElementById('page-title').value = '';
+          document.getElementById('page-slug').value = '';
+          document.getElementById('page-content').value = '';
+          renderStaticPages();
+          addButton.textContent = 'Add Page';
+          addButton.onclick = addPageHandler; // Restore original handler
+        }
+        setButtonLoading(button, false);
+      };
+    }
+
+    async function deletePage(index) {
+      if (confirm('Are you sure you want to delete this page?')) {
+        staticPages.splice(index, 1);
+        if (await saveData()) {
+          alert('Page deleted.');
+          renderStaticPages();
+        }
+      }
+    }
+
+    // Store original add page handler
+    const addPageHandler = document.getElementById('add-page').onclick;
+
+    // Initialize settings form
+    function initializeSettings() {
+      document.getElementById('support-email').value = settings.supportEmail || '';
+      document.getElementById('copyright-text').value = settings.copyrightText || '';
+      document.getElementById('logo-url').value = settings.logoUrl || '';
+      document.getElementById('tiktok').value = settings.socials?.tiktok || '';
+      document.getElementById('whatsapp').value = settings.socials?.whatsapp || '';
+      document.getElementById('call').value = settings.socials?.call || '';
+      document.getElementById('instagram').value = settings.socials?.instagram || '';
+      document.getElementById('x').value = settings.socials?.x || '';
+      document.getElementById('facebook').value = settings.socials?.facebook || '';
+      document.getElementById('youtube').value = settings.socials?.youtube || '';
+      document.getElementById('fallback-rate').value = settings.fallbackRate || '';
+      document.getElementById('urgent-toggle').checked = settings.urgentMessage?.enabled || false;
+      document.getElementById('urgent-message').value = settings.urgentMessage?.text || '';
+    }
+
+    // Initialize
+    async function initialize() {
+      await fetchData();
+      renderCategories();
+      renderCategoryList();
+      renderBots();
+      renderStaticPages();
+      initializeSettings();
+    }
+
+    initialize();
+  </script>
+</body>
+</html>
