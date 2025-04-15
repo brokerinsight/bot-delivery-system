@@ -129,292 +129,364 @@
       <p id="copyright-text" class="text-gray-600 dark:text-gray-300"></p>
       <p class="text-gray-500 dark:text-gray-400 mt-2">Support: <a id="support-email" class="underline"></a></p>
       <div id="social-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
+      <div id="static-links" class="mt-4 flex justify-center space-x-4 flex-wrap">
+        <a href="/cookie-policy" class="text-gray-500 hover:text-green-600">Cookie Policy</a>
+        <a href="/privacy-policy" class="text-gray-500 hover:text-green-600">Privacy Policy</a>
+        <a href="/about" class="text-gray-500 hover:text-green-600">About Us</a>
+        <a href="/contact" class="text-gray-500 hover:text-green-600">Contact Us</a>
+      </div>
     </div>
   </footer>
 
   <script>
     let products = [];
-    let categories = [];
     let settings = {};
-    let staticPages = [];
-    let currentProduct = null;
+    let categories = [];
+    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
 
-    // Fetch data from server
-    async function fetchData() {
+    // Fetch exchange rate (USD to KES)
+    async function getExchangeRate() {
       try {
-        const response = await fetch('/api/data', { credentials: 'include' });
+        const response = await fetch('https://api.exchangerate.host/convert?from=USD&to=KES');
         const data = await response.json();
-        products = data.products || [];
-        categories = data.categories || [];
-        settings = data.settings || {};
-        staticPages = data.staticPages || [];
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        alert('Failed to load data. Please try again later.');
-      }
-    }
-
-    // Fetch exchange rate
-    async function fetchExchangeRate() {
-      try {
-        const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-        const data = await response.json();
-        return data.rates.KES;
+        return data.result || settings.fallbackRate;
       } catch {
-        return settings.fallbackRate || 130;
+        return settings.fallbackRate;
       }
     }
 
-    // Navigation
-    function setupNavLinks() {
-      const navLinksContainer = document.getElementById('nav-links');
-      const mobileNavLinksContainer = document.getElementById('mobile-nav-links');
-      navLinksContainer.innerHTML = '';
-      mobileNavLinksContainer.innerHTML = '';
-      const cats = ['all', ...new Set(categories)];
-      cats.forEach(cat => {
-        const link = document.createElement('a');
-        link.href = '#';
-        link.dataset.category = cat;
-        link.className = `nav-link ${cat === 'all' ? 'border-b-2 border-green-500 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} px-1 pt-1 text-sm font-medium`;
-        link.textContent = cat === 'all' ? 'Home' : cat;
-        navLinksContainer.appendChild(link.cloneNode(true));
-        mobileNavLinksContainer.appendChild(link);
-      });
+    // Fetch data from server with retries
+    async function fetchData() {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const response = await fetch('/api/data');
+          const data = await response.json();
+          products = data.products || [];
+          categories = data.categories || [];
+          settings = data.settings || {};
+          return;
+        } catch (error) {
+          console.error('Error fetching data (retrying):', error);
+          retries--;
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+        }
+      }
+      alert('Failed to load store data after multiple attempts.');
+    }
 
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
-          e.preventDefault();
-          const category = link.dataset.category;
-          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900', 'dark:text-white'));
-          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900', 'dark:text-white');
-          renderProducts(category);
-          if (window.innerWidth < 640) {
-            document.getElementById('mobile-menu').classList.add('hidden');
+    // Fetch modal content
+    async function fetchModalContent() {
+      try {
+        const paymentRes = await fetch('/api/page/payment-modal');
+        const paymentData = await paymentRes.json();
+        if (paymentData.success) {
+          const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
+          paymentModalDiv.innerHTML = paymentData.page.content;
+          // Reattach event listeners for buttons in the dynamically loaded content
+          const confirmPayment = paymentModalDiv.querySelector('#confirm-payment');
+          const paymentCancel = paymentModalDiv.querySelector('#payment-cancel');
+          if (confirmPayment) {
+            confirmPayment.addEventListener('click', () => {
+              const item = confirmPayment.dataset.item;
+              const product = products.find(p => p.item === item);
+              const kesPrice = confirmPayment.dataset.kesPrice;
+              const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+              document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
+              document.getElementById('payment-modal').classList.add('hidden');
+              showRefCodeModal(product, kesPrice);
+            });
           }
-        });
-      });
+          if (paymentCancel) {
+            paymentCancel.addEventListener('click', () => {
+              document.getElementById('payment-modal').classList.add('hidden');
+            });
+          }
+        }
+
+        const refRes = await fetch('/api/page/ref-code-modal');
+        const refData = await refRes.json();
+        if (refData.success) {
+          const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
+          refCodeModalDiv.innerHTML = refData.page.content;
+          // Reattach event listeners for buttons in the dynamically loaded content
+          const submitRefCode = refCodeModalDiv.querySelector('#submit-ref-code');
+          const refCodeCancel = refCodeModalDiv.querySelector('#ref-code-cancel');
+          if (submitRefCode) {
+            submitRefCode.addEventListener('click', async () => {
+              const refCode = refCodeModalDiv.querySelector('#ref-code-input')?.value?.trim();
+              if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
+                alert('Please enter a valid MPESA ref code.');
+                return;
+              }
+              const item = submitRefCode.dataset.item;
+              const kesPrice = submitRefCode.dataset.kesPrice;
+              const product = products.find(p => p.item === item);
+              try {
+                const response = await fetch('/api/submit-ref', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    item: product.item,
+                    refCode,
+                    amount: kesPrice,
+                    timestamp: new Date().toISOString()
+                  })
+                });
+                const data = await response.json();
+                if (data.success) {
+                  alert('Ref code submitted! You will receive your bot soon.');
+                  document.cookie = `payment_${product.item}=submitted; path=/`;
+                  document.getElementById('ref-code-modal').classList.add('hidden');
+                } else {
+                  alert('Failed to submit ref code.');
+                }
+              } catch {
+                alert('Error submitting ref code.');
+              }
+            });
+          }
+          if (refCodeCancel) {
+            refCodeCancel.addEventListener('click', () => {
+              document.getElementById('ref-code-modal').classList.add('hidden');
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching modal content:', error);
+        // Fallback content is already in the HTML, so no need to set it here
+      }
     }
 
     // Render products
-    async function renderProducts(category = 'all') {
+    function renderProducts(filter = 'all', search = '') {
       const grid = document.getElementById('product-grid');
       grid.innerHTML = '';
-      const rate = await fetchExchangeRate();
-      const filteredProducts = category === 'all' 
-        ? products.filter(p => !p.isArchived)
-        : products.filter(p => p.category === category && !p.isArchived);
+      let filteredProducts = products.filter(p => !p.isArchived);
+      
+      if (filter !== 'all') {
+        filteredProducts = filteredProducts.filter(p => p.category === filter);
+      }
+      
+      if (search) {
+        const term = search.toLowerCase();
+        filteredProducts = filteredProducts.filter(p => 
+          p.name.toLowerCase().includes(term) || p.item.toLowerCase().includes(term)
+        );
+      }
 
       filteredProducts.forEach(product => {
-        const kesPrice = (product.price * rate).toFixed(2);
         const card = document.createElement('div');
-        card.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden';
+        card.className = 'bg-white dark:bg-gray-700 rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
-          <img src="${product.img}" alt="${product.name}" class="w-full h-48 object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${product.name} ${product.isNew ? '<span class="text-green-600 dark:text-green-400 text-sm ml-2">[New]</span>' : ''}</h3>
-            <p class="text-gray-600 dark:text-gray-300 text-sm mt-1 truncate-2-lines">${product.desc}</p>
-            <p class="text-green-600 dark:text-green-400 font-bold mt-2">$${product.price} (${kesPrice} KES)</p>
-            ${product.embed ? `<iframe class="w-full h-48 mt-4 rounded-md" src="${product.embed}" frameborder="0" allowfullscreen></iframe>` : ''}
-            <button data-item="${product.item}" class="buy-button w-full mt-4 bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Buy Now</button>
+          <div class="aspect-w-16 aspect-h-9">
+            <img src="${product.img}" alt="${product.name}" class="object-cover">
+          </div>
+          <div class="p-6">
+            ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${product.name}</h3>
+            <p class="mt-2 text-gray-600 dark:text-gray-300 text-sm truncate-2-lines">${product.desc}</p>
+            <p class="mt-2 text-green-600 dark:text-green-400 font-bold">$${product.price}</p>
+            <p class="mt-1 text-gray-500 dark:text-gray-400 text-sm">Item: ${product.item}</p>
+            <button class="buy-now mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">Buy Now</button>
           </div>
         `;
         grid.appendChild(card);
       });
 
-      document.querySelectorAll('.buy-button').forEach(button => {
-        button.addEventListener('click', () => {
-          const item = button.dataset.item;
-          currentProduct = products.find(p => p.item === item);
-          showPaymentModal(rate);
+      document.querySelectorAll('.buy-now').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const item = btn.dataset.item;
+          const product = products.find(p => p.item === item);
+          const rate = await getExchangeRate();
+          const kesPrice = (product.price * rate).toFixed(2);
+          showPaymentModal(product, kesPrice);
+          // Store item and kesPrice on the confirm-payment button for use in dynamic modal content
+          const confirmPaymentBtn = document.getElementById('confirm-payment');
+          confirmPaymentBtn.dataset.item = item;
+          confirmPaymentBtn.dataset.kesPrice = kesPrice;
+          const submitRefCodeBtn = document.getElementById('submit-ref-code');
+          submitRefCodeBtn.dataset.item = item;
+          submitRefCodeBtn.dataset.kesPrice = kesPrice;
         });
       });
     }
 
-    // Payment Modal
-    async function showPaymentModal(rate) {
-      const paymentModal = document.getElementById('payment-modal');
-      const paymentTitle = document.getElementById('payment-title');
-      const mpesaTillNumber = document.getElementById('mpesa-till-number');
-      const paymentAmount = document.getElementById('payment-amount');
-
-      paymentTitle.textContent = `Purchase ${currentProduct.name}`;
-      mpesaTillNumber.textContent = settings.mpesaTill || '4933614';
-      const kesAmount = (currentProduct.price * rate).toFixed(2);
-      paymentAmount.textContent = `Amount: ${kesAmount} KES`;
-      paymentModal.classList.remove('hidden');
-
-      const paymentPage = staticPages.find(page => page.slug === '/payment-modal');
-      if (paymentPage) {
-        const paymentModalContent = document.createElement('div');
-        paymentModalContent.className = 'mt-4 text-gray-600 dark:text-gray-300';
-        paymentModalContent.innerHTML = paymentPage.content;
-        paymentModal.querySelector('div').insertBefore(paymentModalContent, document.getElementById('confirm-payment'));
-      }
+    // Show payment modal
+    async function showPaymentModal(product, kesPrice) {
+      const modal = document.getElementById('payment-modal');
+      document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
+      document.getElementById('mpesa-till-number').textContent = settings.mpesaTill || '4933614';
+      document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
+      modal.classList.remove('hidden');
 
       document.getElementById('confirm-payment').onclick = () => {
-        paymentModal.classList.add('hidden');
-        showRefCodeModal(kesAmount);
+        const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+        document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
+        modal.classList.add('hidden');
+        showRefCodeModal(product, kesPrice);
       };
+
       document.getElementById('payment-cancel').onclick = () => {
-        paymentModal.classList.add('hidden');
+        modal.classList.add('hidden');
       };
     }
 
-    // Ref Code Modal
-    function showRefCodeModal(kesAmount) {
-      const refCodeModal = document.getElementById('ref-code-modal');
-      refCodeModal.classList.remove('hidden');
-
-      const refCodePage = staticPages.find(page => page.slug === '/ref-code-modal');
-      if (refCodePage) {
-        const refCodeModalContent = document.createElement('div');
-        refCodeModalContent.className = 'mb-4 text-gray-600 dark:text-gray-300';
-        refCodeModalContent.innerHTML = refCodePage.content;
-        refCodeModal.querySelector('div').insertBefore(refCodeModalContent, document.getElementById('ref-code-input'));
-      }
+    // Show ref code modal
+    function showRefCodeModal(product, kesPrice) {
+      const modal = document.getElementById('ref-code-modal');
+      modal.classList.remove('hidden');
 
       document.getElementById('submit-ref-code').onclick = async () => {
         const refCode = document.getElementById('ref-code-input').value.trim();
-        if (!refCode) {
+        if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
           alert('Please enter a valid MPESA ref code.');
           return;
         }
+
         try {
           const response = await fetch('/api/submit-ref', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              item: currentProduct.item,
+              item: product.item,
               refCode,
-              amount: kesAmount,
+              amount: kesPrice,
               timestamp: new Date().toISOString()
-            }),
-            credentials: 'include'
+            })
           });
           const data = await response.json();
           if (data.success) {
-            alert('Ref code submitted successfully. You will receive your bot shortly.');
-            refCodeModal.classList.add('hidden');
+            alert('Ref code submitted! You will receive your bot soon.');
+            document.cookie = `payment_${product.item}=submitted; path=/`;
+            modal.classList.add('hidden');
           } else {
-            throw new Error(data.error || 'Failed to submit ref code.');
+            alert('Failed to submit ref code.');
           }
-        } catch (error) {
-          console.error('Error submitting ref code:', error);
-          alert(`Error: ${error.message}`);
+        } catch {
+          alert('Error submitting ref code.');
         }
       };
+
       document.getElementById('ref-code-cancel').onclick = () => {
-        refCodeModal.classList.add('hidden');
+        modal.classList.add('hidden');
       };
     }
 
-    // Search functionality
-    document.getElementById('search-bar').addEventListener('input', e => {
-      const query = e.target.value.toLowerCase();
-      const filteredProducts = products.filter(p => p.name.toLowerCase().includes(query) && !p.isArchived);
-      const grid = document.getElementById('product-grid');
-      grid.innerHTML = '';
-      const rate = settings.fallbackRate || 130;
-      filteredProducts.forEach(product => {
-        const kesPrice = (product.price * rate).toFixed(2);
-        const card = document.createElement('div');
-        card.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden';
-        card.innerHTML = `
-          <img src="${product.img}" alt="${product.name}" class="w-full h-48 object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${product.name} ${product.isNew ? '<span class="text-green-600 dark:text-green-400 text-sm ml-2">[New]</span>' : ''}</h3>
-            <p class="text-gray-600 dark:text-gray-300 text-sm mt-1 truncate-2-lines">${product.desc}</p>
-            <p class="text-green-600 dark:text-green-400 font-bold mt-2">$${product.price} (${kesPrice} KES)</p>
-            ${product.embed ? `<iframe class="w-full h-48 mt-4 rounded-md" src="${product.embed}" frameborder="0" allowfullscreen></iframe>` : ''}
-            <button data-item="${product.item}" class="buy-button w-full mt-4 bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Buy Now</button>
-          </div>
-        `;
-        grid.appendChild(card);
+    // Check cookie and redirect if needed
+    function checkPaymentCookie() {
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      products.forEach(product => {
+        const cookie = cookies.find(c => c.startsWith(`payment_${product.item}=initiated`));
+        if (cookie) {
+          const expiry = new Date(cookie.match(/expires=(.*?);/)?.[1] || Date.now());
+          if (Date.now() > expiry) {
+            window.location.href = WHATSAPP_REDIRECT;
+          }
+        }
+      });
+    }
+
+    // Render nav links
+    function renderNavLinks() {
+      const navLinks = document.getElementById('nav-links');
+      const mobileNavLinks = document.getElementById('mobile-nav-links');
+      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white px-1 pt-1 text-sm font-medium">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 dark:text-white text-sm font-medium">Home</a>`;
+      categories.forEach(cat => {
+        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-1 pt-1 text-sm font-medium">${cat}</a>`;
+        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm font-medium">${cat}</a>`;
       });
 
-      document.querySelectorAll('.buy-button').forEach(button => {
-        button.addEventListener('click', () => {
-          const item = button.dataset.item;
-          currentProduct = products.find(p => p.item === item);
-          showPaymentModal(rate);
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', e => {
+          e.preventDefault();
+          filterProducts(link.dataset.category);
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+          link.classList.add('border-b-2', 'border-green-500');
+          document.getElementById('mobile-menu').classList.remove('open');
         });
       });
-    });
+    }
 
-    // Dark mode toggle
-    document.getElementById('dark-mode-toggle').addEventListener('click', () => {
-      document.documentElement.classList.toggle('dark');
-      const isDark = document.documentElement.classList.contains('dark');
-      localStorage.setItem('darkMode', isDark);
-      document.getElementById('dark-mode-icon').innerHTML = isDark 
-        ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />`
-        : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`;
+    // Filter products
+    function filterProducts(category) {
+      const search = document.getElementById('search-bar').value;
+      renderProducts(category, search);
+    }
+
+    // Search handler
+    document.getElementById('search-bar').addEventListener('input', e => {
+      const activeCategory = document.querySelector('.nav-link.border-green-500').dataset.category;
+      renderProducts(activeCategory, e.target.value);
     });
 
     // Mobile menu toggle
     document.getElementById('mobile-menu-button').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.remove('hidden');
+      document.getElementById('mobile-menu').classList.add('open');
     });
     document.getElementById('mobile-menu-close').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.add('hidden');
+      document.getElementById('mobile-menu').classList.remove('open');
     });
+
+    // Dark mode toggle
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const darkModeIcon = document.getElementById('dark-mode-icon');
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.documentElement.classList.add('dark');
+      darkModeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />`;
+    }
+    darkModeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('darkMode', isDark);
+      darkModeIcon.innerHTML = isDark ?
+        `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />` :
+        `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`;
+    });
+
+    // Update footer
+    function updateFooter() {
+      document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('support-email').textContent = settings.supportEmail;
+      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '&copy;');
+      const socialLinks = document.getElementById('social-links');
+      const socialIcons = { tiktok: 'TikTok', whatsapp: 'WhatsApp', call: 'Call', instagram: 'Instagram', x: 'X', facebook: 'Facebook', youtube: 'YouTube' };
+      Object.keys(settings.socials).forEach(key => {
+        if (settings.socials[key]) {
+          const link = document.createElement('a');
+          link.href = settings.socials[key];
+          link.target = '_blank';
+          link.className = 'text-gray-500 hover:text-green-600 mx-2';
+          link.textContent = socialIcons[key];
+          socialLinks.appendChild(link);
+        }
+      });
+    }
 
     // Urgent message
     function showUrgentMessage() {
-      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
-        const urgentMessage = document.getElementById('urgent-message');
+      if (settings.urgentMessage.enabled && settings.urgentMessage.text) {
+        const urgent = document.getElementById('urgent-message');
+        urgent.classList.remove('hidden');
         document.getElementById('urgent-text').textContent = settings.urgentMessage.text;
-        urgentMessage.classList.remove('hidden');
-        document.getElementById('urgent-close').onclick = () => {
-          urgentMessage.classList.add('hidden');
-        };
+        document.getElementById('urgent-close').addEventListener('click', () => urgent.classList.add('hidden'));
       }
     }
 
     // Initialize
     async function initialize() {
       await fetchData();
-      setupNavLinks();
+      await fetchModalContent();
+      renderNavLinks();
       renderProducts();
+      updateFooter();
       showUrgentMessage();
-
-      document.getElementById('copyright-text').textContent = settings.copyrightText || '© 2025 Deriv Bot Store';
-      const supportEmail = document.getElementById('support-email');
-      supportEmail.href = `mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}`;
-      supportEmail.textContent = settings.supportEmail || 'kaylie254.business@gmail.com';
-
-      const socialLinks = document.getElementById('social-links');
-      socialLinks.innerHTML = '';
-      const socials = settings.socials || {};
-      const platforms = [
-        { name: 'TikTok', url: socials.tiktok, icon: 'M19 3h-4v10a4 4 0 01-4 4 4 4 0 01-4-4V7a6 6 0 016-6h2v2h-2a4 4 0 00-4 4v6a2 2 0 002 2 2 2 0 002-2V5h4V3z' },
-        { name: 'WhatsApp', url: socials.whatsapp, icon: 'M17.472 14.732a9 9 0 01-4.5 2.268c-2.787.664-5.62-.337-7.5-2.5a9 9 0 01-2.268-4.5c-.664-2.787.337-5.62 2.5-7.5a9 9 0 014.5-2.268c2.787-.664 5.62.337 7.5 2.5a9 9 0 012.268 4.5c.664 2.787-.337 5.62-2.5 7.5zm-5.472-10.732a7 7 0 00-7 7c0 1.627.556 3.126 1.5 4.32L5 19l3.68-1.5a7 7 0 003.32 1.5 7 7 0 007-7 7 7 0 00-7-7z' },
-        { name: 'Instagram', url: socials.instagram, icon: 'M12 16a4 4 0 004-4 4 4 0 00-4-4 4 4 0 00-4 4 4 4 0 004 4zm0-6a2 2 0 012 2 2 2 0 01-2 2 2 2 0 01-2-2 2 2 0 012-2zm6 10h-12a2 2 0 01-2-2v-12a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2zm-12-14v12h12v-12h-12z' },
-        { name: 'X', url: socials.x, icon: 'M18 3h-4l-3 5-3-5h-4l6 8-6 8h4l3-5 3 5h4l-6-8 6-8zm-5 12h-2l-4-6 4-6h2l-4 6 4 6z' },
-        { name: 'Facebook', url: socials.facebook, icon: 'M18 3h-3a5 5 0 00-5 5v3h-3v4h3v7h4v-7h3l1-4h-4v-3a1 1 0 011-1h3v-4z' },
-        { name: 'YouTube', url: socials.youtube, icon: 'M21 6a2 2 0 00-2-2h-14a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-12zm-9 10l-5-3 5-3v6z' }
-      ];
-
-      platforms.forEach(platform => {
-        if (platform.url) {
-          const a = document.createElement('a');
-          a.href = platform.url;
-          a.target = '_blank';
-          a.className = 'text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100';
-          a.innerHTML = `<svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="${platform.icon}"/></svg>`;
-          socialLinks.appendChild(a);
-        }
-      });
-
-      // Apply dark mode if set
-      if (localStorage.getItem('darkMode') === 'true') {
-        document.documentElement.classList.add('dark');
-        document.getElementById('dark-mode-icon').innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />`;
-      }
+      setInterval(checkPaymentCookie, 60000); // Check cookies every minute
     }
 
     initialize();
   </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930cc481daa9b03d',t:'MTc0NDczMzk5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
