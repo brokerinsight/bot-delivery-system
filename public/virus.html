@@ -12,19 +12,6 @@
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
     }
-    .progress-container {
-      margin-top: 1rem;
-      width: 100%;
-      background-color: #e5e7eb;
-      border-radius: 0.375rem;
-      overflow: hidden;
-    }
-    .progress-bar {
-      height: 1rem;
-      background-color: #16a34a;
-      width: 0%;
-      transition: width 0.3s ease;
-    }
   </style>
 </head>
 <body class="bg-gray-100">
@@ -89,9 +76,6 @@
               <span class="text-sm font-medium text-gray-700">Mark as New</span>
             </label>
           </div>
-        </div>
-        <div id="upload-progress" class="progress-container hidden">
-          <div id="progress-bar" class="progress-bar"></div>
         </div>
         <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
       </form>
@@ -286,34 +270,24 @@
     let orders = [];
 
     // Button loading state
-    function setButtonLoading(button, state) {
-      button.disabled = state !== 'idle';
+    function setButtonLoading(button, isLoading) {
+      button.disabled = isLoading;
       button.dataset.originalText = button.dataset.originalText || button.textContent;
-      if (state === 'uploading') {
-        button.textContent = 'Uploading...';
-      } else if (state === 'processing') {
-        button.textContent = 'Processing...';
-      } else {
-        button.textContent = button.dataset.originalText;
-      }
+      button.textContent = isLoading ? 'Saving...' : button.dataset.originalText;
     }
 
     // Fetch data from server
     async function fetchData() {
       try {
         const response = await fetch('/api/data', { credentials: 'include' });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to fetch data: ${response.status} - ${errorData.error || 'Unknown error'}`);
-        }
         const data = await response.json();
         products = data.products || [];
         categories = data.categories || [];
         settings = data.settings || {};
         staticPages = data.staticPages || [];
       } catch (error) {
-        console.error('Error fetching data:', error.message);
-        alert('Failed to load data: ' + error.message);
+        console.error('Error fetching data:', error);
+        alert('Failed to load data.');
       }
     }
 
@@ -321,10 +295,6 @@
     async function fetchOrders() {
       try {
         const response = await fetch('/api/orders', { credentials: 'include' });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to fetch orders: ${response.status} - ${errorData.error || 'Unknown error'}`);
-        }
         const data = await response.json();
         if (data.success) {
           orders = data.orders || [];
@@ -332,8 +302,8 @@
           throw new Error(data.error);
         }
       } catch (error) {
-        console.error('Error fetching orders:', error.message);
-        alert('Failed to load orders: ' + error.message);
+        console.error('Error fetching orders:', error);
+        alert('Failed to load orders.');
       }
     }
 
@@ -382,20 +352,14 @@
           body: JSON.stringify({ email, password }),
           credentials: 'include'
         });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Login failed: ${response.status} - ${errorData.error || 'Unknown error'}`);
-        }
         const data = await response.json();
         if (data.success) {
           loginModal.classList.add('hidden');
-          await initialize(); // Reinitialize after login to load data
         } else {
-          throw new Error('Invalid email or password.');
+          alert('Invalid email or password.');
         }
-      } catch (error) {
-        console.error('Login error:', error.message);
-        alert('Login failed: ' + error.message);
+      } catch {
+        alert('Login failed.');
       }
     });
 
@@ -443,7 +407,7 @@
     // Add category
     document.getElementById('add-category').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       const newCat = document.getElementById('new-category').value.trim();
       if (newCat && !categories.includes(newCat)) {
         categories.push(newCat);
@@ -456,7 +420,7 @@
       } else {
         alert(newCat ? 'Category already exists.' : 'Please enter a category name.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     // Delete category
@@ -507,7 +471,7 @@
       document.getElementById('edit-form').onsubmit = async e => {
         e.preventDefault();
         const button = e.target.querySelector('button[type="submit"]');
-        setButtonLoading(button, 'uploading');
+        setButtonLoading(button, true);
         products[index] = {
           ...products[index],
           name: document.getElementById('edit-name').value,
@@ -523,7 +487,7 @@
           renderBots();
           editModal.classList.add('hidden');
         }
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
       };
 
       document.getElementById('edit-cancel').onclick = () => {
@@ -551,12 +515,11 @@
       }
     }
 
-    // Add bot with progress animation
+    // Add bot
     document.getElementById('product-form').addEventListener('submit', async e => {
       e.preventDefault();
       const button = e.target.querySelector('button[type="submit"]');
-      const progressContainer = document.getElementById('upload-progress');
-      const progressBar = document.getElementById('progress-bar');
+      setButtonLoading(button, true);
 
       const formData = new FormData();
       formData.append('file', document.getElementById('file').files[0]);
@@ -569,60 +532,27 @@
       formData.append('img', document.getElementById('img').value);
       formData.append('isNew', document.getElementById('isNew').checked);
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/add-bot', true);
-
-      // Set credentials for cookies
-      xhr.withCredentials = true;
-
-      // Track upload progress
-      xhr.upload.onprogress = function (event) {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          progressBar.style.width = percentComplete + '%';
-          progressContainer.classList.remove('hidden');
-          setButtonLoading(button, 'uploading');
-        }
-      };
-
-      // Handle completion
-      xhr.onload = async function () {
-        setButtonLoading(button, 'processing');
-        progressBar.style.width = '100%';
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (data.success) {
-            products.push(data.product);
-            if (await saveData()) {
-              alert('Bot added successfully.');
-              e.target.reset();
-              renderBots();
-            } else {
-              alert('Failed to save bot data to sheet.');
-            }
-          } else {
-            throw new Error(data.error || 'Failed to add bot.');
+      try {
+        const response = await fetch('/api/add-bot', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        const data = await response.json();
+        if (data.success) {
+          products.push(data.product);
+          if (await saveData()) {
+            alert('Bot added.');
+            e.target.reset();
+            renderBots();
           }
-        } catch (error) {
-          console.error('Error adding bot:', error.message);
-          alert('Error adding bot: ' + error.message);
-        } finally {
-          progressContainer.classList.add('hidden');
-          progressBar.style.width = '0%';
-          setButtonLoading(button, 'idle');
+        } else {
+          alert(data.error || 'Failed to add bot.');
         }
-      };
-
-      // Handle errors
-      xhr.onerror = function () {
-        console.error('Upload error:', xhr.statusText);
-        alert('Upload failed: Network error.');
-        progressContainer.classList.add('hidden');
-        progressBar.style.width = '0%';
-        setButtonLoading(button, 'idle');
-      };
-
-      xhr.send(formData);
+      } catch {
+        alert('Error adding bot.');
+      }
+      setButtonLoading(button, false);
     });
 
     // Render orders
@@ -650,10 +580,6 @@
           body: JSON.stringify(order),
           credentials: 'include'
         });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to confirm order: ${response.status} - ${errorData.error || 'Unknown error'}`);
-        }
         const data = await response.json();
         if (data.success) {
           orders.splice(index, 1);
@@ -663,15 +589,15 @@
           throw new Error(data.error);
         }
       } catch (error) {
-        console.error('Error confirming order:', error.message);
-        alert('Failed to confirm order: ' + error.message);
+        console.error('Error confirming order:', error);
+        alert('Failed to confirm order.');
       }
     }
 
     // Save settings
     document.getElementById('save-urgent').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.urgentMessage = {
         enabled: document.getElementById('urgent-toggle').checked,
         text: document.getElementById('urgent-message').value
@@ -679,52 +605,52 @@
       if (await saveData()) {
         alert('Urgent message saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-email').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.supportEmail = document.getElementById('support-email').value;
       if (await saveData()) {
         alert('Support email saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-copyright').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.copyrightText = document.getElementById('copyright-text').value;
       if (await saveData()) {
         alert('Copyright text saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-logo').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.logoUrl = document.getElementById('logo-url').value;
       if (await saveData()) {
         alert('Logo URL saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-mpesa-till').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.mpesaTill = document.getElementById('mpesa-till').value;
       if (await saveData()) {
         alert('MPESA Till Number saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-socials').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.socials = {
         tiktok: document.getElementById('tiktok').value,
         whatsapp: document.getElementById('whatsapp').value,
@@ -737,33 +663,33 @@
       if (await saveData()) {
         alert('Social media links saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('save-fallback-rate').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
       if (await saveData()) {
         alert('Fallback rate saved.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     document.getElementById('change-credentials').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       const newEmail = document.getElementById('new-email').value;
       const newPassword = document.getElementById('new-password').value;
       const confirmPassword = document.getElementById('confirm-password').value;
       if (!newEmail || !newPassword || !confirmPassword) {
         alert('Please fill in all fields.');
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
         return;
       }
       if (newPassword !== confirmPassword) {
         alert('Passwords do not match.');
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
         return;
       }
       settings.adminEmail = newEmail;
@@ -772,7 +698,7 @@
         alert('Credentials updated. Please log in again.');
         loginModal.classList.remove('hidden');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     // Render static pages
@@ -794,23 +720,23 @@
     // Add page
     document.getElementById('add-page').addEventListener('click', async e => {
       const button = e.target;
-      setButtonLoading(button, 'uploading');
+      setButtonLoading(button, true);
       const title = document.getElementById('page-title').value;
       const slug = document.getElementById('page-slug').value;
       const content = document.getElementById('page-content').value;
       if (!title || !slug || !content) {
         alert('Please fill in all fields.');
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
         return;
       }
       if (!slug.startsWith('/')) {
         alert('Slug must start with "/".');
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
         return;
       }
       if (staticPages.some(page => page.slug === slug)) {
         alert('A page with this slug already exists.');
-        setButtonLoading(button, 'idle');
+        setButtonLoading(button, false);
         return;
       }
       staticPages.push({ title, slug, content });
@@ -821,7 +747,7 @@
         document.getElementById('page-content').value = '';
         alert('Page added.');
       }
-      setButtonLoading(button, 'idle');
+      setButtonLoading(button, false);
     });
 
     // Edit page
@@ -830,7 +756,7 @@
       document.getElementById('page-title').value = page.title;
       document.getElementById('page-slug').value = page.slug;
       document.getElementById('page-content').value = page.content;
-      staticPages.splice(index, 1);
+      staticPages.splice(index, 1); // Remove temporarily for editing
       renderStaticPages();
     }
 
@@ -870,5 +796,6 @@
 
     initialize();
   </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930ce3dc0aa27221',t:'MTc0NDczNTI4Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
