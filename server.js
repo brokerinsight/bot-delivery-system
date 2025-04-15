@@ -137,7 +137,7 @@ async function loadData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'categories!A:A'
     });
-    const categories = categoriesRes.data.values?.flat() || ['General'];
+    const categories = categoriesRes.data.values?.slice(1).flat() || ['General'];
 
     const pagesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
@@ -158,30 +158,44 @@ async function loadData() {
 // Save data to Google Sheets
 async function saveData() {
   try {
+    // Update Sheet1 in both SPREADSHEET_ID and PRODUCTS_SHEET_ID
+    const productValues = [
+      ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
+      ...cachedData.products.map(p => [
+        p.item,
+        p.fileId,
+        p.price,
+        p.name,
+        p.desc,
+        p.img,
+        p.category,
+        p.embed,
+        p.isNew ? 'TRUE' : 'FALSE',
+        p.isArchived ? 'TRUE' : 'FALSE'
+      ])
+    ];
+
+    // Update SPREADSHEET_ID
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J',
       valueInputOption: 'RAW',
       resource: {
-        values: [
-          ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-          ...cachedData.products.map(p => [
-            p.item,
-            p.fileId,
-            p.price,
-            p.name,
-            p.desc,
-            p.img,
-            p.category,
-            p.embed,
-            p.isNew ? 'TRUE' : 'FALSE',
-            p.isArchived ? 'TRUE' : 'FALSE'
-          ])
-        ]
+        values: productValues
       }
     });
 
-    // Serialize nested objects as JSON strings
+    // Update PRODUCTS_SHEET_ID
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'Sheet1!A:J',
+      valueInputOption: 'RAW',
+      resource: {
+        values: productValues
+      }
+    });
+
+    // Serialize nested objects as JSON strings for settings
     const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
       if (typeof value === 'object' && value !== null) {
         return [key, JSON.stringify(value)];
