@@ -279,7 +279,7 @@
     // Fetch data from server
     async function fetchData() {
       try {
-        const response = await fetch('/api/data');
+        const response = await fetch('/api/data', { credentials: 'include' });
         const data = await response.json();
         products = data.products || [];
         categories = data.categories || [];
@@ -294,7 +294,7 @@
     // Fetch orders
     async function fetchOrders() {
       try {
-        const response = await fetch('/api/orders');
+        const response = await fetch('/api/orders', { credentials: 'include' });
         const data = await response.json();
         if (data.success) {
           orders = data.orders || [];
@@ -313,16 +313,21 @@
         const response = await fetch('/api/save-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
+          body: JSON.stringify({ products, categories, settings, staticPages }),
+          credentials: 'include'
         });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to save data: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
         const data = await response.json();
         if (data.success) {
           return true;
         }
         throw new Error(data.error || 'Failed to save data.');
       } catch (error) {
-        console.error('Error saving data:', error);
-        alert('Failed to save data.');
+        console.error('Error saving data:', error.message);
+        alert(`Failed to save data: ${error.message}`);
         return false;
       }
     }
@@ -344,7 +349,8 @@
         const response = await fetch('/api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password }),
+          credentials: 'include'
         });
         const data = await response.json();
         if (data.success) {
@@ -529,7 +535,8 @@
       try {
         const response = await fetch('/api/add-bot', {
           method: 'POST',
-          body: formData
+          body: formData,
+          credentials: 'include'
         });
         const data = await response.json();
         if (data.success) {
@@ -570,7 +577,8 @@
         const response = await fetch('/api/confirm-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(order)
+          body: JSON.stringify(order),
+          credentials: 'include'
         });
         const data = await response.json();
         if (data.success) {
@@ -788,5 +796,6 @@
 
     initialize();
   </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930ce3dc0aa27221',t:'MTc0NDczNTI4Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
