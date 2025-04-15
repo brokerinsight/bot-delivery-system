@@ -12,35 +12,22 @@
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
     }
-    .loading-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
+    .progress-container {
+      margin-top: 1rem;
+      width: 100%;
+      background-color: #e5e7eb;
+      border-radius: 0.375rem;
+      overflow: hidden;
     }
-    .spinner {
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top: 4px solid white;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    .progress-bar {
+      height: 1rem;
+      background-color: #16a34a;
+      width: 0%;
+      transition: width 0.3s ease;
     }
   </style>
 </head>
 <body class="bg-gray-100">
-  <!-- Loading Overlay -->
-  <div id="loading-overlay" class="loading-overlay">
-    <div class="spinner"></div>
-  </div>
-
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -103,6 +90,9 @@
             </label>
           </div>
         </div>
+        <div id="upload-progress" class="progress-container hidden">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
         <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
       </form>
     </section>
@@ -157,6 +147,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok</label><input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md"></div>
           <div><label for="whatsapp" class="block text-sm font-medium text-gray-700">WhatsApp</label><input type="url" id="whatsapp" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div><label for="call" class="block text-sm font-medium text-gray-700">Call</label><input type="tel" id="call" class="mt-1 w-full p-2 border rounded-md"></div>
           <div><label for="instagram" class="block text-sm font-medium text-gray-700">Instagram</label><input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md"></div>
           <div><label for="x" class="block text-sm font-medium text-gray-700">X</label><input type="url" id="x" class="mt-1 w-full p-2 border rounded-md"></div>
           <div><label for="facebook" class="block text-sm font-medium text-gray-700">Facebook</label><input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md"></div>
@@ -295,283 +286,280 @@
     let orders = [];
 
     // Button loading state
-    function setButtonLoading(button, isLoading) {
-      button.disabled = isLoading;
+    function setButtonLoading(button, state) {
+      button.disabled = state !== 'idle';
       button.dataset.originalText = button.dataset.originalText || button.textContent;
-      button.textContent = isLoading ? 'Saving...' : button.dataset.originalText;
-    }
-
-    // Show/hide loading overlay
-    const loadingOverlay = document.getElementById('loading-overlay');
-    function showLoadingOverlay() {
-      loadingOverlay.style.display = 'flex';
-    }
-    function hideLoadingOverlay() {
-      loadingOverlay.style.display = 'none';
-    }
-
-    // Fetch with retry logic
-    async function fetchWithRetry(url, options = {}, retries = 3, delay = 1000) {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const response = await fetch(url, { ...options, credentials: 'include' });
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          return await response.json();
-        } catch (error) {
-          if (i === retries - 1) throw error;
-          console.warn(`Fetch attempt ${i + 1} failed, retrying in ${delay}ms...`, error);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+      if (state === 'uploading') {
+        button.textContent = 'Uploading...';
+      } else if (state === 'processing') {
+        button.textContent = 'Processing...';
+      } else {
+        button.textContent = button.dataset.originalText;
       }
     }
 
-    // Fetch initial data
+    // Fetch data from server
     async function fetchData() {
       try {
-        const data = await fetchWithRetry('/api/data');
+        const response = await fetch('/api/data', { credentials: 'include' });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to fetch data: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
+        const data = await response.json();
         products = data.products || [];
         categories = data.categories || [];
         settings = data.settings || {};
         staticPages = data.staticPages || [];
       } catch (error) {
-        console.error('Error fetching data:', error);
-        alert('Failed to load data. Please try again later.');
+        console.error('Error fetching data:', error.message);
+        alert('Failed to load data: ' + error.message);
       }
     }
 
-    // Populate category dropdowns
-    function populateCategories() {
-      const categorySelect = document.getElementById('category');
-      const editCategorySelect = document.getElementById('edit-category');
-      categorySelect.innerHTML = '';
-      editCategorySelect.innerHTML = '';
+    // Fetch orders
+    async function fetchOrders() {
+      try {
+        const response = await fetch('/api/orders', { credentials: 'include' });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to fetch orders: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
+        const data = await response.json();
+        if (data.success) {
+          orders = data.orders || [];
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error.message);
+        alert('Failed to load orders: ' + error.message);
+      }
+    }
+
+    // Save data to server
+    async function saveData() {
+      try {
+        const response = await fetch('/api/save-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ products, categories, settings, staticPages }),
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to save data: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
+        const data = await response.json();
+        if (data.success) {
+          return true;
+        }
+        throw new Error(data.error || 'Failed to save data.');
+      } catch (error) {
+        console.error('Error saving data:', error.message);
+        alert(`Failed to save data: ${error.message}`);
+        return false;
+      }
+    }
+
+    // Login handler
+    const loginModal = document.getElementById('login-modal');
+    const loginPassword = document.getElementById('login-password');
+    const togglePassword = document.getElementById('toggle-password');
+    togglePassword.addEventListener('click', () => {
+      const type = loginPassword.type === 'password' ? 'text' : 'password';
+      loginPassword.type = type;
+      togglePassword.textContent = type === 'password' ? 'Show' : 'Hide';
+    });
+
+    document.getElementById('login-submit').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Login failed: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
+        const data = await response.json();
+        if (data.success) {
+          loginModal.classList.add('hidden');
+          await initialize(); // Reinitialize after login to load data
+        } else {
+          throw new Error('Invalid email or password.');
+        }
+      } catch (error) {
+        console.error('Login error:', error.message);
+        alert('Login failed: ' + error.message);
+      }
+    });
+
+    // Navigation
+    const sections = document.querySelectorAll('.section');
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const target = link.getAttribute('href').substring(1);
+        sections.forEach(section => section.classList.add('hidden'));
+        document.getElementById(target).classList.remove('hidden');
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+        link.classList.add('border-b-2', 'border-green-500');
+        if (target === 'orders') {
+          fetchOrders().then(renderOrders);
+        }
+      });
+    });
+
+    // Render categories
+    function renderCategories() {
+      const select = document.getElementById('category');
+      const editSelect = document.getElementById('edit-category');
+      select.innerHTML = '';
+      editSelect.innerHTML = '';
       categories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat;
         option.textContent = cat;
-        categorySelect.appendChild(option.cloneNode(true));
-        editCategorySelect.appendChild(option);
+        select.appendChild(option.cloneNode(true));
+        editSelect.appendChild(option);
       });
+    }
+
+    function renderCategoryList() {
+      const categoryList = document.getElementById('category-list');
+      categoryList.innerHTML = categories.map((cat, index) => `
+        <li class="flex justify-between items-center p-2 bg-gray-50 rounded">
+          <span>${cat}</span>
+          <button onclick="deleteCategory(${index})" class="text-red-600 hover:text-red-800">Delete</button>
+        </li>
+      `).join('');
+    }
+
+    // Add category
+    document.getElementById('add-category').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
+      const newCat = document.getElementById('new-category').value.trim();
+      if (newCat && !categories.includes(newCat)) {
+        categories.push(newCat);
+        if (await saveData()) {
+          renderCategories();
+          renderCategoryList();
+          document.getElementById('new-category').value = '';
+          alert('Category added.');
+        }
+      } else {
+        alert(newCat ? 'Category already exists.' : 'Please enter a category name.');
+      }
+      setButtonLoading(button, 'idle');
+    });
+
+    // Delete category
+    async function deleteCategory(index) {
+      if (confirm('Are you sure you want to delete this category? Bots will remain but won’t show until reassigned.')) {
+        categories.splice(index, 1);
+        if (await saveData()) {
+          renderCategories();
+          renderCategoryList();
+          alert('Category deleted.');
+        }
+      }
     }
 
     // Render bots
     function renderBots() {
       const botList = document.getElementById('bot-list');
-      botList.innerHTML = '';
-      products.forEach(product => {
-        const li = document.createElement('li');
-        li.className = 'flex flex-col sm:flex-row items-center justify-between p-4 bg-gray-100 rounded-md';
-        li.innerHTML = `
-          <div class="flex items-center space-x-4">
-            <img src="${product.img}" alt="${product.name}" class="w-16 h-16 object-cover rounded-md">
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
-              <p class="text-sm text-gray-600">$${product.price} | ${product.category}</p>
-            </div>
-          </div>
-          <div class="mt-4 sm:mt-0 space-x-2">
-            <button data-item="${product.item}" class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700">Edit</button>
-            <button data-item="${product.item}" class="archive-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700">${product.isArchived ? 'Unarchive' : 'Archive'}</button>
-          </div>
-        `;
-        botList.appendChild(li);
-      });
-
-      document.querySelectorAll('.edit-bot').forEach(button => {
-        button.addEventListener('click', () => {
-          const item = button.dataset.item;
-          const product = products.find(p => p.item === item);
-          document.getElementById('edit-item').value = product.item;
-          document.getElementById('edit-name').value = product.name;
-          document.getElementById('edit-price').value = product.price;
-          document.getElementById('edit-desc').value = product.desc;
-          document.getElementById('edit-embed').value = product.embed || '';
-          document.getElementById('edit-category').value = product.category;
-          document.getElementById('edit-img').value = product.img;
-          document.getElementById('edit-isNew').checked = product.isNew;
-          document.getElementById('edit-modal').classList.remove('hidden');
-        });
-      });
-
-      document.querySelectorAll('.archive-bot').forEach(button => {
-        button.addEventListener('click', async () => {
-          const item = button.dataset.item;
-          const product = products.find(p => p.item === item);
-          product.isArchived = !product.isArchived;
-          try {
-            await fetchWithRetry('/api/save-data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ products, categories, settings, staticPages })
-            });
-            renderBots();
-          } catch (error) {
-            console.error('Error archiving bot:', error);
-            alert('Failed to archive bot. Please try again.');
-          }
-        });
-      });
-    }
-
-    // Render categories in settings
-    function renderCategories() {
-      const categoryList = document.getElementById('category-list');
-      categoryList.innerHTML = '';
-      categories.forEach(cat => {
-        const li = document.createElement('li');
-        li.className = 'flex justify-between items-center p-2 bg-gray-100 rounded-md';
-        li.innerHTML = `
-          <span>${cat}</span>
-          <button data-category="${cat}" class="delete-category bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700">Delete</button>
-        `;
-        categoryList.appendChild(li);
-      });
-
-      document.querySelectorAll('.delete-category').forEach(button => {
-        button.addEventListener('click', async () => {
-          const category = button.dataset.category;
-          if (products.some(p => p.category === category && !p.isArchived)) {
-            alert('Cannot delete category with active products.');
-            return;
-          }
-          categories = categories.filter(c => c !== category);
-          try {
-            await fetchWithRetry('/api/save-data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ products, categories, settings, staticPages })
-            });
-            renderCategories();
-            populateCategories();
-          } catch (error) {
-            console.error('Error deleting category:', error);
-            alert('Failed to delete category. Please try again.');
-          }
-        });
-      });
-    }
-
-    // Render static pages
-    function renderStaticPages() {
-      const pageList = document.getElementById('page-list');
-      pageList.innerHTML = '';
-      staticPages.forEach(page => {
-        const li = document.createElement('li');
-        li.className = 'flex flex-col sm:flex-row justify-between items-center p-4 bg-gray-100 rounded-md';
-        li.innerHTML = `
+      botList.innerHTML = products.map((product, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
           <div>
-            <h3 class="text-lg font-semibold text-gray-900">${page.title}</h3>
-            <p class="text-sm text-gray-600">${page.slug}</p>
+            <span class="font-semibold">${product.name}</span> - $${product.price} (${product.category})
+            ${product.isArchived ? '<span class="text-red-600 text-sm ml-2">[Archived]</span>' : ''}
           </div>
-          <div class="mt-4 sm:mt-0 space-x-2">
-            <button data-slug="${page.slug}" class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700">Edit</button>
-            <button data-slug="${page.slug}" class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700">Delete</button>
+          <div class="space-x-2">
+            <button onclick="editBot(${index})" class="text-green-600 hover:text-green-800">Edit</button>
+            <button onclick="archiveBot(${index})" class="text-yellow-600 hover:text-yellow-800">${product.isArchived ? 'Unarchive' : 'Archive'}</button>
+            <button onclick="deleteBot(${index})" class="text-red-600 hover:text-red-800">Delete</button>
           </div>
-        `;
-        pageList.appendChild(li);
-      });
-
-      document.querySelectorAll('.edit-page').forEach(button => {
-        button.addEventListener('click', () => {
-          const slug = button.dataset.slug;
-          const page = staticPages.find(p => p.slug === slug);
-          document.getElementById('page-title').value = page.title;
-          document.getElementById('page-slug').value = page.slug;
-          document.getElementById('page-content').value = page.content;
-          document.getElementById('add-page').textContent = 'Update Page';
-          document.getElementById('add-page').dataset.editingSlug = slug;
-        });
-      });
-
-      document.querySelectorAll('.delete-page').forEach(button => {
-        button.addEventListener('click', async () => {
-          const slug = button.dataset.slug;
-          staticPages = staticPages.filter(p => p.slug !== slug);
-          try {
-            await fetchWithRetry('/api/save-data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ products, categories, settings, staticPages })
-            });
-            renderStaticPages();
-          } catch (error) {
-            console.error('Error deleting page:', error);
-            alert('Failed to delete page. Please try again.');
-          }
-        });
-      });
+        </li>
+      `).join('');
     }
 
-    // Render orders
-    async function renderOrders() {
-      try {
-        const data = await fetchWithRetry('/api/orders');
-        orders = data.orders || [];
-        const orderList = document.getElementById('order-list');
-        orderList.innerHTML = '';
-        orders.forEach(order => {
-          const li = document.createElement('li');
-          li.className = 'p-4 bg-gray-100 rounded-md';
-          li.innerHTML = `
-            <div class="flex flex-col sm:flex-row justify-between items-center">
-              <div>
-                <p class="text-sm text-gray-600"><strong>Item:</strong> ${order.item}</p>
-                <p class="text-sm text-gray-600"><strong>Ref Code:</strong> ${order.refCode}</p>
-                <p class="text-sm text-gray-600"><strong>Amount:</strong> ${order.amount} KES</p>
-                <p class="text-sm text-gray-600"><strong>Timestamp:</strong> ${order.timestamp}</p>
-              </div>
-              <button data-ref="${order.refCode}" data-item="${order.item}" class="confirm-order mt-4 sm:mt-0 bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700">Confirm</button>
-            </div>
-          `;
-          orderList.appendChild(li);
-        });
+    // Edit bot
+    async function editBot(index) {
+      const product = products[index];
+      document.getElementById('edit-name').value = product.name;
+      document.getElementById('edit-price').value = product.price;
+      document.getElementById('edit-desc').value = product.desc;
+      document.getElementById('edit-embed').value = product.embed || '';
+      document.getElementById('edit-category').value = product.category;
+      document.getElementById('edit-item').value = product.item;
+      document.getElementById('edit-img').value = product.img;
+      document.getElementById('edit-isNew').checked = product.isNew;
 
-        document.querySelectorAll('.confirm-order').forEach(button => {
-          button.addEventListener('click', async () => {
-            const refCode = button.dataset.ref;
-            const item = button.dataset.item;
-            const order = orders.find(o => o.refCode === refCode && o.item === item);
-            try {
-              const response = await fetchWithRetry('/api/confirm-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(order)
-              });
-              if (response.success) {
-                alert('Order confirmed! Customer will receive the download link.');
-                renderOrders();
-              } else {
-                throw new Error(response.error || 'Failed to confirm order.');
-              }
-            } catch (error) {
-              console.error('Error confirming order:', error);
-              alert(`Error: ${error.message}`);
-            }
-          });
-        });
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        alert('Failed to load orders. Please try again.');
+      const editModal = document.getElementById('edit-modal');
+      editModal.classList.remove('hidden');
+
+      document.getElementById('edit-form').onsubmit = async e => {
+        e.preventDefault();
+        const button = e.target.querySelector('button[type="submit"]');
+        setButtonLoading(button, 'uploading');
+        products[index] = {
+          ...products[index],
+          name: document.getElementById('edit-name').value,
+          price: parseFloat(document.getElementById('edit-price').value),
+          desc: document.getElementById('edit-desc').value,
+          embed: document.getElementById('edit-embed').value,
+          category: document.getElementById('edit-category').value,
+          img: document.getElementById('edit-img').value,
+          isNew: document.getElementById('edit-isNew').checked
+        };
+        if (await saveData()) {
+          alert('Bot updated.');
+          renderBots();
+          editModal.classList.add('hidden');
+        }
+        setButtonLoading(button, 'idle');
+      };
+
+      document.getElementById('edit-cancel').onclick = () => {
+        editModal.classList.add('hidden');
+      };
+    }
+
+    // Archive bot
+    async function archiveBot(index) {
+      products[index].isArchived = !products[index].isArchived;
+      if (await saveData()) {
+        renderBots();
+        alert('Bot updated.');
       }
     }
 
-    // Navigation
-    document.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
-        const sectionId = link.getAttribute('href').substring(1);
-        document.querySelectorAll('.section').forEach(section => section.classList.add('hidden'));
-        document.getElementById(sectionId).classList.remove('hidden');
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
-        link.classList.add('border-b-2', 'border-green-500');
-        if (sectionId === 'orders') renderOrders();
-      });
-    });
+    // Delete bot
+    async function deleteBot(index) {
+      if (confirm('Are you sure you want to delete this bot?')) {
+        products.splice(index, 1);
+        if (await saveData()) {
+          renderBots();
+          alert('Bot deleted.');
+        }
+      }
+    }
 
-    // Add bot
+    // Add bot with progress animation
     document.getElementById('product-form').addEventListener('submit', async e => {
       e.preventDefault();
+      const button = e.target.querySelector('button[type="submit"]');
+      const progressContainer = document.getElementById('upload-progress');
+      const progressBar = document.getElementById('progress-bar');
+
       const formData = new FormData();
+      formData.append('file', document.getElementById('file').files[0]);
       formData.append('item', document.getElementById('item').value);
       formData.append('name', document.getElementById('name').value);
       formData.append('price', document.getElementById('price').value);
@@ -580,379 +568,299 @@
       formData.append('category', document.getElementById('category').value);
       formData.append('img', document.getElementById('img').value);
       formData.append('isNew', document.getElementById('isNew').checked);
-      formData.append('file', document.getElementById('file').files[0]);
 
-      showLoadingOverlay();
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/add-bot', true);
+
+      // Set credentials for cookies
+      xhr.withCredentials = true;
+
+      // Track upload progress
+      xhr.upload.onprogress = function (event) {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          progressBar.style.width = percentComplete + '%';
+          progressContainer.classList.remove('hidden');
+          setButtonLoading(button, 'uploading');
+        }
+      };
+
+      // Handle completion
+      xhr.onload = async function () {
+        setButtonLoading(button, 'processing');
+        progressBar.style.width = '100%';
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.success) {
+            products.push(data.product);
+            if (await saveData()) {
+              alert('Bot added successfully.');
+              e.target.reset();
+              renderBots();
+            } else {
+              alert('Failed to save bot data to sheet.');
+            }
+          } else {
+            throw new Error(data.error || 'Failed to add bot.');
+          }
+        } catch (error) {
+          console.error('Error adding bot:', error.message);
+          alert('Error adding bot: ' + error.message);
+        } finally {
+          progressContainer.classList.add('hidden');
+          progressBar.style.width = '0%';
+          setButtonLoading(button, 'idle');
+        }
+      };
+
+      // Handle errors
+      xhr.onerror = function () {
+        console.error('Upload error:', xhr.statusText);
+        alert('Upload failed: Network error.');
+        progressContainer.classList.add('hidden');
+        progressBar.style.width = '0%';
+        setButtonLoading(button, 'idle');
+      };
+
+      xhr.send(formData);
+    });
+
+    // Render orders
+    function renderOrders() {
+      const orderList = document.getElementById('order-list');
+      orderList.innerHTML = orders.map((order, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${order.item}</span> - Ref: ${order.refCode}, Amount: ${order.amount}, Time: ${order.timestamp}
+          </div>
+          <div class="space-x-2">
+            <button onclick="confirmOrder(${index})" class="text-green-600 hover:text-green-800">Confirm</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    // Confirm order
+    async function confirmOrder(index) {
+      const order = orders[index];
       try {
-        const response = await fetch('/api/add-bot', {
+        const response = await fetch('/api/confirm-order', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(order),
           credentials: 'include'
         });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to confirm order: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
         const data = await response.json();
         if (data.success) {
-          products.push(data.product);
-          renderBots();
-          document.getElementById('product-form').reset();
-          alert('Bot added successfully!');
+          orders.splice(index, 1);
+          renderOrders();
+          alert('Order confirmed.');
         } else {
-          throw new Error(data.error || 'Failed to add bot.');
+          throw new Error(data.error);
         }
       } catch (error) {
-        console.error('Error adding bot:', error);
-        alert(`Error: ${error.message}`);
-      } finally {
-        hideLoadingOverlay();
+        console.error('Error confirming order:', error.message);
+        alert('Failed to confirm order: ' + error.message);
       }
-    });
+    }
 
-    // Edit bot
-    document.getElementById('edit-form').addEventListener('submit', async e => {
-      e.preventDefault();
-      const item = document.getElementById('edit-item').value;
-      const product = products.find(p => p.item === item);
-      product.name = document.getElementById('edit-name').value;
-      product.price = parseFloat(document.getElementById('edit-price').value);
-      product.desc = document.getElementById('edit-desc').value;
-      product.embed = document.getElementById('edit-embed').value;
-      product.category = document.getElementById('edit-category').value;
-      product.img = document.getElementById('edit-img').value;
-      product.isNew = document.getElementById('edit-isNew').checked;
-
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        renderBots();
-        document.getElementById('edit-modal').classList.add('hidden');
-        alert('Bot updated successfully!');
-      } catch (error) {
-        console.error('Error updating bot:', error);
-        alert('Failed to update bot. Please try again.');
-      }
-    });
-
-    document.getElementById('edit-cancel').addEventListener('click', () => {
-      document.getElementById('edit-modal').classList.add('hidden');
-    });
-
-    // Add category
-    document.getElementById('add-category').addEventListener('click', async () => {
-      const newCategory = document.getElementById('new-category').value.trim();
-      if (!newCategory) return alert('Please enter a category name.');
-      if (categories.includes(newCategory)) return alert('Category already exists.');
-      categories.push(newCategory);
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        renderCategories();
-        populateCategories();
-        document.getElementById('new-category').value = '';
-      } catch (error) {
-        console.error('Error adding category:', error);
-        alert('Failed to add category. Please try again.');
-      }
-    });
-
-    // Save urgent message
-    document.getElementById('save-urgent').addEventListener('click', async () => {
-      const button = document.getElementById('save-urgent');
-      setButtonLoading(button, true);
+    // Save settings
+    document.getElementById('save-urgent').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.urgentMessage = {
         enabled: document.getElementById('urgent-toggle').checked,
         text: document.getElementById('urgent-message').value
       };
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Urgent message saved!');
-      } catch (error) {
-        console.error('Error saving urgent message:', error);
-        alert('Failed to save urgent message. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Urgent message saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save support email
-    document.getElementById('save-email').addEventListener('click', async () => {
-      const button = document.getElementById('save-email');
-      setButtonLoading(button, true);
+    document.getElementById('save-email').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.supportEmail = document.getElementById('support-email').value;
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Support email saved!');
-      } catch (error) {
-        console.error('Error saving email:', error);
-        alert('Failed to save email. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Support email saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save copyright text
-    document.getElementById('save-copyright').addEventListener('click', async () => {
-      const button = document.getElementById('save-copyright');
-      setButtonLoading(button, true);
+    document.getElementById('save-copyright').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.copyrightText = document.getElementById('copyright-text').value;
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Copyright text saved!');
-      } catch (error) {
-        console.error('Error saving copyright:', error);
-        alert('Failed to save copyright text. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Copyright text saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save logo URL
-    document.getElementById('save-logo').addEventListener('click', async () => {
-      const button = document.getElementById('save-logo');
-      setButtonLoading(button, true);
+    document.getElementById('save-logo').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.logoUrl = document.getElementById('logo-url').value;
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Logo URL saved!');
-      } catch (error) {
-        console.error('Error saving logo:', error);
-        alert('Failed to save logo URL. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Logo URL saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save MPESA Till Number
-    document.getElementById('save-mpesa-till').addEventListener('click', async () => {
-      const button = document.getElementById('save-mpesa-till');
-      setButtonLoading(button, true);
+    document.getElementById('save-mpesa-till').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.mpesaTill = document.getElementById('mpesa-till').value;
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('MPESA Till Number saved!');
-      } catch (error) {
-        console.error('Error saving MPESA Till:', error);
-        alert('Failed to save MPESA Till Number. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('MPESA Till Number saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save socials
-    document.getElementById('save-socials').addEventListener('click', async () => {
-      const button = document.getElementById('save-socials');
-      setButtonLoading(button, true);
+    document.getElementById('save-socials').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.socials = {
         tiktok: document.getElementById('tiktok').value,
         whatsapp: document.getElementById('whatsapp').value,
+        call: document.getElementById('call').value,
         instagram: document.getElementById('instagram').value,
         x: document.getElementById('x').value,
         facebook: document.getElementById('facebook').value,
         youtube: document.getElementById('youtube').value
       };
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Social media links saved!');
-      } catch (error) {
-        console.error('Error saving socials:', error);
-        alert('Failed to save social media links. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Social media links saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Save fallback rate
-    document.getElementById('save-fallback-rate').addEventListener('click', async () => {
-      const button = document.getElementById('save-fallback-rate');
-      setButtonLoading(button, true);
+    document.getElementById('save-fallback-rate').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Fallback rate saved!');
-      } catch (error) {
-        console.error('Error saving fallback rate:', error);
-        alert('Failed to save fallback rate. Please try again.');
-      } finally {
-        setButtonLoading(button, false);
+      if (await saveData()) {
+        alert('Fallback rate saved.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Change admin credentials
-    document.getElementById('change-credentials').addEventListener('click', async () => {
+    document.getElementById('change-credentials').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       const newEmail = document.getElementById('new-email').value;
       const newPassword = document.getElementById('new-password').value;
       const confirmPassword = document.getElementById('confirm-password').value;
-
       if (!newEmail || !newPassword || !confirmPassword) {
         alert('Please fill in all fields.');
+        setButtonLoading(button, 'idle');
         return;
       }
       if (newPassword !== confirmPassword) {
         alert('Passwords do not match.');
+        setButtonLoading(button, 'idle');
         return;
       }
-
       settings.adminEmail = newEmail;
       settings.adminPassword = newPassword;
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
-        alert('Credentials updated! Please log in again.');
-        window.location.reload();
-      } catch (error) {
-        console.error('Error changing credentials:', error);
-        alert('Failed to change credentials. Please try again.');
+      if (await saveData()) {
+        alert('Credentials updated. Please log in again.');
+        loginModal.classList.remove('hidden');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Add or update static page
-    document.getElementById('add-page').addEventListener('click', async () => {
+    // Render static pages
+    function renderStaticPages() {
+      const pageList = document.getElementById('page-list');
+      pageList.innerHTML = staticPages.map((page, index) => `
+        <li class="p-4 bg-gray-50 rounded flex justify-between items-center">
+          <div>
+            <span class="font-semibold">${page.title}</span> - ${page.slug}
+          </div>
+          <div class="space-x-2">
+            <button onclick="editPage(${index})" class="text-green-600 hover:text-green-800">Edit</button>
+            <button onclick="deletePage(${index})" class="text-red-600 hover:text-red-800">Delete</button>
+          </div>
+        </li>
+      `).join('');
+    }
+
+    // Add page
+    document.getElementById('add-page').addEventListener('click', async e => {
+      const button = e.target;
+      setButtonLoading(button, 'uploading');
       const title = document.getElementById('page-title').value;
       const slug = document.getElementById('page-slug').value;
       const content = document.getElementById('page-content').value;
-      const editingSlug = document.getElementById('add-page').dataset.editingSlug;
-
       if (!title || !slug || !content) {
         alert('Please fill in all fields.');
+        setButtonLoading(button, 'idle');
         return;
       }
-
-      if (editingSlug) {
-        const page = staticPages.find(p => p.slug === editingSlug);
-        if (page) {
-          page.title = title;
-          page.slug = slug;
-          page.content = content;
-        }
-      } else {
-        if (staticPages.some(p => p.slug === slug)) {
-          alert('A page with this slug already exists.');
-          return;
-        }
-        staticPages.push({ title, slug, content });
+      if (!slug.startsWith('/')) {
+        alert('Slug must start with "/".');
+        setButtonLoading(button, 'idle');
+        return;
       }
-
-      try {
-        await fetchWithRetry('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ products, categories, settings, staticPages })
-        });
+      if (staticPages.some(page => page.slug === slug)) {
+        alert('A page with this slug already exists.');
+        setButtonLoading(button, 'idle');
+        return;
+      }
+      staticPages.push({ title, slug, content });
+      if (await saveData()) {
         renderStaticPages();
         document.getElementById('page-title').value = '';
         document.getElementById('page-slug').value = '';
         document.getElementById('page-content').value = '';
-        document.getElementById('add-page').textContent = 'Add Page';
-        delete document.getElementById('add-page').dataset.editingSlug;
-        alert(editingSlug ? 'Page updated successfully!' : 'Page added successfully!');
-      } catch (error) {
-        console.error('Error saving page:', error);
-        alert('Failed to save page. Please try again.');
+        alert('Page added.');
       }
+      setButtonLoading(button, 'idle');
     });
 
-    // Login
-    document.getElementById('login-submit').addEventListener('click', async () => {
-      const email = document.getElementById('login-email').value;
-      const password = document.getElementById('login-password').value;
+    // Edit page
+    async function editPage(index) {
+      const page = staticPages[index];
+      document.getElementById('page-title').value = page.title;
+      document.getElementById('page-slug').value = page.slug;
+      document.getElementById('page-content').value = page.content;
+      staticPages.splice(index, 1);
+      renderStaticPages();
+    }
 
-      try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (data.success) {
-          document.getElementById('login-modal').classList.add('hidden');
-          initialize();
-        } else {
-          alert('Invalid credentials. Please try again.');
+    // Delete page
+    async function deletePage(index) {
+      if (confirm('Are you sure you want to delete this page?')) {
+        staticPages.splice(index, 1);
+        if (await saveData()) {
+          renderStaticPages();
+          alert('Page deleted.');
         }
-      } catch (error) {
-        console.error('Error logging in:', error);
-        alert('Failed to log in. Please try again.');
-      }
-    });
-
-    // Toggle password visibility
-    document.getElementById('toggle-password').addEventListener('click', () => {
-      const passwordInput = document.getElementById('login-password');
-      const toggleButton = document.getElementById('toggle-password');
-      if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        toggleButton.textContent = 'Hide';
-      } else {
-        passwordInput.type = 'password';
-        toggleButton.textContent = 'Show';
-      }
-    });
-
-    // Check session on load
-    async function checkSession() {
-      try {
-        const response = await fetchWithRetry('/api/check-session');
-        if (response.isAuthenticated) {
-          document.getElementById('login-modal').classList.add('hidden');
-          initialize();
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
       }
     }
 
     // Initialize
     async function initialize() {
       await fetchData();
-      populateCategories();
-      renderBots();
       renderCategories();
+      renderCategoryList();
+      renderBots();
       renderStaticPages();
-
       document.getElementById('urgent-toggle').checked = settings.urgentMessage?.enabled || false;
       document.getElementById('urgent-message').value = settings.urgentMessage?.text || '';
       document.getElementById('support-email').value = settings.supportEmail || '';
       document.getElementById('copyright-text').value = settings.copyrightText || '';
       document.getElementById('logo-url').value = settings.logoUrl || '';
-      document.getElementById('mpesa-till').value = settings.mpesaTill || '';
+      document.getElementById('mpesa-till').value = settings.mpesaTill || '4933614';
       document.getElementById('tiktok').value = settings.socials?.tiktok || '';
       document.getElementById('whatsapp').value = settings.socials?.whatsapp || '';
+      document.getElementById('call').value = settings.socials?.call || '';
       document.getElementById('instagram').value = settings.socials?.instagram || '';
       document.getElementById('x').value = settings.socials?.x || '';
       document.getElementById('facebook').value = settings.socials?.facebook || '';
@@ -960,7 +868,7 @@
       document.getElementById('fallback-rate').value = settings.fallbackRate || 130;
     }
 
-    checkSession();
+    initialize();
   </script>
 </body>
 </html>
