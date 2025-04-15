@@ -15,13 +15,18 @@ const fs = require('fs');
 dotenv.config();
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Ensure the sessions directory exists
 const sessionsDir = path.join(__dirname, 'sessions');
+const uploadsDir = path.join(__dirname, 'uploads'); // Directory for file uploads
+
 if (!fs.existsSync(sessionsDir)) {
   fs.mkdirSync(sessionsDir, { recursive: true });
   console.log('Created sessions directory:', sessionsDir);
+}
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory:', uploadsDir);
 }
 
 // CORS configuration
@@ -35,6 +40,21 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static('public'));
+// Increase request timeout for file uploads
+app.use((req, res, next) => {
+  req.setTimeout(300000); // 5 minutes timeout
+  res.setTimeout(300000);
+  next();
+});
+
+// Update multer to use disk storage with file size limit
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDir,
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 // Session middleware with FileStore
 app.use(session({
@@ -49,9 +69,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: 'auto',
+    secure: true, // Force secure cookies in production
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none', // Allow cross-origin requests
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
@@ -271,17 +291,20 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   try {
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
+    console.log('File received:', file); // Debug log
 
     const fileMetadata = {
       name: `${item}_${name}.${file.originalname.split('.').pop()}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
     };
-    const media = { mimeType: file.mimetype, body: file.buffer };
+    const media = { mimeType: file.mimetype, body: fs.createReadStream(file.path) };
     const driveRes = await drive.files.create({
       resource: fileMetadata,
       media,
       fields: 'id'
     });
+    // Delete the temporary file after upload to Google Drive
+    fs.unlinkSync(file.path);
 
     const product = {
       item,
@@ -301,6 +324,9 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     res.json({ success: true, product });
   } catch (error) {
     console.error('Error adding bot:', error);
+    if (req.file && req.file.path) {
+      fs.unlinkSync(req.file.path); // Clean up on error
+    }
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -446,35 +472,46 @@ app.get('/virus.html', (req, res) => {
 });
 
 app.get('/:slug', async (req, res) => {
-  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
-  if (!page) return res.status(404).send('Page not found');
-  const htmlContent = sanitizeHtml(marked(page.content));
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${page.title} - Deriv Bot Store</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-gray-100">
-      <nav class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between h-16">
-            <div class="flex items-center">
-              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+  try {
+    const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
+    if (!page) return res.status(404).send('Page not found');
+    let htmlContent;
+    try {
+      htmlContent = sanitizeHtml(marked(page.content));
+    } catch (error) {
+      console.error(`Error rendering page ${page.slug}:`, error);
+      htmlContent = '<p>Error rendering page content. Please check the content format.</p>';
+    }
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${page.title} - Deriv Bot Store</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-gray-100">
+        <nav class="bg-white shadow-md">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+              <div class="flex items-center">
+                <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
-        <div class="prose">${htmlContent}</div>
-      </main>
-    </body>
-    </html>
-  `);
+        </nav>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+          <div class="prose">${htmlContent}</div>
+        </main>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error in /:slug route:', error);
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 const PORT = process.env.PORT || 10000;
