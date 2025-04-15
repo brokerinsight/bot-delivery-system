@@ -1,416 +1,336 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
-const { google } = require("googleapis");
-const FormData = require("form-data");
+const express = require('express');
+const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
+const cookieParser = require('cookie-parser');
+const multer = require('multer');
+const marked = require('marked');
+const sanitizeHtml = require('sanitize-html');
+const session = require('express-session');
+const dotenv = require('dotenv');
+const path = require('path');
+
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID || "1eUZ0pcxFDiCqa3ZS1kZ2XJEz-XGJrGoSVwTThNDipNQ";
-const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID || "1wZyaAL_kQYMxRm2PzH0ChEimwoBPattx";
-const WATI_API_KEY = process.env.WATI_API_KEY;
+const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors());
 app.use(express.json());
-app.use(express.raw({ type: "application/json" }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(express.static('public'));
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
 
-if (!process.env.GOOGLE_CREDENTIALS) {
-    console.error("❌ ERROR: GOOGLE_CREDENTIALS environment variable is missing.");
-    process.exit(1);
+// Google API setup
+const auth = new google.auth.GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
+  scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+});
+const sheets = google.sheets({ version: 'v4', auth });
+const drive = google.drive({ version: 'v3', auth });
+
+// Email setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// Cache for data
+let cachedData = {
+  products: [],
+  categories: [],
+  settings: {
+    supportEmail: 'kaylie254.business@gmail.com',
+    copyrightText: '© 2025 Deriv Bot Store',
+    logoUrl: '',
+    socials: {},
+    urgentMessage: { enabled: false, text: '' },
+    fallbackRate: 130
+  },
+  staticPages: []
+};
+
+// Load data from Google Sheets
+async function loadData() {
+  try {
+    const productRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:D'
+    });
+    const products = productRes.data.values?.slice(1).map(row => ({
+      item: row[0],
+      fileId: row[1],
+      price: parseFloat(row[2]),
+      name: row[3],
+      desc: row[4] || '',
+      img: row[5] || 'https://via.placeholder.com/300',
+      category: row[6] || 'General',
+      embed: row[7] || '',
+      isNew: row[8] === 'TRUE',
+      isArchived: row[9] === 'TRUE'
+    })) || [];
+
+    const settingsRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'settings!A:B'
+    });
+    const settingsData = Object.fromEntries(settingsRes.data.values?.map(([k, v]) => [k, v]) || []);
+    const settings = {
+      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
+      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
+      logoUrl: settingsData.logoUrl || '',
+      socials: JSON.parse(settingsData.socials || '{}'),
+      urgentMessage: JSON.parse(settingsData.urgentMessage || '{"enabled":false,"text":""}'),
+      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
+      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
+      adminPassword: settingsData.adminPassword || 'securepassword123'
+    };
+
+    const categoriesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'categories!A:A'
+    });
+    const categories = categoriesRes.data.values?.flat() || ['General'];
+
+    const pagesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'staticPages!A:C'
+    });
+    const staticPages = pagesRes.data.values?.slice(1).map(row => ({
+      title: row[0],
+      slug: row[1],
+      content: row[2]
+    })) || [];
+
+    cachedData = { products, categories, settings, staticPages };
+  } catch (error) {
+    console.error('Error loading data:', error);
+  }
 }
 
-// Google API Authentication
-const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-const client = new google.auth.JWT(
-    credentials.client_email,
-    null,
-    credentials.private_key.replace(/\\n/g, "\n"),
-    ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-);
-const sheets = google.sheets({ version: "v4", auth: client });
-const drive = google.drive({ version: "v3", auth: client });
+// Save data to Google Sheets
+async function saveData() {
+  try {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:J',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [
+          ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
+          ...cachedData.products.map(p => [
+            p.item,
+            p.fileId,
+            p.price,
+            p.name,
+            p.desc,
+            p.img,
+            p.category,
+            p.embed,
+            p.isNew ? 'TRUE' : 'FALSE',
+            p.isArchived ? 'TRUE' : 'FALSE'
+          ])
+        ]
+      }
+    });
 
-// Initialize Google Sheets
-async function initializeSheets() {
-    try {
-        const sheetNames = ["Products", "Pending Orders", "Confirmed Orders", "Settings"];
-        const existingSheets = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-        const currentSheets = existingSheets.data.sheets.map(s => s.properties.title);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'settings!A:B',
+      valueInputOption: 'RAW',
+      resource: {
+        values: Object.entries(cachedData.settings)
+      }
+    });
 
-        for (const sheet of sheetNames) {
-            if (!currentSheets.includes(sheet)) {
-                await sheets.spreadsheets.batchUpdate({
-                    spreadsheetId: SPREADSHEET_ID,
-                    resource: { requests: [{ addSheet: { properties: { title: sheet } } }] }
-                });
-                console.log(`✅ Created sheet: ${sheet}`);
-            }
-        }
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'categories!A:A',
+      valueInputOption: 'RAW',
+      resource: { values: cachedData.categories.map(c => [c]) }
+    });
 
-        // Set headers
-        const headers = {
-            "Products": ["Item", "Name", "Price", "File ID"],
-            "Pending Orders": ["Timestamp", "Item", "Name", "Price", "Email", "Phone", "MPESA Code", "Status"],
-            "Confirmed Orders": ["Timestamp", "Item", "Name", "Price", "Email", "Phone", "MPESA Code", "Status", "File ID"],
-            "Settings": ["Key", "Value"]
-        };
-
-        for (const [sheet, cols] of Object.entries(headers)) {
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `${sheet}!A1:${String.fromCharCode(65 + cols.length - 1)}1`,
-                valueInputOption: "RAW",
-                resource: { values: [cols] }
-            });
-        }
-
-        // Initialize default settings
-        const defaultSettings = [
-            ["tillNumber", "4933614"],
-            ["whatsappNumber", "0710160851"],
-            ["supportEmail", "kaylie254.business@gmail.com"],
-            ["urgentMessageEnabled", "true"],
-            ["urgentMessageText", "We do not Promise you success always risk what you can afford to lose!!"],
-            ["logoUrl", ""],
-            ["contactUsContent", "Contact us at kaylie254.business@gmail.com or WhatsApp +254710160851."],
-            ["aboutUsContent", "Deriv Bot Store provides automated trading bots for Deriv platforms."],
-            ["privacyPolicyContent", "We value your privacy. Your data is stored securely and not shared."]
-        ];
-
-        const settingsSheet = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Settings!A:B"
-        });
-        if (!settingsSheet.data.values || settingsSheet.data.values.length <= 1) {
-            await sheets.spreadsheets.values.append({
-                spreadsheetId: SPREADSHEET_ID,
-                range: "Settings!A:A",
-                valueInputOption: "RAW",
-                resource: { values: defaultSettings }
-            });
-        }
-
-        console.log("✅ Sheets initialized with headers.");
-    } catch (error) {
-        console.error("❌ Error initializing sheets:", error);
-    }
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'staticPages!A:C',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [
+          ['TITLE', 'SLUG', 'CONTENT'],
+          ...cachedData.staticPages.map(p => [p.title, p.slug, p.content])
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Error saving data:', error);
+    throw error;
+  }
 }
 
-// Fetch USD to KES rate
-async function getUSDtoKESRate() {
-    try {
-        const response = await fetch("https://open.er-api.com/v6/latest/USD");
-        const data = await response.json();
-        return data.rates.KES || 130;
-    } catch (error) {
-        console.error("❌ Error fetching exchange rate:", error);
-        return 130;
-    }
+// Middleware to check admin session
+function isAuthenticated(req, res, next) {
+  if (req.session.isAuthenticated) return next();
+  res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
-// Send WhatsApp Notification
-async function sendWhatsAppNotification(phone, message) {
-    if (!WATI_API_KEY) {
-        console.warn("❌ WATI_API_KEY missing, skipping WhatsApp notification.");
-        return;
-    }
-    try {
-        const form = new FormData();
-        form.append("phone", phone);
-        form.append("message", message);
+// Load data on startup
+loadData();
 
-        const response = await fetch("https://api.wati.io/api/v1/sendTemplateMessage", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${WATI_API_KEY}` },
-            body: form
-        });
-        const data = await response.json();
-        if (data.result) {
-            console.log(`✅ WhatsApp notification sent to ${phone}`);
-        } else {
-            console.error("❌ Failed to send WhatsApp notification:", data);
-        }
-    } catch (error) {
-        console.error("❌ Error sending WhatsApp notification:", error);
-    }
-}
-
-// Get Item Details
-async function getItemDetails(itemNumber) {
-    try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Products!A:D"
-        });
-        const row = response.data.values.find(row => row[0] == itemNumber);
-        if (!row) throw new Error("Item not found");
-        return { item: row[0], name: row[1], price: parseFloat(row[2]), fileId: row[3] };
-    } catch (error) {
-        console.error("❌ Error getting item details:", error);
-        throw error;
-    }
-}
-
-// Get Settings
-async function getSettings() {
-    try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Settings!A:B"
-        });
-        const rows = response.data.values.slice(1); // Skip header
-        const settings = {};
-        rows.forEach(([key, value]) => {
-            settings[key] = value;
-        });
-        return settings;
-    } catch (error) {
-        console.error("❌ Error fetching settings:", error);
-        return {};
-    }
-}
-
-// Create Invoice
-app.post("/create-invoice", async (req, res) => {
-    try {
-        const { item, name, price, email, phone, mpesaCode } = req.body;
-        if (!item || !name || !price || !email || !phone || !mpesaCode) {
-            return res.status(400).json({ error: "All fields are required" });
-        }
-
-        const itemDetails = await getItemDetails(item);
-        if (price !== itemDetails.price || name !== itemDetails.name) {
-            return res.status(400).json({ error: "Invalid product details" });
-        }
-
-        const timestamp = new Date().toISOString();
-        const row = [timestamp, item, name, price, email, phone, mpesaCode, "pending"];
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Pending Orders!A:A",
-            valueInputOption: "RAW",
-            resource: { values: [row] }
-        });
-
-        const settings = await getSettings();
-        // Send WhatsApp notification
-        await sendWhatsAppNotification(
-            settings.whatsappNumber || "0710160851",
-            `New Order: ${name} (Item ${item}, $${price})\nEmail: ${email}\nPhone: ${phone}\nMPESA Code: ${mpesaCode}\nPlease confirm in admin panel.`
-        );
-
-        res.json({ success: true, message: "Invoice created, awaiting confirmation" });
-    } catch (error) {
-        console.error("❌ Error creating invoice:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+// API Routes
+app.get('/api/data', async (req, res) => {
+  res.json(cachedData);
 });
 
-// Get Pending Invoices
-app.get("/pending-invoices", async (req, res) => {
-    try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Pending Orders!A:H"
-        });
-        const rows = response.data.values || [];
-        const headers = rows.shift() || [];
-        const invoices = rows.map(row => {
-            let invoice = {};
-            headers.forEach((header, i) => { invoice[header.toLowerCase()] = row[i]; });
-            return invoice;
-        });
-        res.json({ success: true, invoices });
-    } catch (error) {
-        console.error("❌ Error fetching pending invoices:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+app.post('/api/save-data', isAuthenticated, async (req, res) => {
+  try {
+    cachedData = req.body;
+    await saveData();
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ success: false, error: 'Failed to save data' });
+  }
 });
 
-// Get Confirmed Invoices
-app.get("/confirmed-invoices", async (req, res) => {
-    try {
-        const response = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Confirmed Orders!A:I"
-        });
-        const rows = response.data.values || [];
-        const headers = rows.shift() || [];
-        const invoices = rows.map(row => {
-            let invoice = {};
-            headers.forEach((header, i) => { invoice[header.toLowerCase()] = row[i]; });
-            return invoice;
-        });
-        res.json({ success: true, invoices });
-    } catch (error) {
-        console.error("❌ Error fetching confirmed invoices:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
+  try {
+    const { item, name, price, desc, embed, category, img, isNew } = req.body;
+    const file = req.file;
+
+    // Upload file to Google Drive
+    const fileMetadata = {
+      name: `${item}_${name}.${file.originalname.split('.').pop()}`,
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
+    };
+    const media = { mimeType: file.mimetype, body: file.buffer };
+    const driveRes = await drive.files.create({
+      resource: fileMetadata,
+      media,
+      fields: 'id'
+    });
+
+    const product = {
+      item,
+      fileId: driveRes.data.id,
+      price: parseFloat(price),
+      name,
+      desc,
+      img,
+      category,
+      embed,
+      isNew: isNew === 'true',
+      isArchived: false
+    };
+
+    cachedData.products.push(product);
+    await saveData();
+    res.json({ success: true, product });
+  } catch (error) {
+    console.error('Error adding bot:', error);
+    res.status(500).json({ success: false, error: 'Failed to add bot' });
+  }
 });
 
-// Update Invoice Status
-app.post("/update-invoice", async (req, res) => {
-    try {
-        const { timestamp, status } = req.body;
-        if (!timestamp || !["paid", "not paid", "tampered"].includes(status)) {
-            return res.status(400).json({ error: "Invalid timestamp or status" });
-        }
+app.post('/api/submit-ref', async (req, res) => {
+  try {
+    const { item, refCode, amount, timestamp } = req.body;
+    const product = cachedData.products.find(p => p.item === item);
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
-        const pendingResponse = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Pending Orders!A:H"
-        });
-        const rows = pendingResponse.data.values || [];
-        const rowIndex = rows.findIndex(row => row[0] === timestamp);
-        if (rowIndex === -1) {
-            return res.status(404).json({ error: "Invoice not found" });
-        }
+    // Log order
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'orders!A:D',
+      valueInputOption: 'RAW',
+      resource: { values: [[item, refCode, amount, timestamp]] }
+    });
 
-        const row = rows[rowIndex];
-        row[7] = status; // Update Status
+    // Generate download link
+    const fileRes = await drive.files.get({
+      fileId: product.fileId,
+      fields: 'webContentLink'
+    });
 
-        if (status === "paid") {
-            const itemDetails = await getItemDetails(row[1]); // Item
-            const confirmedRow = [...row, itemDetails.fileId];
-            await sheets.spreadsheets.values.append({
-                spreadsheetId: SPREADSHEET_ID,
-                range: "Confirmed Orders!A:A",
-                valueInputOption: "RAW",
-                resource: { values: [confirmedRow] }
-            });
-            rows.splice(rowIndex, 1); // Remove from pending
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: "Pending Orders!A1:H",
-                valueInputOption: "RAW",
-                resource: { values: rows.length ? rows : [[]] }
-            });
-        } else {
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `Pending Orders!A${rowIndex + 1}:H${rowIndex + 1}`,
-                valueInputOption: "RAW",
-                resource: { values: [row] }
-            });
-        }
+    // Send email to admin
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: cachedData.settings.supportEmail,
+      subject: 'New Order - Ref Code Submitted',
+      html: `
+        <p><strong>Item:</strong> ${product.name} (${item})</p>
+        <p><strong>Ref Code:</strong> ${refCode}</p>
+        <p><strong>Amount:</strong> ${amount} KES</p>
+        <p><strong>Timestamp:</strong> ${timestamp}</p>
+        <p><strong>Download Link:</strong> <a href="${fileRes.data.webContentLink}">${product.name}</a></p>
+      `
+    });
 
-        res.json({ success: true, message: `Invoice marked as ${status}` });
-    } catch (error) {
-        console.error("❌ Error updating invoice:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error submitting ref code:', error);
+    res.status(500).json({ success: false, error: 'Failed to submit ref code' });
+  }
 });
 
-// Deliver File
-app.post("/deliver-file", async (req, res) => {
-    try {
-        const { item, price } = req.body;
-        const itemDetails = await getItemDetails(item);
-        if (price !== itemDetails.price) {
-            return res.status(400).json({ error: "Invalid price" });
-        }
-        const downloadLink = `https://drive.google.com/uc?export=download&id=${itemDetails.fileId}`;
-        res.json({ success: true, downloadLink });
-    } catch (error) {
-        console.error("❌ Error delivering file:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
+    req.session.isAuthenticated = true;
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
 });
 
-// Upload File to Google Drive
-app.post("/upload-file", async (req, res) => {
-    try {
-        const { fileName, fileContent } = req.body;
-        if (!fileName || !fileContent) {
-            return res.status(400).json({ error: "File name and content required" });
-        }
-
-        const fileMetadata = {
-            name: fileName,
-            parents: [DRIVE_FOLDER_ID]
-        };
-        const file = Buffer.from(fileContent, "base64");
-        const media = {
-            mimeType: "application/octet-stream",
-            body: file
-        };
-
-        const response = await drive.files.create({
-            resource: fileMetadata,
-            media,
-            fields: "id"
-        });
-        res.json({ success: true, fileId: response.data.id });
-    } catch (error) {
-        console.error("❌ Error uploading file:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+// Static page routes
+app.get(['/', '/index.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Get Settings
-app.get("/settings", async (req, res) => {
-    try {
-        const settings = await getSettings();
-        res.json({ success: true, settings });
-    } catch (error) {
-        console.error("❌ Error fetching settings:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+app.get('/virus.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'virus.html'));
 });
 
-// Update Settings
-app.post("/update-settings", async (req, res) => {
-    try {
-        const newSettings = req.body;
-        const settingsSheet = await sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Settings!A:B"
-        });
-        let rows = settingsSheet.data.values || [settingsSheet.data.values[0]];
-        const headers = rows.shift();
-
-        for (const [key, value] of Object.entries(newSettings)) {
-            const rowIndex = rows.findIndex(row => row[0] === key);
-            if (rowIndex !== -1) {
-                rows[rowIndex][1] = value;
-            } else {
-                rows.push([key, value]);
-            }
-        }
-
-        await sheets.spreadsheets.values.update({
-            spreadsheetId: SPREADSHEET_ID,
-            range: "Settings!A1:B",
-            valueInputOption: "RAW",
-            resource: { values: [headers, ...rows] }
-        });
-
-        res.json({ success: true, message: "Settings updated" });
-    } catch (error) {
-        console.error("❌ Error updating settings:", error);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+app.get('/:slug', async (req, res) => {
+  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
+  if (!page) return res.status(404).send('Page not found');
+  const htmlContent = sanitizeHtml(marked(page.content));
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${page.title} - Deriv Bot Store</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100">
+      <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16">
+            <div class="flex items-center">
+              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+        <div class="prose">${htmlContent}</div>
+      </main>
+    </body>
+    </html>
+  `);
 });
 
-// File Download Route
-app.get("/download/:fileId", async (req, res) => {
-    const fileId = req.params.fileId;
-    try {
-        const fileMetadata = await drive.files.get({ fileId, fields: "name, mimeType" });
-        res.setHeader("Content-Disposition", `attachment; filename="${fileMetadata.data.name}"`);
-        res.setHeader("Content-Type", fileMetadata.data.mimeType || "application/octet-stream");
-
-        const file = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
-        file.data.pipe(res);
-    } catch (error) {
-        console.error("❌ Error downloading file:", error);
-        res.status(500).send("Error downloading file");
-    }
-});
-
-// Start Server
-app.listen(PORT, async () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-    await initializeSheets();
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
