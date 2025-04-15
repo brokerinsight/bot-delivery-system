@@ -15,26 +15,19 @@ const fs = require('fs');
 dotenv.config();
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Ensure the sessions directory exists
 const sessionsDir = path.join(__dirname, 'sessions');
-const uploadsDir = path.join(__dirname, 'uploads');
-
 if (!fs.existsSync(sessionsDir)) {
   fs.mkdirSync(sessionsDir, { recursive: true });
   console.log('Created sessions directory:', sessionsDir);
-}
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('Created uploads directory:', uploadsDir);
 }
 
 // CORS configuration
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  credentials: true
 }));
 
 // Middleware
@@ -42,20 +35,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static('public'));
-app.use((req, res, next) => {
-  req.setTimeout(300000);
-  res.setTimeout(300000);
-  next();
-});
-
-// Update multer to use disk storage with file size limit
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadsDir,
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-  }),
-  limits: { fileSize: 10 * 1024 * 1024 }
-});
 
 // Session middleware with FileStore
 app.use(session({
@@ -70,20 +49,19 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // Only secure in production
+    secure: 'auto',
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Adjust for development
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
-// Enhanced session logging
+// Log session details for debugging
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
-  console.log(`Session ID: ${req.sessionID}`);
-  console.log(`Session Data: ${JSON.stringify(req.session)}`);
-  console.log(`Cookies: ${JSON.stringify(req.cookies)}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('Request URL:', req.url);
+  console.log('Session ID:', req.sessionID);
+  console.log('Session Data:', req.session);
+  console.log('Cookies:', req.cookies);
   next();
 });
 
@@ -180,6 +158,7 @@ async function loadData() {
 // Save data to Google Sheets
 async function saveData() {
   try {
+    // Update Sheet1 in both SPREADSHEET_ID and PRODUCTS_SHEET_ID
     const productValues = [
       ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
       ...cachedData.products.map(p => [
@@ -196,20 +175,27 @@ async function saveData() {
       ])
     ];
 
+    // Update SPREADSHEET_ID
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J',
       valueInputOption: 'RAW',
-      resource: { values: productValues }
+      resource: {
+        values: productValues
+      }
     });
 
+    // Update PRODUCTS_SHEET_ID
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'Sheet1!A:J',
       valueInputOption: 'RAW',
-      resource: { values: productValues }
+      resource: {
+        values: productValues
+      }
     });
 
+    // Serialize nested objects as JSON strings for settings
     const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
       if (typeof value === 'object' && value !== null) {
         return [key, JSON.stringify(value)];
@@ -221,7 +207,9 @@ async function saveData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'settings!A:B',
       valueInputOption: 'RAW',
-      resource: { values: settingsForSheet }
+      resource: {
+        values: settingsForSheet
+      }
     });
 
     await sheets.spreadsheets.values.update({
@@ -250,8 +238,6 @@ async function saveData() {
 
 // Middleware to check admin session
 function isAuthenticated(req, res, next) {
-  console.log(`[${new Date().toISOString()}] Checking authentication for ${req.url}`);
-  console.log(`Session isAuthenticated: ${req.session.isAuthenticated}`);
   if (req.session.isAuthenticated) {
     return next();
   }
@@ -285,19 +271,17 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   try {
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
-    console.log('File received:', file);
 
     const fileMetadata = {
       name: `${item}_${name}.${file.originalname.split('.').pop()}`,
       parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
     };
-    const media = { mimeType: file.mimetype, body: fs.createReadStream(file.path) };
+    const media = { mimeType: file.mimetype, body: file.buffer };
     const driveRes = await drive.files.create({
       resource: fileMetadata,
       media,
       fields: 'id'
     });
-    fs.unlinkSync(file.path);
 
     const product = {
       item,
@@ -317,9 +301,6 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     res.json({ success: true, product });
   } catch (error) {
     console.error('Error adding bot:', error);
-    if (req.file && req.file.path) {
-      fs.unlinkSync(req.file.path);
-    }
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -447,13 +428,11 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  console.log(`[${new Date().toISOString()}] Login attempt - Email: ${email}`);
   if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
     req.session.isAuthenticated = true;
-    console.log(`[${new Date().toISOString()}] Login successful, session:`, req.session);
+    console.log('User logged in successfully, session:', req.session);
     res.json({ success: true });
   } else {
-    console.log(`[${new Date().toISOString()}] Login failed: Invalid credentials`);
     res.status(401).json({ success: false, error: 'Invalid credentials' });
   }
 });
@@ -467,46 +446,35 @@ app.get('/virus.html', (req, res) => {
 });
 
 app.get('/:slug', async (req, res) => {
-  try {
-    const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
-    if (!page) return res.status(404).send('Page not found');
-    let htmlContent;
-    try {
-      htmlContent = sanitizeHtml(marked(page.content));
-    } catch (error) {
-      console.error(`Error rendering page ${page.slug}:`, error);
-      htmlContent = '<p>Error rendering page content. Please check the content format.</p>';
-    }
-    res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${page.title} - Deriv Bot Store</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body class="bg-gray-100">
-        <nav class="bg-white shadow-md">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-              <div class="flex items-center">
-                <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
-              </div>
+  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
+  if (!page) return res.status(404).send('Page not found');
+  const htmlContent = sanitizeHtml(marked(page.content));
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${page.title} - Deriv Bot Store</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100">
+      <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16">
+            <div class="flex items-center">
+              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
             </div>
           </div>
-        </nav>
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
-          <div class="prose">${htmlContent}</div>
-        </main>
-      </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('Error in /:slug route:', error);
-    res.status(500).send('Internal Server Error');
-  }
+        </div>
+      </nav>
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+        <div class="prose">${htmlContent}</div>
+      </main>
+    </body>
+    </html>
+  `);
 });
 
 const PORT = process.env.PORT || 10000;
