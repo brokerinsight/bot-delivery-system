@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Bot Store</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    .dark .product-card img { filter: brightness(0.9); }
+    #modal-backdrop, #checkout-backdrop, #legal-backdrop { backdrop-filter: blur(5px); }
     .truncate-2-lines {
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -15,12 +16,61 @@
     }
     #urgent-message {
       background: rgba(255, 215, 0, 0.9);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(5px);
       border-radius: 0 0 10px 10px;
       animation: slideDown 0.5s ease-out;
     }
     @keyframes slideDown {
       from { transform: translateY(-100%); }
       to { transform: translateY(0); }
+    }
+    #urgent-close {
+      background: linear-gradient(45deg, #1f2937, #374151);
+      transition: transform 0.2s ease;
+    }
+    #urgent-close:hover {
+      transform: scale(1.05);
+    }
+    .bot-description {
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .embed-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+    }
+    .embed-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .aspect-ratio-16-9 {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+    }
+    .aspect-ratio-16-9 img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #mobile-menu {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+    #mobile-menu.open {
+      transform: translateX(0);
     }
     .search-container {
       position: relative;
@@ -37,70 +87,725 @@
       height: 1.25rem;
       color: #6b7280;
     }
-    #cookie-banner {
-      display: none;
+    #countdown-circle {
+      transform: rotate(-90deg);
     }
-    #cookie-banner.active {
-      display: block;
+    #countdown-circle circle {
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #22c55e;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .legal-content {
+      max-height: 80vh;
+      overflow-y: auto;
+      padding-right: 1rem;
+    }
+    #cookie-banner {
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      padding: 1rem;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
     }
   </style>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-100 dark:bg-gray-900">
-  <!-- Cookie Banner -->
-  <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center text-sm z-50">
-    <span class="text-gray-700 dark:text-gray-300">We use cookies to enhance your experience. By continuing, you agree to our <a href="/privacy-policy" class="text-blue-500 underline">privacy policy</a>.</span>
-    <button id="accept-cookies" class="ml-4 px-3 py-1 bg-green-600 text-white rounded">Accept</button>
+<body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+  <!-- Urgent Message Pop-up -->
+  <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
+    <p id="urgent-text" class="text-center text-lg font-semibold"></p>
+    <button id="urgent-close" class="mt-2 block mx-auto text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
-  <!-- Rest of the HTML stays the same, make sure the footer links (e.g., Privacy Policy, About Us) are now removed from hardcoded version -->
+  <!-- In-App Browser Pop-up -->
+  <div id="in-app-message" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 text-center shadow-lg">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-3">Open in Browser</h3>
+      <p class="text-gray-600 dark:text-gray-300 text-sm sm:text-base leading-relaxed mb-6">
+        For a smooth experience, please open this page in your default browser. Tap your app's menu (often a three-dot icon) and select "open on browser".
+      </p>
+      <button id="in-app-cancel" class="bg-gray-600 text-white px-6 py-2 rounded-full hover:bg-gray-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-500">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Cookie Consent Banner -->
+  <div id="cookie-banner" class="hidden text-white text-center">
+    <p class="mb-4">We use cookies to enhance your experience, including saving payment details for convenience. <button id="cookie-policy-link" class="underline hover:text-green-400">Learn more</button></p>
+    <button id="accept-cookies" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 mr-2">Accept</button>
+    <button id="decline-cookies" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">Decline</button>
+  </div>
+
+  <!-- Navbar -->
+  <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div id="logo-container">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">Deriv Bot Store</h1>
+          </div>
+          <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-4 sm:space-x-8">
+            <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white inline-flex items-center px-1 pt-1 text-sm font-medium">Home</a>
+          </div>
+        </div>
+        <div class="flex items-center">
+          <button id="dark-mode-toggle" class="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white p-2">
+            <svg id="dark-mode-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </button>
+          <button id="mobile-menu-button" class="sm:hidden text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white p-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-800 shadow-lg z-30">
+      <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Menu</h2>
+        <button id="mobile-menu-close" class="text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4">
+        <a href="#" data-category="all" class="nav-link text-gray-900 dark:text-white text-sm font-medium">Home</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Search Bar -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="search-container">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input id="search-bar" type="text" placeholder="Search bots by name or description..." class="w-full p-3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500">
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Explore Our Bots</h2>
+    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Products injected here -->
+    </div>
+  </main>
+
+  <!-- Product Modal -->
+  <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
+  <div id="modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col sm:flex-row">
+      <div class="p-6 overflow-y-auto flex-1">
+        <h3 id="modal-name" class="text-2xl font-bold text-gray-900 dark:text-white"></h3>
+        <div class="aspect-ratio-16-9 mt-4">
+          <img id="modal-img" alt="">
+        </div>
+        <p id="modal-desc" class="bot-description text-gray-600 dark:text-gray-300 mt-4"></p>
+        <div id="modal-embed" class="embed-container mt-4"></div>
+        <p id="modal-price" class="text-green-600 dark:text-green-400 font-bold mt-4"></p>
+        <p id="modal-category" class="text-gray-500 dark:text-gray-400 mt-2"></p>
+      </div>
+      <div class="bg-gray-100 dark:bg-gray-700 p-6 w-full sm:w-64 flex-shrink-0 flex flex-col justify-between">
+        <div>
+          <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Purchase</h4>
+          <button id="modal-buy" class="block w-full bg-green-600 text-white text-center py-2 rounded-md hover:bg-green-700">Proceed to Checkout</button>
+        </div>
+        <button id="modal-close" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkout Modal -->
+  <div id="checkout-backdrop" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
+  <div id="checkout-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full mx-4 p-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Checkout</h3>
+      <div id="checkout-form">
+        <div class="mb-4">
+          <label for="checkout-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Product</label>
+          <input type="text" id="checkout-name" readonly class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700">
+        </div>
+        <div class="mb-4">
+          <label for="checkout-price" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Price (USD)</label>
+          <input type="number" id="checkout-price" readonly class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700">
+        </div>
+        <div class="mb-4">
+          <label for="checkout-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+          <input type="email" id="checkout-email" required class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md">
+        </div>
+        <div class="mb-4">
+          <label for="checkout-phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300">M-PESA Phone Number</label>
+          <input type="tel" id="checkout-phone" required pattern="\+?[0-9]{10,12}" placeholder="+254712345678" class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md">
+        </div>
+        <button type="button" id="proceed-to-pay" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Proceed to Pay</button>
+      </div>
+      <button id="checkout-close" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <!-- M-PESA Payment Modal -->
+  <div id="mpesa-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full mx-4 p-6 text-center">
+      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Make Payment</h3>
+      <p class="text-gray-600 dark:text-gray-300 mb-4">Go to M-PESA > Buy Goods and Services</p>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Till Number</label>
+        <div class="flex items-center justify-center mt-1">
+          <input id="till-number" type="text" readonly class="w-32 p-2 border border-gray-300 dark:border-gray-600 rounded-l-md bg-gray-100 dark:bg-gray-700 text-center">
+          <button id="copy-till" class="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700">Copy</button>
+        </div>
+      </div>
+      <p id="amount-kes" class="text-lg font-semibold text-green-600 dark:text-green-400 mb-4"></p>
+      <div class="mb-4">
+        <svg id="countdown-circle" width="100" height="100" class="mx-auto">
+          <circle cx="50" cy="50" r="45" stroke="#e5e7eb" stroke-width="10" fill="none"/>
+          <circle cx="50" cy="50" r="45" stroke="#22c55e" stroke-width="10" fill="none" stroke-dasharray="283" stroke-dashoffset="0"/>
+        </svg>
+        <p id="countdown-text" class="mt-2 text-gray-600 dark:text-gray-300">10:00</p>
+      </div>
+      <div class="mb-4">
+        <label for="mpesa-code" class="block text-sm font-medium text-gray-700 dark:text-gray-300">M-PESA Code</label>
+        <input type="text" id="mpesa-code" required minlength="8" class="mt-1 w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md">
+      </div>
+      <button id="i-have-paid" disabled class="w-full bg-gray-400 text-white py-2 rounded-md">I Have Paid</button>
+    </div>
+  </div>
+
+  <!-- Processing Modal -->
+  <div id="processing-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full mx-4 p-6 text-center">
+      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Processing Your Payment</h3>
+      <div class="loader mb-4"></div>
+      <p id="processing-countdown" class="text-gray-600 dark:text-gray-300">5:00</p>
+      <p id="processing-status" class="mt-4 text-gray-600 dark:text-gray-300"></p>
+    </div>
+  </div>
+
+  <!-- Legal Modals -->
+  <div id="legal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
+  <div id="privacy-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 p-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Privacy Policy</h3>
+      <div id="privacy-content" class="legal-content text-gray-600 dark:text-gray-300"></div>
+      <button id="privacy-close" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Close</button>
+    </div>
+  </div>
+  <div id="terms-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 p-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Terms of Service</h3>
+      <div id="terms-content" class="legal-content text-gray-600 dark:text-gray-300"></div>
+      <button id="terms-close" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Close</button>
+    </div>
+  </div>
+  <div id="refund-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 p-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Refund Policy</h3>
+      <div id="refund-content" class="legal-content text-gray-600 dark:text-gray-300"></div>
+      <button id="refund-close" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Close</button>
+    </div>
+  </div>
+  <div id="cookie-modal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 p-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Cookie Policy</h3>
+      <div id="cookie-content" class="legal-content text-gray-600 dark:text-gray-300"></div>
+      <button id="cookie-close" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Close</button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white dark:bg-gray-800 shadow-inner mt-12 py-4 sm:py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p id="copyright-text" class="text-gray-600 dark:text-gray-300 text-sm sm:text-base"></p>
+      <p class="text-gray-500 dark:text-gray-400 mt-1 sm:mt-2 text-sm sm:text-base">Support: <a id="support-email" href="#" class="underline hover:text-green-600 dark:hover:text-green-400"></a></p>
+      <div id="social-links" class="mt-2 sm:mt-4 flex justify-center space-x-4 flex-wrap"></div>
+      <div id="legal-links" class="mt-2 sm:mt-4 flex justify-center space-x-4 flex-wrap">
+        <button id="privacy-link" class="text-gray-500 hover:text-green-600 dark:hover:text-green-400 text-sm">Privacy Policy</button>
+        <button id="terms-link" class="text-gray-500 hover:text-green-600 dark:hover:text-green-400 text-sm">Terms of Service</button>
+        <button id="refund-link" class="text-gray-500 hover:text-green-600 dark:hover:text-green-400 text-sm">Refund Policy</button>
+        <button id="cookie-link" class="text-gray-500 hover:text-green-600 dark:hover:text-green-400 text-sm">Cookie Policy</button>
+      </div>
+    </div>
+  </footer>
 
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      // Cookie prompt logic
-      const cookieBanner = document.getElementById('cookie-banner');
-      const acceptCookiesBtn = document.getElementById('accept-cookies');
-      if (!localStorage.getItem('cookiesAccepted')) {
-        cookieBanner.classList.add('active');
+    let products = [];
+    let categories = [];
+    let settings = {};
+    let checkoutData = {};
+    let invoiceStatus = null;
+
+    // Cookie Functions
+    function setCookie(name, value, days) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Strict`;
+    }
+
+    function getCookie(name) {
+      const cookies = document.cookie.split('; ').find(row => row.startsWith(`${name}=`));
+      return cookies ? decodeURIComponent(cookies.split('=')[1]) : null;
+    }
+
+    function showCookieBanner() {
+      if (!getCookie('cookieConsent')) {
+        document.getElementById('cookie-banner').classList.remove('hidden');
       }
-      acceptCookiesBtn.addEventListener('click', () => {
-        localStorage.setItem('cookiesAccepted', 'true');
-        cookieBanner.classList.remove('active');
+    }
+
+    async function fetchData() {
+      try {
+        const [productsRes, settingsRes] = await Promise.all([
+          fetch('https://your-render-backend-url.onrender.com/products'),
+          fetch('https://your-render-backend-url.onrender.com/settings')
+        ]);
+        const productsData = await productsRes.json();
+        const settingsData = await settingsRes.json();
+        if (productsData.success) {
+          products = productsData.products;
+          categories = [...new Set(products.map(p => p.category))];
+        }
+        if (settingsData.success) {
+          settings = settingsData.settings;
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        alert('Failed to load store data. Please try again.');
+      }
+    }
+
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isInApp = /instagram|whatsapp|tiktok|fb|messenger|snapchat|line|wechat/i.test(userAgent) || userAgent.includes('wv');
+    if (isInApp) {
+      const inAppMessage = document.getElementById('in-app-message');
+      inAppMessage.classList.remove('hidden');
+      document.getElementById('in-app-cancel').addEventListener('click', () => {
+        inAppMessage.classList.add('hidden');
       });
+    }
 
-      const res = await fetch('/api/data');
-      const { products, settings, categories, staticPages } = await res.json();
+    function renderNavLinks() {
+      const navLinks = document.getElementById('nav-links');
+      const mobileNavLinks = document.getElementById('mobile-nav-links');
+      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white inline-flex items-center px-1 pt-1 text-sm font-medium">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 dark:text-white text-sm font-medium">Home</a>`;
+      categories.forEach(cat => {
+        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white inline-flex items-center px-1 pt-1 text-sm font-medium">${cat}</a>`;
+        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm font-medium">${cat}</a>`;
+      });
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          filterProducts(link.dataset.category);
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+          link.classList.add('border-b-2', 'border-green-500');
+          document.getElementById('mobile-menu').classList.remove('open');
+        });
+      });
+    }
 
+    const mobileMenuButton = document.getElementById('mobile-menu-button');
+    const mobileMenuClose = document.getElementById('mobile-menu-close');
+    const mobileMenu = document.getElementById('mobile-menu');
+    mobileMenuButton.addEventListener('click', () => mobileMenu.classList.add('open'));
+    mobileMenuClose.addEventListener('click', () => mobileMenu.classList.remove('open'));
+
+    function renderProducts(filter = 'all', search = '') {
       const grid = document.getElementById('product-grid');
-      products.filter(p => !p.isArchived).forEach(product => {
+      grid.innerHTML = '';
+      let filteredProducts = products.filter(p => !p.isArchived);
+      
+      if (filter !== 'all') {
+        filteredProducts = filteredProducts.filter(p => p.category === filter);
+      }
+      
+      if (search) {
+        const term = search.toLowerCase();
+        filteredProducts = filteredProducts.filter(p => 
+          p.name.toLowerCase().includes(term) || p.desc.toLowerCase().includes(term)
+        );
+      }
+
+      filteredProducts.forEach((product, index) => {
         const card = document.createElement('div');
-        card.className = 'bg-white dark:bg-gray-700 rounded-lg shadow-md hover:scale-105 transition-all';
+        card.className = 'product-card bg-white dark:bg-gray-700 rounded-lg shadow-md overflow-hidden transform hover:scale-105 hover:shadow-lg transition-all duration-300';
         card.innerHTML = `
-          <div class="aspect-w-16 aspect-h-9">
-            <img src="${product.img}" alt="${product.name}" class="object-cover w-full h-48 rounded-t-lg">
+          <div class="aspect-ratio-16-9">
+            <img src="${product.img}" alt="${product.name}" loading="lazy">
           </div>
-          <div class="p-6">
+          <div class="p-6 relative">
+            ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs font-semibold px-2 py-1 rounded">NEW</span>' : ''}
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${product.name}</h3>
-            <p class="mt-2 text-gray-600 dark:text-gray-300 text-sm truncate-2-lines">${product.desc}</p>
+            <p class="mt-2 bot-description text-gray-600 dark:text-gray-300 text-sm truncate-2-lines">${product.desc}</p>
             <p class="mt-2 text-green-600 dark:text-green-400 font-bold">$${product.price}</p>
-            <a href="/?name=${encodeURIComponent(product.name)}&item=${product.item}&price=${product.price}" class="mt-4 w-full block bg-green-600 text-white py-2 text-center rounded-md hover:bg-green-700">Buy Now</a>
+            <p class="mt-1 text-gray-500 dark:text-gray-400 text-sm">Category: ${product.category}</p>
+            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-index="${index}">View Details</button>
           </div>
         `;
         grid.appendChild(card);
       });
 
-      const staticLinks = document.getElementById('static-links');
-      staticPages.forEach(page => {
-        const link = document.createElement('a');
-        link.href = page.slug;
-        link.textContent = page.title;
-        link.className = 'text-gray-500 hover:text-green-600';
-        staticLinks.appendChild(link);
+      document.querySelectorAll('.view-details').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const index = parseInt(btn.dataset.index);
+          const product = products[index];
+          showModal(product);
+        });
       });
+    }
 
-      document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
-      document.getElementById('support-email').textContent = settings.supportEmail;
-      document.getElementById('copyright-text').innerHTML = settings.copyrightText;
+    function showModal(product) {
+      const modal = document.getElementById('modal');
+      const backdrop = document.getElementById('modal-backdrop');
+      document.getElementById('modal-name').textContent = product.name;
+      document.getElementById('modal-img').src = product.img;
+      document.getElementById('modal-img').alt = product.name;
+      document.getElementById('modal-desc').textContent = product.desc;
+      document.getElementById('modal-embed').innerHTML = product.embed ? `<iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>` : '';
+      document.getElementById('modal-price').textContent = `$${product.price}`;
+      document.getElementById('modal-category').textContent = `Category: ${product.category}`;
+      document.getElementById('modal-buy').dataset.product = JSON.stringify(product);
+      modal.classList.remove('hidden');
+      backdrop.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+    function closeModal() {
+      const modal = document.getElementById('modal');
+      const backdrop = document.getElementById('modal-backdrop');
+      modal.classList.add('hidden');
+      backdrop.classList.add('hidden');
+      document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('modal-buy').addEventListener('click', () => {
+      const product = JSON.parse(document.getElementById('modal-buy').dataset.product);
+      closeModal();
+      showCheckout(product);
     });
+
+    function showCheckout(product) {
+      checkoutData = { name: product.name, price: product.price, item: product.item };
+      const checkoutModal = document.getElementById('checkout-modal');
+      const backdrop = document.getElementById('checkout-backdrop');
+      document.getElementById('checkout-name').value = product.name;
+      document.getElementById('checkout-price').value = product.price;
+      // Pre-fill from cookies if available
+      const savedEmail = getCookie('checkoutEmail');
+      const savedPhone = getCookie('checkoutPhone');
+      if (savedEmail) document.getElementById('checkout-email').value = savedEmail;
+      if (savedPhone) document.getElementById('checkout-phone').value = savedPhone;
+      checkoutModal.classList.remove('hidden');
+      backdrop.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    document.getElementById('checkout-close').addEventListener('click', closeCheckout);
+    document.getElementById('checkout-backdrop').addEventListener('click', closeCheckout);
+    function closeCheckout() {
+      const checkoutModal = document.getElementById('checkout-modal');
+      const backdrop = document.getElementById('checkout-backdrop');
+      checkoutModal.classList.add('hidden');
+      backdrop.classList.add('hidden');
+      document.body.style.overflow = 'auto';
+      document.getElementById('checkout-form').reset();
+      checkoutData = {};
+    }
+
+    document.getElementById('proceed-to-pay').addEventListener('click', () => {
+      const email = document.getElementById('checkout-email').value;
+      const phone = document.getElementById('checkout-phone').value;
+      if (!email || !phone || !/\+?[0-9]{10,12}/.test(phone)) {
+        alert('Please enter a valid email and phone number.');
+        return;
+      }
+      if (getCookie('cookieConsent') === 'accepted') {
+        setCookie('checkoutEmail', email, 7);
+        setCookie('checkoutPhone', phone, 7);
+      }
+      checkoutData.email = email;
+      checkoutData.phone = phone;
+      closeCheckout();
+      showMPesa();
+    });
+
+    function showMPesa() {
+      const mpesaModal = document.getElementById('mpesa-modal');
+      document.getElementById('till-number').value = settings.tillNumber || 'YOUR_TILL_NUMBER';
+      document.getElementById('amount-kes').textContent = `Pay KES ${Math.ceil(checkoutData.price * 130)}`;
+      mpesaModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      startCountdown(600, 'countdown-circle', 'countdown-text', () => {
+        closeMPesa();
+        alert('Payment window expired. Please try again.');
+      });
+    }
+
+    document.getElementById('copy-till').addEventListener('click', () => {
+      const till = document.getElementById('till-number').value;
+      navigator.clipboard.writeText(till).then(() => {
+        document.getElementById('copy-till').textContent = 'Copied!';
+        setTimeout(() => document.getElementById('copy-till').textContent = 'Copy', 2000);
+      });
+    });
+
+    document.getElementById('mpesa-code').addEventListener('input', (e) => {
+      const code = e.target.value;
+      const button = document.getElementById('i-have-paid');
+      button.disabled = code.length < 8;
+      button.classList.toggle('bg-gray-400', code.length < 8);
+      button.classList.toggle('bg-green-600', code.length >= 8);
+      button.classList.toggle('hover:bg-green-700', code.length >= 8);
+    });
+
+    document.getElementById('i-have-paid').addEventListener('click', async () => {
+      checkoutData.mpesaCode = document.getElementById('mpesa-code').value;
+      closeMPesa();
+      showProcessing();
+      try {
+        const res = await fetch('https://your-render-backend-url.onrender.com/create-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutData)
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        checkInvoiceStatus();
+      } catch (error) {
+        console.error('Error creating invoice:', error);
+        document.getElementById('processing-status').textContent = 'Error processing payment. Please try again.';
+        setTimeout(closeProcessing, 3000);
+      }
+    });
+
+    function closeMPesa() {
+      const mpesaModal = document.getElementById('mpesa-modal');
+      mpesaModal.classList.add('hidden');
+      document.body.style.overflow = 'auto';
+      document.getElementById('mpesa-code').value = '';
+      document.getElementById('i-have-paid').disabled = true;
+      clearInterval(window.countdownInterval);
+    }
+
+    function showProcessing() {
+      const processingModal = document.getElementById('processing-modal');
+      processingModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      startCountdown(300, null, 'processing-countdown', () => {
+        if (!invoiceStatus) {
+          document.getElementById('processing-status').textContent = 'Payment verification timed out.';
+          setTimeout(closeProcessing, 3000);
+        }
+      });
+    }
+
+    function closeProcessing() {
+      const processingModal = document.getElementById('processing-modal');
+      processingModal.classList.add('hidden');
+      document.body.style.overflow = 'auto';
+      clearInterval(window.countdownInterval);
+      invoiceStatus = null;
+    }
+
+    async function checkInvoiceStatus() {
+      const start = Date.now();
+      while (Date.now() - start < 300000) {
+        try {
+          const res = await fetch('https://your-render-backend-url.onrender.com/pending-invoices');
+          const data = await res.json();
+          if (!data.success) continue;
+          const invoice = data.invoices.find(i => i.mpesaCode === checkoutData.mpesaCode);
+          if (invoice && invoice.status !== 'pending') {
+            invoiceStatus = invoice.status;
+            if (invoice.status === 'paid') {
+              const deliverRes = await fetch('https://your-render-backend-url.onrender.com/deliver-bot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item: checkoutData.item, price: checkoutData.price })
+              });
+              const deliverData = await deliverRes.json();
+              if (deliverData.success) {
+                document.getElementById('processing-status').innerHTML = `Payment confirmed! <a href="${deliverData.downloadLink}" class="text-blue-600 underline" download>Download your bot</a>`;
+              } else {
+                document.getElementById('processing-status').textContent = 'Error delivering file.';
+              }
+            } else if (invoice.status === 'not paid') {
+              document.getElementById('processing-status').textContent = 'Payment not found.';
+            } else if (invoice.status === 'tampered') {
+              document.getElementById('processing-status').textContent = 'Price tampered. Contact support.';
+            }
+            setTimeout(closeProcessing, 5000);
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking invoice:', error);
+        }
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+
+    function startCountdown(seconds, circleId, textId, onEnd) {
+      let timeLeft = seconds;
+      const circle = circleId ? document.querySelector(`#${circleId} circle:last-child`) : null;
+      const text = document.getElementById(textId);
+      if (circle) {
+        circle.style.strokeDashoffset = 0;
+      }
+      clearInterval(window.countdownInterval);
+      window.countdownInterval = setInterval(() => {
+        timeLeft--;
+        const minutes = Math.floor(timeLeft / 60);
+        const secs = timeLeft % 60;
+        text.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
+        if (circle) {
+          const offset = 283 - (283 * timeLeft / seconds);
+          circle.style.strokeDashoffset = offset;
+        }
+        if (timeLeft <= 0) {
+          clearInterval(window.countdownInterval);
+          onEnd();
+        }
+      }, 1000);
+    }
+
+    function filterProducts(category) {
+      const search = document.getElementById('search-bar').value;
+      renderProducts(category, search);
+    }
+
+    document.getElementById('search-bar').addEventListener('input', (e) => {
+      const activeCategory = document.querySelector('.nav-link.border-green-500').dataset.category;
+      renderProducts(activeCategory, e.target.value);
+    });
+
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const darkModeIcon = document.getElementById('dark-mode-icon');
+    const isDarkMode = localStorage.getItem('darkMode') === 'true';
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      darkModeIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />`;
+    }
+    darkModeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('darkMode', isDark);
+      darkModeIcon.innerHTML = isDark ?
+        `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />` :
+        `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`;
+    });
+
+    async function updateFooter() {
+      const emailLink = document.getElementById('support-email');
+      emailLink.href = `mailto:${settings.supportEmail}`;
+      emailLink.textContent = settings.supportEmail;
+      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+      const socialLinks = document.getElementById('social-links');
+      const socialIcons = {
+        tiktok: 'TikTok',
+        whatsapp: 'WhatsApp',
+        youtube: 'YouTube'
+      };
+      Object.entries(settings.socials || {}).forEach(([key, url]) => {
+        if (url) {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_blank';
+          link.className = 'text-gray-500 hover:text-green-600 dark:hover:text-green-400 mx-2 my-1';
+          link.textContent = socialIcons[key];
+          socialLinks.appendChild(link);
+        }
+      });
+      document.getElementById('privacy-content').textContent = settings.privacyPolicy || 'Our Privacy Policy ensures your data is protected...';
+      document.getElementById('terms-content').textContent = settings.termsOfService || 'By using our service, you agree to these terms...';
+      document.getElementById('refund-content').textContent = settings.refundPolicy || 'Refunds are processed within 7 days...';
+      document.getElementById('cookie-content').textContent = settings.cookiePolicy || 'We use cookies to enhance your experience...';
+    }
+
+    function updateLogo() {
+      if (settings.logoUrl) {
+        document.getElementById('logo-container').innerHTML = `<img src="${settings.logoUrl}" alt="Logo" class="h-10">`;
+      }
+    }
+
+    function showUrgentMessage() {
+      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+        document.getElementById('urgent-message').classList.remove('hidden');
+        document.getElementById('urgent-text').textContent = settings.urgentMessage.text;
+        document.getElementById('urgent-close').addEventListener('click', () => {
+          document.getElementById('urgent-message').classList.add('hidden');
+        });
+      }
+    }
+
+    function showLegalModal(type) {
+      const backdrop = document.getElementById('legal-backdrop');
+      const modal = document.getElementById(`${type}-modal`);
+      backdrop.classList.remove('hidden');
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLegalModal(type) {
+      const backdrop = document.getElementById('legal-backdrop');
+      const modal = document.getElementById(`${type}-modal`);
+      backdrop.classList.add('hidden');
+      modal.classList.add('hidden');
+      document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('privacy-link').addEventListener('click', () => showLegalModal('privacy'));
+    document.getElementById('terms-link').addEventListener('click', () => showLegalModal('terms'));
+    document.getElementById('refund-link').addEventListener('click', () => showLegalModal('refund'));
+    document.getElementById('cookie-link').addEventListener('click', () => showLegalModal('cookie'));
+    document.getElementById('cookie-policy-link').addEventListener('click', () => showLegalModal('cookie'));
+    document.getElementById('privacy-close').addEventListener('click', () => closeLegalModal('privacy'));
+    document.getElementById('terms-close').addEventListener('click', () => closeLegalModal('terms'));
+    document.getElementById('refund-close').addEventListener('click', () => closeLegalModal('refund'));
+    document.getElementById('cookie-close').addEventListener('click', () => closeLegalModal('cookie'));
+    document.getElementById('legal-backdrop').addEventListener('click', () => {
+      ['privacy', 'terms', 'refund', 'cookie'].forEach(closeLegalModal);
+    });
+
+    document.getElementById('accept-cookies').addEventListener('click', () => {
+      setCookie('cookieConsent', 'accepted', 365);
+      document.getElementById('cookie-banner').classList.add('hidden');
+    });
+
+    document.getElementById('decline-cookies').addEventListener('click', () => {
+      setCookie('cookieConsent', 'declined', 365);
+      document.getElementById('cookie-banner').classList.add('hidden');
+    });
+
+    async function initialize() {
+      await fetchData();
+      renderNavLinks();
+      renderProducts();
+      updateFooter();
+      updateLogo();
+      showUrgentMessage();
+      showCookieBanner();
+    }
+
+    initialize();
   </script>
 </body>
 </html>
