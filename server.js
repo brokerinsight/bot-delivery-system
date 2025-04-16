@@ -1,5 +1,3 @@
-// server.js (full version with bug fixes and preserved structure)
-
 const express = require('express');
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
