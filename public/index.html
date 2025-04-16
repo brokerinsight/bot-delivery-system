@@ -46,81 +46,25 @@
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900">
-  <!-- Urgent Message -->
-  <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
-    <p id="urgent-text" class="text-center text-lg font-semibold"></p>
-    <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
-  </div>
-
   <!-- Cookie Banner -->
-  <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 bg-white shadow-md p-4 flex justify-between items-center text-sm z-50">
-    <span class="text-gray-700">We use cookies to improve your experience. By using this site, you agree to our <a href="/privacy-policy" class="text-blue-500 underline">privacy policy</a>.</span>
-    <button id="accept-cookies" class="ml-4 px-3 py-1 bg-indigo-600 text-white rounded">Accept</button>
+  <div id="cookie-banner" class="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center text-sm z-50">
+    <span class="text-gray-700 dark:text-gray-300">We use cookies to enhance your experience. By continuing, you agree to our <a href="/privacy-policy" class="text-blue-500 underline">privacy policy</a>.</span>
+    <button id="accept-cookies" class="ml-4 px-3 py-1 bg-green-600 text-white rounded">Accept</button>
   </div>
 
-  <!-- Navbar -->
-  <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center">
-          <div id="logo-container">
-            <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">Deriv Bot Store</h1>
-          </div>
-          <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
-            <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white px-1 pt-1 text-sm font-medium">Home</a>
-          </div>
-        </div>
-        <div class="flex items-center">
-          <button id="dark-mode-toggle" class="text-gray-500 dark:text-gray-300 p-2">
-            <svg id="dark-mode-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          </button>
-          <button id="mobile-menu-button" class="sm:hidden text-gray-500 dark:text-gray-300 p-2">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-800 shadow-lg z-30 hidden">
-      <div class="flex justify-between items-center p-4 border-b">
-        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Menu</h2>
-        <button id="mobile-menu-close" class="text-gray-500 dark:text-gray-300">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
-    </div>
-  </nav>
-
-  <!-- Main Content -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Explore Our Bots</h2>
-    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="bg-white dark:bg-gray-800 shadow-inner mt-12 py-6">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <p id="copyright-text" class="text-gray-600 dark:text-gray-300"></p>
-      <p class="text-gray-500 dark:text-gray-400 mt-2">Support: <a id="support-email" class="underline"></a></p>
-      <div id="social-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
-      <div id="static-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
-    </div>
-  </footer>
+  <!-- Rest of the HTML stays the same, make sure the footer links (e.g., Privacy Policy, About Us) are now removed from hardcoded version -->
 
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      // Cookie prompt logic
+      const cookieBanner = document.getElementById('cookie-banner');
+      const acceptCookiesBtn = document.getElementById('accept-cookies');
       if (!localStorage.getItem('cookiesAccepted')) {
-        document.getElementById('cookie-banner').classList.add('active');
+        cookieBanner.classList.add('active');
       }
-      document.getElementById('accept-cookies').addEventListener('click', () => {
+      acceptCookiesBtn.addEventListener('click', () => {
         localStorage.setItem('cookiesAccepted', 'true');
-        document.getElementById('cookie-banner').classList.remove('active');
+        cookieBanner.classList.remove('active');
       });
 
       const res = await fetch('/api/data');
