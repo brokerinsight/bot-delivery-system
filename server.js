@@ -19,8 +19,8 @@ dotenv.config();
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Ensure the sessions directory exists
-const sessionsDir = path.join(__dirname, 'sessions');
+// Ensure the sessions directory exists in /tmp for Render's ephemeral filesystem
+const sessionsDir = path.join('/tmp', 'sessions');
 if (!fs.existsSync(sessionsDir)) {
   fs.mkdirSync(sessionsDir, { recursive: true });
   console.log('Created sessions directory:', sessionsDir);
@@ -49,7 +49,7 @@ console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPa
 // Session middleware with FileStore
 app.use(session({
   store: new FileStore({
-    path: sessionsDir,
+    path: sessionsDir, // Use /tmp/sessions
     ttl: 24 * 60 * 60,
     retries: 2,
     logFn: console.log
@@ -606,7 +606,12 @@ app.post('/api/submit-ref', async (req, res) => {
       resource: { values: orderData }
     });
 
-    await transporter.sendMail({
+    // Send success response immediately
+    res.json({ success: true });
+    console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
+
+    // Send email in the background
+    transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: cachedData.settings.supportEmail,
       subject: 'New Order - Ref Code Submitted',
@@ -616,10 +621,11 @@ app.post('/api/submit-ref', async (req, res) => {
         <p><strong>Amount:</strong> ${amount} KES</p>
         <p><strong>Timestamp:</strong> ${timestamp}</p>
       `
+    }).catch(error => {
+      console.error(`[${new Date().toISOString()}] Error sending email for ref code ${refCode}:`, error.message);
+      console.error(`[${new Date().toISOString()}] Email error details:`, error.stack);
     });
 
-    res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
     console.error(`[${new Date().toISOString()}] Error details:`, error.stack);
