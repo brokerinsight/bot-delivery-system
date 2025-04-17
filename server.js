@@ -12,6 +12,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const stream = require('stream');
+const fetch = require('node-fetch');
 
 dotenv.config();
 
@@ -181,7 +182,8 @@ async function loadData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'categories!A:A'
     });
-    const categories = categoriesRes.data.values?.slice(1).flat() || ['General'];
+    const categories = [...new Set(categoriesRes.data.values?.slice(1).flat() || ['General'])];
+    console.log(`[${new Date().toISOString()}] Loaded categories (after deduplication):`, categories);
 
     // Load static pages from PRODUCTS_SHEET_ID (staticPages tab)
     const pagesRes = await sheets.spreadsheets.values.get({
@@ -241,6 +243,23 @@ async function streamUploadToDrive(file, filename) {
   }
 }
 
+// Generate a one-time download link
+async function generateDownloadLink(fileId) {
+  try {
+    const fileRes = await drive.files.get({
+      fileId,
+      fields: 'id'
+    });
+    const fileIdValue = fileRes.data.id;
+    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileIdValue}`;
+    console.log(`[${new Date().toISOString()}] Generated download link for file ID: ${fileId}`);
+    return downloadUrl;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error generating download link for file ID ${fileId}:`, error.message);
+    return null;
+  }
+}
+
 // Save data to Google Sheets
 async function saveData() {
   try {
@@ -296,7 +315,7 @@ async function saveData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'categories!A:A',
       valueInputOption: 'RAW',
-      resource: { values: [['CATEGORY'], ...cachedData.categories.map(c => [c])] }
+      resource: { values: [['CATEGORY'], ...[...new Set(cachedData.categories)].map(c => [c])] }
     });
 
     await sheets.spreadsheets.values.update({
@@ -332,7 +351,7 @@ async function ensureSheetTabs(spreadsheetId) {
     'settings': ['KEY', 'VALUE'],
     'categories': ['CATEGORY'],
     'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
-    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP'],
+    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS'],
     'emails': ['EMAIL', 'SUBJECT', 'BODY']
   };
 
@@ -445,6 +464,30 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
   }
 
+  // Ping all routes
+  async function pingRoutes() {
+    const routesToTest = [
+      '/api/data',
+      '/api/check-session',
+      '/api/orders',
+      '/api/page/cookie-policy',
+      '/api/order-status/test/test',
+      '/'
+    ];
+    for (const route of routesToTest) {
+      try {
+        const response = await fetch(`http://localhost:${PORT}${route}`, { method: 'GET' });
+        console.log(`[${new Date().toISOString()}] Ping ${route}: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          console.error(`[${new Date().toISOString()}] Route ${route} failed with status: ${response.status}`);
+        }
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Failed to ping route ${route}:`, error.message);
+      }
+    }
+  }
+  await pingRoutes();
+
   console.log(`[${new Date().toISOString()}] Self-check completed`);
 }
 
@@ -546,26 +589,21 @@ app.post('/api/submit-ref', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const orderData = [[item, refCode, amount, timestamp]];
+    const orderData = [[item, refCode, amount, timestamp, 'pending']];
 
     // Append to orders in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:D',
+      range: 'orders!A:E',
       valueInputOption: 'RAW',
       resource: { values: orderData }
     });
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:D',
+      range: 'orders!A:E',
       valueInputOption: 'RAW',
       resource: { values: orderData }
-    });
-
-    const fileRes = await drive.files.get({
-      fileId: product.fileId,
-      fields: 'webContentLink'
     });
 
     await transporter.sendMail({
@@ -577,7 +615,6 @@ app.post('/api/submit-ref', async (req, res) => {
         <p><strong>Ref Code:</strong> ${refCode}</p>
         <p><strong>Amount:</strong> ${amount} KES</p>
         <p><strong>Timestamp:</strong> ${timestamp}</p>
-        <p><strong>Download Link:</strong> <a href="${fileRes.data.webContentLink}">${product.name}</a></p>
       `
     });
 
@@ -585,6 +622,7 @@ app.post('/api/submit-ref', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error details:`, error.stack);
     if (error.response && error.response.status === 400) {
       res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
     } else {
@@ -597,14 +635,15 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:D'
+      range: 'orders!A:E'
     });
     const rows = response.data.values || [];
     const orders = rows.slice(1).map(row => ({
       item: row[0],
       refCode: row[1],
       amount: row[2],
-      timestamp: row[3]
+      timestamp: row[3],
+      status: row[4] || 'pending'
     }));
     res.json({ success: true, orders });
     console.log(`[${new Date().toISOString()}] Orders fetched successfully`);
@@ -615,6 +654,70 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
     } else {
       res.status(500).json({ success: false, error: 'Failed to fetch orders' });
     }
+  }
+});
+
+app.get('/api/order-status/:item/:refCode', async (req, res) => {
+  try {
+    const { item, refCode } = req.params;
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:E'
+    });
+    const rows = response.data.values || [];
+    const order = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
+    if (!order) {
+      console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    const status = order[4] || 'pending';
+    let downloadLink = null;
+    if (status === 'confirmed') {
+      const product = cachedData.products.find(p => p.item === item);
+      if (product) {
+        downloadLink = await generateDownloadLink(product.fileId);
+      }
+    }
+    res.json({ success: true, status, downloadLink });
+    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to check order status' });
+  }
+});
+
+app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
+  try {
+    const { item, refCode, status } = req.body;
+    if (!['confirmed', 'no payment', 'partial payment'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'orders!A:E'
+      });
+      const rows = response.data.values || [];
+      const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+      if (orderIndex === -1) {
+        console.log(`[${new Date().toISOString()}] Order not found for update: ${item}/${refCode}`);
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
+      rows[orderIndex + 1][4] = status;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'orders!A:E',
+        valueInputOption: 'RAW',
+        resource: { values: rows }
+      });
+    }
+
+    res.json({ success: true });
+    console.log(`[${new Date().toISOString()}] Order status updated: ${item}/${refCode} - New Status: ${status}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating order status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update order status' });
   }
 });
 
@@ -659,7 +762,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
       const ordersResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: 'orders!A:D'
+        range: 'orders!A:E'
       });
       const ordersRows = ordersResponse.data.values || [];
       const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
@@ -667,7 +770,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
         ordersRows.splice(orderIndex + 1, 1);
         await sheets.spreadsheets.values.update({
           spreadsheetId,
-          range: 'orders!A:D',
+          range: 'orders!A:E',
           valueInputOption: 'RAW',
           resource: { values: ordersRows }
         });
