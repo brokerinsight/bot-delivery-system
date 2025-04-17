@@ -842,7 +842,7 @@
       modal.classList.remove('hidden');
 
       let timeLeft = 5 * 60;
-      const pollInterval = 5;
+      const pollInterval = 10; // Increased to 10 seconds to reduce request frequency
       let elapsed = 0;
 
       const countdown = setInterval(async () => {
@@ -866,7 +866,24 @@
         elapsed += 1;
         if (elapsed % pollInterval === 0) {
           try {
-            const statusRes = await fetch(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, { credentials: 'include' });
+            const statusRes = await fetch(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, {
+              credentials: 'include',
+              headers: {
+                'X-Debug-Source': 'Client-Polling'
+              }
+            });
+            if (!statusRes.ok) {
+              if (statusRes.status === 403) {
+                clearInterval(countdown);
+                statusMessage.innerHTML = 'Access denied. This ref code may have already been used or you lack permission. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  clearPaymentCookie(product.item);
+                }, 3000);
+                return;
+              }
+              throw new Error(`HTTP error! Status: ${statusRes.status}`);
+            }
             const data = await statusRes.json();
             if (data.success && data.status !== 'pending') {
               clearInterval(countdown);
@@ -922,7 +939,15 @@
 
     async function fetchDownloadLink(item, refCode) {
       try {
-        const statusResponse = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`, { credentials: 'include' });
+        const statusResponse = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`, {
+          credentials: 'include',
+          headers: {
+            'X-Debug-Source': 'Client-Download'
+          }
+        });
+        if (!statusResponse.ok) {
+          throw new Error(`HTTP error! Status: ${statusResponse.status}`);
+        }
         const statusData = await statusResponse.json();
         if (!statusData.success || !statusData.downloadLink) {
           console.error('Failed to get download link:', statusData.error || 'No download link provided');
@@ -1065,12 +1090,21 @@
         if (status === 'initiated') {
           const product = products.find(p => p.item === item);
           if (product) {
-            // Check order status before proceeding
             try {
-              const refCodeResponse = await fetch(`${BASE_URL}/api/last-ref/${item}`, { credentials: 'include' });
+              const refCodeResponse = await fetch(`${BASE_URL}/api/last-ref/${item}`, {
+                credentials: 'include',
+                headers: {
+                  'X-Debug-Source': 'Client-CheckPayment'
+                }
+              });
               const refData = await refCodeResponse.json();
               if (refData.success && refData.refCode) {
-                const statusRes = await fetch(`${BASE_URL}/api/order-status/${item}/${refData.refCode}`, { credentials: 'include' });
+                const statusRes = await fetch(`${BASE_URL}/api/order-status/${item}/${refData.refCode}`, {
+                  credentials: 'include',
+                  headers: {
+                    'X-Debug-Source': 'Client-CheckPayment-Status'
+                  }
+                });
                 const statusData = await statusRes.json();
                 if (statusData.error === 'Ref code already used for download') {
                   const modal = document.getElementById('status-modal');
