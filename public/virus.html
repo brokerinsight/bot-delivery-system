@@ -6,12 +6,14 @@
   <title>Admin Panel - Deriv Bot Store</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    /* Modal blur effect */
     body:has(#login-modal:not(.hidden)) > *:not(#login-modal) {
       filter: blur(5px);
     }
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
     }
+    /* Upload progress bar styling */
     #upload-progress {
       width: 100%;
       height: 8px;
@@ -26,6 +28,7 @@
       width: 0;
       transition: width 0.3s;
     }
+    /* Orders table styling */
     #orders-table {
       width: 100%;
       border-collapse: collapse;
@@ -46,6 +49,7 @@
   </style>
 </head>
 <body class="bg-gray-100">
+  <!-- Navigation Bar -->
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -64,7 +68,7 @@
   </nav>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <!-- Add Bot -->
+    <!-- Add Bot Section -->
     <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
       <form id="product-form">
@@ -115,13 +119,13 @@
       </form>
     </section>
 
-    <!-- Manage Bots -->
+    <!-- Manage Bots Section -->
     <section id="manage-bots" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Bots</h2>
       <ul id="bot-list" class="space-y-4"></ul>
     </section>
 
-    <!-- Settings -->
+    <!-- Settings Section -->
     <section id="settings" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Settings</h2>
       <div class="mb-6">
@@ -198,7 +202,7 @@
       </div>
     </section>
 
-    <!-- Static Pages -->
+    <!-- Static Pages Section -->
     <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
       <p class="text-sm text-gray-600 mb-4">To edit the Payment Modal, create a page with slug <code>/payment-modal</code>. For the Ref Code Modal, use <code>/ref-code-modal</code>. Use HTML in the content field.</p>
@@ -223,7 +227,7 @@
       <ul id="page-list" class="space-y-4"></ul>
     </section>
 
-    <!-- Orders -->
+    <!-- Orders Section -->
     <section id="orders" class="section bg-white rounded-lg shadow-md p-6 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Orders</h2>
       <table id="orders-table">
@@ -233,6 +237,7 @@
             <th>Ref Code</th>
             <th>Amount</th>
             <th>Timestamp</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -312,6 +317,16 @@
   </div>
 
   <script>
+    // Helper function to show button feedback
+    function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
+      btn.disabled = true;
+      btn.textContent = actionText;
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }, duration);
+    }
+
     let data = { products: [], categories: [], settings: {}, staticPages: [] };
     let orders = [];
 
@@ -365,7 +380,7 @@
       }
     }
 
-    // Render orders
+    // Render orders with status dropdown
     function renderOrders() {
       const orderList = document.getElementById('order-list');
       orderList.innerHTML = '';
@@ -377,36 +392,44 @@
           <td>${order.refCode}</td>
           <td>${order.amount}</td>
           <td>${new Date(order.timestamp).toLocaleString()}</td>
+          <td>${order.status || 'pending'}</td>
           <td>
-            <button class="confirm-order bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700" 
-                    data-item="${order.item}" data-refcode="${order.refCode}" data-amount="${order.amount}" data-timestamp="${order.timestamp}">
-              Confirm
-            </button>
+            <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
+              <option value="" selected disabled>Update Status</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="no payment">No Payment</option>
+              <option value="partial payment">Partial Payment</option>
+            </select>
           </td>
         `;
         orderList.appendChild(row);
       });
 
-      document.querySelectorAll('.confirm-order').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const { item, refcode, amount, timestamp } = btn.dataset;
+      document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', async () => {
+          const item = select.dataset.item;
+          const refCode = select.dataset.refcode;
+          const status = select.value;
+          const originalText = select.value;
+          showButtonFeedback(select, 'Updating...', originalText);
+
           try {
-            const response = await fetch('/api/confirm-order', {
+            const response = await fetch('/api/update-order-status', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ item, refCode: refcode, amount, timestamp }),
+              body: JSON.stringify({ item, refCode, status }),
               credentials: 'include'
             });
             const result = await response.json();
             if (result.success) {
-              alert(`Order confirmed! Download link sent to admin email: ${result.downloadLink}`);
-              await fetchOrders(); // Refresh orders
+              await fetchOrders(); // Refresh orders to reflect updated status
+              alert(`Order status updated to "${status}"!`);
             } else {
-              throw new Error(result.error || 'Failed to confirm order');
+              throw new Error(result.error || 'Failed to update order status');
             }
           } catch (error) {
-            console.error('Error confirming order:', error);
-            alert('Failed to confirm order. Please try again.');
+            console.error('Error updating order status:', error);
+            alert('Failed to update order status. Please try again.');
           }
         });
       });
@@ -453,6 +476,9 @@
     document.getElementById('login-submit').addEventListener('click', async () => {
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value.trim();
+      const btn = document.getElementById('login-submit');
+      showButtonFeedback(btn, 'Logging in...', 'Login');
+
       try {
         const response = await fetch('/api/login', {
           method: 'POST',
@@ -473,7 +499,7 @@
       }
     });
 
-    // Add bot with progress bar
+    // Add bot with progress bar (unchanged to preserve functionality)
     document.getElementById('product-form').addEventListener('submit', async e => {
       e.preventDefault();
       const formData = new FormData();
@@ -570,6 +596,7 @@
       document.querySelectorAll('.delete-bot').forEach(btn => {
         btn.addEventListener('click', async () => {
           if (confirm('Are you sure you want to delete this bot?')) {
+            showButtonFeedback(btn, 'Deleting...', 'Delete');
             const item = btn.dataset.item;
             data.products = data.products.filter(p => p.item !== item);
             await saveData();
@@ -581,6 +608,8 @@
 
     document.getElementById('edit-form').addEventListener('submit', async e => {
       e.preventDefault();
+      const btn = e.submitter;
+      showButtonFeedback(btn, 'Saving...', 'Save Changes');
       const item = document.getElementById('edit-item').value;
       const product = data.products.find(p => p.item === item);
       product.name = document.getElementById('edit-name').value.trim();
@@ -623,6 +652,7 @@
       document.querySelectorAll('.delete-category').forEach(btn => {
         btn.addEventListener('click', async () => {
           if (confirm('Are you sure you want to delete this category?')) {
+            showButtonFeedback(btn, 'Deleting...', 'Delete');
             const category = btn.dataset.category;
             data.categories = data.categories.filter(c => c !== category);
             data.products.forEach(p => {
@@ -637,6 +667,8 @@
     }
 
     document.getElementById('add-category').addEventListener('click', async () => {
+      const btn = document.getElementById('add-category');
+      showButtonFeedback(btn, 'Adding...', 'Add Category');
       const newCategory = document.getElementById('new-category').value.trim();
       if (newCategory && !data.categories.includes(newCategory)) {
         data.categories.push(newCategory);
@@ -652,6 +684,8 @@
     });
 
     document.getElementById('save-urgent').addEventListener('click', async () => {
+      const btn = document.getElementById('save-urgent');
+      showButtonFeedback(btn, 'Saving...', 'Save Message');
       data.settings.urgentMessage = {
         enabled: document.getElementById('urgent-toggle').checked,
         text: document.getElementById('urgent-message').value.trim()
@@ -661,30 +695,40 @@
     });
 
     document.getElementById('save-email').addEventListener('click', async () => {
+      const btn = document.getElementById('save-email');
+      showButtonFeedback(btn, 'Saving...', 'Save Email');
       data.settings.supportEmail = document.getElementById('support-email').value.trim();
       await saveData();
       alert('Support email saved!');
     });
 
     document.getElementById('save-copyright').addEventListener('click', async () => {
+      const btn = document.getElementById('save-copyright');
+      showButtonFeedback(btn, 'Saving...', 'Save Copyright');
       data.settings.copyrightText = document.getElementById('copyright-text').value.trim();
       await saveData();
       alert('Copyright text saved!');
     });
 
     document.getElementById('save-logo').addEventListener('click', async () => {
+      const btn = document.getElementById('save-logo');
+      showButtonFeedback(btn, 'Saving...', 'Save Logo');
       data.settings.logoUrl = document.getElementById('logo-url').value.trim();
       await saveData();
       alert('Logo URL saved!');
     });
 
     document.getElementById('save-mpesa-till').addEventListener('click', async () => {
+      const btn = document.getElementById('save-mpesa-till');
+      showButtonFeedback(btn, 'Saving...', 'Save Till Number');
       data.settings.mpesaTill = document.getElementById('mpesa-till').value.trim();
       await saveData();
       alert('MPESA Till Number saved!');
     });
 
     document.getElementById('save-socials').addEventListener('click', async () => {
+      const btn = document.getElementById('save-socials');
+      showButtonFeedback(btn, 'Saving...', 'Save Socials');
       data.settings.socials = {
         tiktok: document.getElementById('tiktok').value.trim(),
         whatsapp: document.getElementById('whatsapp').value.trim(),
@@ -699,12 +743,16 @@
     });
 
     document.getElementById('save-fallback-rate').addEventListener('click', async () => {
+      const btn = document.getElementById('save-fallback-rate');
+      showButtonFeedback(btn, 'Saving...', 'Save Rate');
       data.settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
       await saveData();
       alert('Fallback rate saved!');
     });
 
     document.getElementById('change-credentials').addEventListener('click', async () => {
+      const btn = document.getElementById('change-credentials');
+      showButtonFeedback(btn, 'Saving...', 'Change Credentials');
       const newEmail = document.getElementById('new-email').value.trim();
       const newPassword = document.getElementById('new-password').value.trim();
       const confirmPassword = document.getElementById('confirm-password').value.trim();
@@ -741,6 +789,7 @@
 
       document.querySelectorAll('.edit-page').forEach(btn => {
         btn.addEventListener('click', () => {
+          showButtonFeedback(btn, 'Editing...', 'Edit');
           const slug = btn.dataset.slug;
           const page = data.staticPages.find(p => p.slug === slug);
           document.getElementById('page-title').value = page.title;
@@ -753,6 +802,7 @@
       document.querySelectorAll('.delete-page').forEach(btn => {
         btn.addEventListener('click', async () => {
           if (confirm('Are you sure you want to delete this page?')) {
+            showButtonFeedback(btn, 'Deleting...', 'Delete');
             const slug = btn.dataset.slug;
             data.staticPages = data.staticPages.filter(p => p.slug !== slug);
             await saveData();
@@ -763,6 +813,8 @@
     }
 
     document.getElementById('add-page').addEventListener('click', async () => {
+      const btn = document.getElementById('add-page');
+      showButtonFeedback(btn, 'Adding...', 'Add Page');
       const title = document.getElementById('page-title').value.trim();
       const slug = document.getElementById('page-slug').value.trim();
       const content = document.getElementById('page-content').value.trim();
@@ -805,5 +857,6 @@
 
     initialize();
   </script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
