@@ -66,36 +66,10 @@
     #cookie-popup button:hover {
       background-color: #15803d;
     }
-    #loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 60;
-    }
-    #loading-spinner {
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #16a34a;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
-  <!-- Loading Overlay -->
-  <div id="loading-overlay" class="hidden">
-    <div id="loading-spinner"></div>
-  </div>
-
   <!-- Urgent Message -->
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
     <p id="urgent-text" class="text-center text-lg font-semibold"></p>
@@ -151,7 +125,7 @@
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div id="loading-message" class="col-span-full text-center text-gray-600 hidden">
+      <div id="loading-message" class="col-span-full text-center text-gray-600">
         Loading bots... If this takes too long, please refresh the page or contact support at <a href="mailto:kaylie254.business@gmail.com" class="underline text-green-600">kaylie254.business@gmail.com</a>.
       </div>
     </div>
@@ -201,11 +175,6 @@
     let categories = [];
     let staticPages = [];
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
-
-    // Show loading overlay
-    function showLoading(show) {
-      document.getElementById('loading-overlay').classList.toggle('hidden', !show);
-    }
 
     // Fetch with timeout
     async function fetchWithTimeout(url, options, timeout = 10000) {
@@ -264,7 +233,7 @@
       return false;
     }
 
-    // Poll for updates every 60 seconds (increased from 30 to reduce API load)
+    // Poll for updates every 60 seconds
     function startPolling() {
       setInterval(async () => {
         const success = await fetchData();
@@ -274,13 +243,16 @@
           updateFooter();
           showUrgentMessage();
         }
-      }, 60000); // Changed to 60 seconds
+      }, 60000);
     }
 
     // Fetch modal content
     async function fetchModalContent() {
       try {
         const paymentRes = await fetchWithTimeout('/api/page/payment-modal', { credentials: 'include' }, 5000);
+        if (!paymentRes.ok) {
+          throw new Error(`Failed to fetch payment modal: ${paymentRes.status} ${paymentRes.statusText}`);
+        }
         const paymentData = await paymentRes.json();
         if (paymentData.success) {
           const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
@@ -303,9 +275,14 @@
               document.getElementById('payment-modal').classList.add('hidden');
             });
           }
+        } else {
+          console.error('Payment modal fetch failed:', paymentData.error);
         }
 
         const refRes = await fetchWithTimeout('/api/page/ref-code-modal', { credentials: 'include' }, 5000);
+        if (!refRes.ok) {
+          throw new Error(`Failed to fetch ref code modal: ${refRes.status} ${refRes.statusText}`);
+        }
         const refData = await refRes.json();
         if (refData.success) {
           const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
@@ -314,11 +291,9 @@
           const refCodeCancel = refCodeModalDiv.querySelector('#ref-code-cancel');
           if (submitRefCode) {
             submitRefCode.addEventListener('click', async () => {
-              showLoading(true);
               const refCode = refCodeModalDiv.querySelector('#ref-code-input')?.value?.trim();
               if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
                 alert('Please enter a valid MPESA ref code.');
-                showLoading(false);
                 return;
               }
               const item = submitRefCode.dataset.item;
@@ -349,7 +324,6 @@
                 console.error('Error submitting ref code:', error.message);
                 alert('Error submitting ref code. Please try again.');
               }
-              showLoading(false);
             });
           }
           if (refCodeCancel) {
@@ -357,9 +331,12 @@
               document.getElementById('ref-code-modal').classList.add('hidden');
             });
           }
+        } else {
+          console.error('Ref code modal fetch failed:', refData.error);
         }
       } catch (error) {
         console.error('Error fetching modal content:', error.message);
+        console.error('Error details:', error);
       }
     }
 
@@ -409,7 +386,6 @@
 
       document.querySelectorAll('.buy-now').forEach(btn => {
         btn.addEventListener('click', async () => {
-          showLoading(true);
           const item = btn.dataset.item;
           const product = products.find(p => p.item === item);
           const rate = await getExchangeRate();
@@ -421,7 +397,6 @@
           const submitRefCodeBtn = document.getElementById('submit-ref-code');
           submitRefCodeBtn.dataset.item = item;
           submitRefCodeBtn.dataset.kesPrice = kesPrice;
-          showLoading(false);
         });
       });
     }
@@ -452,11 +427,9 @@
       modal.classList.remove('hidden');
 
       document.getElementById('submit-ref-code').onclick = async () => {
-        showLoading(true);
         const refCode = document.getElementById('ref-code-input').value.trim();
         if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
           alert('Please enter a valid MPESA ref code.');
-          showLoading(false);
           return;
         }
 
@@ -485,7 +458,6 @@
           console.error('Error submitting ref code:', error.message);
           alert('Error submitting ref code. Please try again.');
         }
-        showLoading(false);
       };
 
       document.getElementById('ref-code-cancel').onclick = () => {
@@ -555,111 +527,70 @@
       document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
       document.getElementById('support-email').textContent = settings.supportEmail;
       document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+      
       const socialLinks = document.getElementById('social-links');
-      const socialIcons = { tiktok: 'TikTok', whatsapp: 'WhatsApp', call: 'Call', instagram: 'Instagram', x: 'X', facebook: 'Facebook', youtube: 'YouTube' };
       socialLinks.innerHTML = '';
-      Object.keys(settings.socials).forEach(key => {
-        if (settings.socials[key]) {
-          const link = document.createElement('a');
-          link.href = settings.socials[key];
-          link.target = '_blank';
-          link.className = 'text-gray-500 hover:text-green-600 mx-2';
-          link.textContent = socialIcons[key];
-          socialLinks.appendChild(link);
-        }
-      });
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          const a = document.createElement('a');
+          a.href = url;
+          a.className = 'text-gray-500 hover:text-green-600';
+          a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+          socialLinks.appendChild(a);
+        });
+      }
+
       const staticLinks = document.getElementById('static-links');
       staticLinks.innerHTML = '';
-      staticPages
-        .filter(page => !['/payment-modal', '/ref-code-modal'].includes(page.slug))
-        .forEach(page => {
-          const link = document.createElement('a');
-          link.href = page.slug;
-          link.className = 'text-gray-500 hover:text-green-600';
-          link.textContent = page.title;
-          staticLinks.appendChild(link);
-        });
+      staticPages.forEach(page => {
+        const a = document.createElement('a');
+        a.href = page.slug;
+        a.className = 'text-gray-500 hover:text-green-600';
+        a.textContent = page.title;
+        staticLinks.appendChild(a);
+      });
     }
 
-    // Urgent message
+    // Show urgent message
     function showUrgentMessage() {
-      if (settings.urgentMessage.enabled && settings.urgentMessage.text) {
-        const urgent = document.getElementById('urgent-message');
-        urgent.classList.remove('hidden');
-        document.getElementById('urgent-text').textContent = settings.urgentMessage.text;
-        document.getElementById('urgent-close').addEventListener('click', () => urgent.classList.add('hidden'));
+      const urgentMessage = document.getElementById('urgent-message');
+      const urgentText = document.getElementById('urgent-text');
+      if (settings.urgentMessage?.enabled && settings.urgentMessage.text) {
+        urgentText.textContent = settings.urgentMessage.text;
+        urgentMessage.classList.remove('hidden');
       }
+      document.getElementById('urgent-close').addEventListener('click', () => {
+        urgentMessage.classList.add('hidden');
+      });
     }
 
     // Cookie popup
-    function showCookiePopup() {
-      if (!localStorage.getItem('cookieAccepted')) {
+    function handleCookiePopup() {
+      if (!localStorage.getItem('cookiesAccepted')) {
         document.getElementById('cookie-popup').classList.remove('hidden');
-        document.getElementById('cookie-accept').addEventListener('click', () => {
-          localStorage.setItem('cookieAccepted', 'true');
-          document.getElementById('cookie-popup').classList.add('hidden');
-        });
       }
-    }
-
-    // Timeout promise
-    function timeout(ms) {
-      return new Promise(resolve => setTimeout(() => resolve('timeout'), ms));
+      document.getElementById('cookie-accept').addEventListener('click', () => {
+        localStorage.setItem('cookiesAccepted', 'true');
+        document.getElementById('cookie-popup').classList.add('hidden');
+      });
     }
 
     // Initialize
-    async function initialize() {
-      showLoading(true);
-      const loadingMessage = document.getElementById('loading-message');
-      try {
-        // Run initialization with a 2-second timeout
-        const result = await Promise.race([
-          (async () => {
-            const success = await fetchData();
-            if (success) {
-              await fetchModalContent();
-              renderNavLinks();
-              renderProducts();
-              updateFooter();
-              showUrgentMessage();
-              showCookiePopup();
-              startPolling();
-              setInterval(checkPaymentCookie, 60000);
-            }
-            return 'success';
-          })(),
-          timeout(2000) // 2-second timeout
-        ]);
-
-        if (result === 'timeout') {
-          console.warn('Initialization timed out after 2 seconds. Hiding loader, but data may still be loading in the background.');
-          loadingMessage.classList.remove('hidden'); // Show loading message if timeout occurs
-          // Continue trying to load data in the background
-          const success = await fetchData();
-          if (success) {
-            await fetchModalContent();
-            renderNavLinks();
-            renderProducts();
-            updateFooter();
-            showUrgentMessage();
-            showCookiePopup();
-            startPolling();
-            setInterval(checkPaymentCookie, 60000);
-          }
-        }
-      } catch (error) {
-        console.error('Initialization failed:', error.message);
-        alert('An unexpected error occurred while loading the store. Please refresh the page or contact support at ' + (settings.supportEmail || 'kaylie254.business@gmail.com') + '.');
-        loadingMessage.classList.remove('hidden'); // Show loading message on error
-      } finally {
-        showLoading(false); // Always hide the spinner after 2 seconds
+    async function init() {
+      const success = await fetchData();
+      if (success) {
+        renderNavLinks();
+        renderProducts();
+        updateFooter();
+        showUrgentMessage();
+        checkPaymentCookie();
+        startPolling();
+        handleCookiePopup();
+        await fetchModalContent();
       }
     }
 
-    initialize();
+    init();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930cc481daa9b03d',t:'MTc0NDczMzk5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931b9d907b49b016',t:'MTc0NDg4OTY4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931bddfded390c55',t:'MTc0NDg5MjMyOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
