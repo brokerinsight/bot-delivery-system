@@ -101,7 +101,8 @@ let cachedData = {
     logoUrl: '',
     socials: {},
     urgentMessage: { enabled: false, text: '' },
-    fallbackRate: 130
+    fallbackRate: 130,
+    mpesaTill: '4933614'
   },
   staticPages: []
 };
@@ -134,6 +135,7 @@ const fallbackRefCodeModal = {
 // Load data from Google Sheets
 async function loadData() {
   try {
+    // Load products from SPREADSHEET_ID (Sheet1)
     const productRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J'
@@ -151,11 +153,17 @@ async function loadData() {
       isArchived: row[9] === 'TRUE'
     })) || [];
 
+    // Load settings from PRODUCTS_SHEET_ID (settings tab)
     const settingsRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'settings!A:B'
     });
-    const settingsData = Object.fromEntries(settingsRes.data.values?.map(([k, v]) => [k, v]) || []);
+    const settingsRows = settingsRes.data.values || [];
+    if (!settingsRows[0] || settingsRows[0][0] !== 'KEY' || settingsRows[0][1] !== 'VALUE') {
+      console.error(`[${new Date().toISOString()}] Invalid headers in settings tab. Expected: ["KEY", "VALUE"], Got: ${settingsRows[0]}`);
+      throw new Error('Invalid headers in settings tab');
+    }
+    const settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
     const settings = {
       supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
@@ -164,15 +172,18 @@ async function loadData() {
       urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
       adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsData.adminPassword || 'securepassword123'
+      adminPassword: settingsData.adminPassword || 'securepassword123',
+      mpesaTill: settingsData.mpesaTill || '4933614'
     };
 
+    // Load categories from PRODUCTS_SHEET_ID (categories tab)
     const categoriesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'categories!A:A'
     });
     const categories = categoriesRes.data.values?.slice(1).flat() || ['General'];
 
+    // Load static pages from PRODUCTS_SHEET_ID (staticPages tab)
     const pagesRes = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'staticPages!A:C'
@@ -225,6 +236,7 @@ async function streamUploadToDrive(file, filename) {
     return driveRes.data;
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error uploading file to Google Drive:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error details:`, error.response ? error.response.data : error);
     throw error;
   }
 }
@@ -248,6 +260,7 @@ async function saveData() {
       ])
     ];
 
+    // Update both sheets
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J',
@@ -262,12 +275,15 @@ async function saveData() {
       resource: { values: productValues }
     });
 
-    const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
-      if (typeof value === 'object' && value !== null) {
-        return [key, JSON.stringify(value)];
-      }
-      return [key, value];
-    });
+    const settingsForSheet = [
+      ['KEY', 'VALUE'],
+      ...Object.entries(cachedData.settings).map(([key, value]) => {
+        if (typeof value === 'object' && value !== null) {
+          return [key, JSON.stringify(value)];
+        }
+        return [key, value];
+      })
+    ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
@@ -295,6 +311,7 @@ async function saveData() {
     console.log(`[${new Date().toISOString()}] Data saved successfully to Google Sheets`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error details:`, error);
     throw error;
   }
 }
@@ -308,9 +325,8 @@ function isAuthenticated(req, res, next) {
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
-// Ensure Google Sheet tabs exist with correct headers
-async function ensureSheetTabs() {
-  const spreadsheetId = process.env.PRODUCTS_SHEET_ID;
+// Ensure Google Sheet tabs exist with correct headers for both spreadsheets
+async function ensureSheetTabs(spreadsheetId) {
   const tabsToEnsure = {
     'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
     'settings': ['KEY', 'VALUE'],
@@ -326,7 +342,7 @@ async function ensureSheetTabs() {
 
     for (const [sheetName, headers] of Object.entries(tabsToEnsure)) {
       if (!existingSheets.includes(sheetName)) {
-        console.log(`[${new Date().toISOString()}] Creating missing sheet: ${sheetName}`);
+        console.log(`[${new Date().toISOString()}] Creating missing sheet ${sheetName} in spreadsheet ${spreadsheetId}`);
         await sheets.spreadsheets.batchUpdate({
           spreadsheetId,
           resource: {
@@ -347,11 +363,28 @@ async function ensureSheetTabs() {
           valueInputOption: 'RAW',
           resource: { values: [headers] }
         });
-        console.log(`[${new Date().toISOString()}] Added headers to ${sheetName}: ${headers}`);
+        console.log(`[${new Date().toISOString()}] Added headers to ${sheetName} in spreadsheet ${spreadsheetId}: ${headers}`);
+      } else {
+        // Verify headers
+        const res = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${sheetName}!1:1`
+        });
+        const actualHeaders = res.data.values?.[0] || [];
+        if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
+          console.log(`[${new Date().toISOString()}] Fixing headers for ${sheetName} in spreadsheet ${spreadsheetId}. Expected: ${headers}, Got: ${actualHeaders}`);
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `${sheetName}!1:1`,
+            valueInputOption: 'RAW',
+            resource: { values: [headers] }
+          });
+          console.log(`[${new Date().toISOString()}] Headers fixed for ${sheetName} in spreadsheet ${spreadsheetId}`);
+        }
       }
     }
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error ensuring sheet tabs:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error ensuring sheet tabs for spreadsheet ${spreadsheetId}:`, error.message);
     throw error;
   }
 }
@@ -375,50 +408,20 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
   }
 
-  // Ensure all required tabs exist
-  await ensureSheetTabs();
+  // Ensure all required tabs exist in both spreadsheets
+  await ensureSheetTabs(process.env.SPREADSHEET_ID);
+  await ensureSheetTabs(process.env.PRODUCTS_SHEET_ID);
 
-  // Check sheet headers
-  const expectedHeaders = {
-    'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-    'settings': ['KEY', 'VALUE'],
-    'categories': ['CATEGORY'],
-    'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
-    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP'],
-    'emails': ['EMAIL', 'SUBJECT', 'BODY']
-  };
-
-  for (const [sheet, headers] of Object.entries(expectedHeaders)) {
-    try {
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-        range: `${sheet}!1:1`
-      });
-      const actualHeaders = res.data.values?.[0] || [];
-      if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
-        console.error(`[${new Date().toISOString()}] Header mismatch in ${sheet}. Expected: ${headers}, Got: ${actualHeaders}`);
-        // Fix headers by overwriting the first row
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-          range: `${sheet}!1:1`,
-          valueInputOption: 'RAW',
-          resource: { values: [headers] }
-        });
-        console.log(`[${new Date().toISOString()}] Fixed headers for ${sheet}`);
-      } else {
-        console.log(`[${new Date().toISOString()}] Headers verified for ${sheet}`);
-      }
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Failed to verify headers for ${sheet}:`, error.message);
-    }
-  }
-
-  // Check Google Drive connectivity
+  // Check Google Drive connectivity and folder existence
   try {
-    await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
+    const folder = await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
+    if (folder.data.mimeType !== 'application/vnd.google-apps.folder') {
+      throw new Error(`GOOGLE_DRIVE_FOLDER_ID (${process.env.GOOGLE_DRIVE_FOLDER_ID}) is not a folder`);
+    }
     console.log(`[${new Date().toISOString()}] Successfully connected to Google Drive folder`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
+    console.error(`[${new Date().toISOString()}] Please verify GOOGLE_DRIVE_FOLDER_ID: ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
   }
 
   // Test email sending
@@ -503,6 +506,37 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
   }
 });
 
+app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
+  try {
+    const { item } = req.body;
+    const productIndex = cachedData.products.findIndex(p => p.item === item);
+    if (productIndex === -1) {
+      console.log(`[${new Date().toISOString()}] Bot not found: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
+    }
+
+    // Delete the file from Google Drive
+    const fileId = cachedData.products[productIndex].fileId;
+    try {
+      await drive.files.delete({ fileId });
+      console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Error deleting file from Google Drive:`, error.message);
+    }
+
+    // Remove from cachedData
+    cachedData.products.splice(productIndex, 1);
+
+    // Update both Google Sheets
+    await saveData();
+    res.json({ success: true });
+    console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete bot' });
+  }
+});
+
 app.post('/api/submit-ref', async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
@@ -512,11 +546,21 @@ app.post('/api/submit-ref', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
+    const orderData = [[item, refCode, amount, timestamp]];
+
+    // Append to orders in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:D',
       valueInputOption: 'RAW',
-      resource: { values: [[item, refCode, amount, timestamp]] }
+      resource: { values: orderData }
+    });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'orders!A:D',
+      valueInputOption: 'RAW',
+      resource: { values: orderData }
     });
 
     const fileRes = await drive.files.get({
@@ -594,27 +638,40 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     const subject = `Your Deriv Bot Purchase - ${item}`;
     const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
 
+    const emailData = [[email, subject, body]];
+
+    // Append to emails in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'emails!A:C',
       valueInputOption: 'RAW',
-      resource: { values: [[email, subject, body]] }
+      resource: { values: emailData }
     });
 
-    const ordersResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:D'
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'emails!A:C',
+      valueInputOption: 'RAW',
+      resource: { values: emailData }
     });
-    const ordersRows = ordersResponse.data.values || [];
-    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-    if (orderIndex !== -1) {
-      ordersRows.splice(orderIndex + 1, 1);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'orders!A:D',
-        valueInputOption: 'RAW',
-        resource: { values: ordersRows }
+
+    // Remove the order from both spreadsheets
+    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
+      const ordersResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'orders!A:D'
       });
+      const ordersRows = ordersResponse.data.values || [];
+      const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+      if (orderIndex !== -1) {
+        ordersRows.splice(orderIndex + 1, 1);
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: 'orders!A:D',
+          valueInputOption: 'RAW',
+          resource: { values: ordersRows }
+        });
+      }
     }
 
     res.json({ success: true, downloadLink });
