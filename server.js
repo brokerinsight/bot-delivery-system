@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const FileStore = require('express-session-file-store')(session); // FileStore for sessions
+const RedisStore = require('connect-redis')(session);
+const { createClient } = require('redis');
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 const { Readable } = require('stream');
@@ -9,6 +10,13 @@ require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Redis setup for sessions
+const redisClient = createClient({
+  url: process.env.REDIS_URL || 'redis://localhost:6379'
+});
+redisClient.on('error', err => console.error('Redis error:', err));
+redisClient.connect().catch(err => console.error('Redis connect error:', err));
 
 // CORS setup
 app.use(cors({
@@ -18,9 +26,9 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Session setup with FileStore
+// Session setup
 app.use(session({
-  store: new FileStore({ path: './sessions', ttl: 24 * 60 * 60 }), // Store sessions in ./sessions, 24-hour TTL
+  store: new RedisStore({ client: redisClient }),
   secret: process.env.SESSION_SECRET || 'your-secret',
   resave: false,
   saveUninitialized: false,
@@ -145,7 +153,7 @@ async function loadData() {
       email, subject, body
     })) || [];
   } catch (error) {
-    console.error('Error loading data:', error.message);
+    console.error('Error loading data:', error);
     throw error;
   }
 }
@@ -184,7 +192,7 @@ async function saveData(range, values, spreadsheetId = SPREADSHEET_ID) {
       });
     }
   } catch (error) {
-    console.error('Error saving data:', error.message);
+    console.error('Error saving data:', error);
     throw error;
   }
 }
@@ -228,7 +236,7 @@ async function editData(item, updates, spreadsheetId = SPREADSHEET_ID) {
       });
     }
   } catch (error) {
-    console.error('Error editing data:', error.message);
+    console.error('Error editing data:', error);
     throw error;
   }
 }
@@ -247,10 +255,7 @@ async function deleteProduct(item) {
 
       // Delete file from Drive
       if (rows[rowIndex][1]) {
-        await drive.files.delete({ fileId: rows[rowIndex][1] }).catch(error => {
-          console.error('Drive delete error:', error.message);
-          throw error;
-        });
+        await drive.files.delete({ fileId: rows[rowIndex][1] }).catch(err => console.error('Drive delete error:', err));
       }
 
       // Remove row and shift others up
@@ -264,7 +269,7 @@ async function deleteProduct(item) {
     }
     await loadData();
   } catch (error) {
-    console.error('Error deleting product:', error.message);
+    console.error('Error deleting product:', error);
     throw error;
   }
 }
@@ -297,7 +302,7 @@ async function streamUploadToDrive(file, filename) {
     });
     return res.data;
   } catch (error) {
-    console.error('Drive upload error:', error.message);
+    console.error('Drive upload error:', error);
     throw error;
   }
 }
@@ -316,7 +321,7 @@ app.get('/api/data', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /api/data:', error.message);
+    console.error('Error in /api/data:', error);
     res.status(500).json({ success: false, error: 'Failed to load data' });
   }
 });
@@ -359,7 +364,7 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true, fileId: driveData.id });
   } catch (error) {
-    console.error('Error in /api/add-bot:', error.message);
+    console.error('Error in /api/add-bot:', error);
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -384,7 +389,7 @@ app.post('/api/submit-ref', async (req, res) => {
     await loadData();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/submit-ref:', error.message);
+    console.error('Error in /api/submit-ref:', error);
     res.status(500).json({ success: false, error: 'Failed to submit ref code' });
   }
 });
@@ -394,7 +399,7 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true, data: cachedData.orders });
   } catch (error) {
-    console.error('Error in /api/orders:', error.message);
+    console.error('Error in /api/orders:', error);
     res.status(500).json({ success: false, error: 'Failed to load orders' });
   }
 });
@@ -419,7 +424,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
     res.json({ success: true, downloadLink: file.data.webContentLink });
   } catch (error) {
-    console.error('Error in /api/confirm-order:', error.message);
+    console.error('Error in /api/confirm-order:', error);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
@@ -437,7 +442,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/save-data:', error.message);
+    console.error('Error in /api/save-data:', error);
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
@@ -448,7 +453,7 @@ app.post('/api/delete-product', isAuthenticated, async (req, res) => {
     await deleteProduct(item);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/delete-product:', error.message);
+    console.error('Error in /api/delete-product:', error);
     res.status(500).json({ success: false, error: 'Failed to delete product' });
   }
 });
