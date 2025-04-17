@@ -121,11 +121,28 @@
       transform: scale(1.1);
     }
     #details-desc {
-      line-height: 1.5;
-      margin-bottom: 1rem;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
     }
     #details-desc p {
+      margin-bottom: 0.75rem;
+    }
+    #details-desc ul {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 1rem;
+    }
+    #details-desc li {
+      display: flex;
+      align-items: flex-start;
       margin-bottom: 0.5rem;
+    }
+    #details-desc li::before {
+      content: "•";
+      color: #16a34a;
+      margin-right: 0.5rem;
+      font-size: 1.2rem;
+      line-height: 1.6;
     }
     .embed-container {
       position: relative;
@@ -311,7 +328,7 @@
       <div class="modal-main">
         <img id="details-thumbnail" class="thumbnail-image mb-4" src="" alt="">
         <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-2"></h3>
-        <p id="details-desc" class="text-gray-600 mb-4"></p>
+        <div id="details-desc" class="text-gray-600 mb-4"></div>
         <div id="details-embed" class="mb-4"></div>
       </div>
       <div class="modal-sidebar">
@@ -466,6 +483,36 @@
       });
     }
 
+    function formatDescription(desc) {
+      const lines = desc.split('\n').filter(line => line.trim() !== '');
+      let html = '';
+      let inList = false;
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+          }
+          const content = line.replace(/^(✅|🚀|🧠)\s*/, '');
+          html += `<li>${content}</li>`;
+        } else {
+          if (inList) {
+            html += '</ul>';
+            inList = false;
+          }
+          html += `<p>${line}</p>`;
+        }
+      });
+
+      if (inList) {
+        html += '</ul>';
+      }
+
+      return html;
+    }
+
     async function renderProducts(category = 'all', search = '') {
       const grid = document.getElementById('product-grid');
       const loadingMessage = document.getElementById('loading-message');
@@ -513,7 +560,7 @@
 
           document.getElementById('details-thumbnail').src = product.img;
           document.getElementById('details-name').textContent = product.name;
-          document.getElementById('details-desc').textContent = product.desc;
+          document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
           const embedDiv = document.getElementById('details-embed');
           if (product.embed) {
             embedDiv.innerHTML = `
