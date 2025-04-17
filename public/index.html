@@ -5,10 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Bot Store</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     .truncate-2-lines {
       display: -webkit-box;
       -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .truncate-3-lines {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -35,6 +45,13 @@
       width: 1.25rem;
       height: 1.25rem;
       color: #6b7280;
+    }
+    #mobile-menu {
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+    #mobile-menu.open {
+      transform: translateX(0);
     }
     #cookie-popup {
       position: fixed;
@@ -66,8 +83,58 @@
     #cookie-popup button:hover {
       background-color: #15803d;
     }
+    #details-modal .overflow-y-auto {
+      max-height: calc(90vh - 8rem);
+    }
+    #details-modal .sticky {
+      position: sticky;
+    }
+    @media (max-width: 768px) {
+      #details-modal .flex {
+        flex-direction: column;
+      }
+      #details-modal .sticky {
+        position: fixed;
+        width: 100%;
+        bottom: 0;
+        z-index: 10;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+      }
+    }
+    @media (max-width: 640px) {
+      #nav-links {
+        display: none;
+      }
+      #mobile-menu {
+        display: block;
+      }
+      #mobile-nav-links {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      #mobile-nav-links a {
+        padding: 0.5rem 0;
+        width: 100%;
+      }
+    }
+    @media (max-width: 640px) {
+      footer {
+        display: none;
+      }
+      #mobile-footer {
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        border-top: 1px solid #e5e7eb;
+      }
+    }
+    @media (min-width: 641px) {
+      #mobile-footer {
+        display: none;
+      }
+    }
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
   <!-- Urgent Message -->
@@ -76,7 +143,7 @@
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
-  <!-- Navbar -->
+  <!-- Navigation -->
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -88,7 +155,13 @@
             <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
           </div>
         </div>
-        <div class="flex items-center">
+        <div class="flex items-center space-x-4">
+          <div class="hidden sm:block search-container">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
+          </div>
           <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +171,7 @@
         </div>
       </div>
     </div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30 hidden">
+    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30">
       <div class="flex justify-between items-center p-4 border-b">
         <h2 class="text-lg font-bold text-gray-800">Menu</h2>
         <button id="mobile-menu-close" class="text-gray-500">
@@ -108,16 +181,22 @@
         </button>
       </div>
       <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
+      <div id="mobile-footer" class="mt-auto p-4">
+        <p id="mobile-copyright-text" class="text-gray-600 text-sm"></p>
+        <p class="text-gray-500 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline"></a></p>
+        <div id="mobile-social-links" class="mt-4 flex flex-col space-y-2"></div>
+        <div id="mobile-static-links" class="mt-4 flex flex-col space-y-2"></div>
+      </div>
     </div>
   </nav>
 
-  <!-- Search Bar -->
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  <!-- Mobile Search Bar -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
     <div class="search-container">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
-      <input id="search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
+      <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
     </div>
   </div>
 
@@ -130,28 +209,6 @@
       </div>
     </div>
   </main>
-
-  <!-- Payment Modal -->
-  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-      <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-    </div>
-  </div>
-
-  <!-- Ref Code Modal -->
-  <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-      <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
-      <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
-      <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
-      <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-    </div>
-  </div>
 
   <!-- Footer -->
   <footer class="bg-white shadow-inner mt-12 py-6">
@@ -169,239 +226,246 @@
     <button id="cookie-accept" class="w-full">Accept Cookies</button>
   </div>
 
-  <script>
-    let products = [];
-    let settings = {};
-    let categories = [];
-    let staticPages = [];
-    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+  <!-- Product Details Modal -->
+  <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg max-w-4xl w-full flex flex-col md:flex-row relative max-h-[90vh]">
+      <button id="details-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <div class="p-6 overflow-y-auto flex-1">
+        <img id="details-thumbnail" class="w-full h-auto rounded-md mb-4" style="aspect-ratio: 16/9; object-fit: cover;" src="" alt="">
+        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-4"></h3>
+        <p id="details-desc" class="text-gray-600 mb-4"></p>
+        <div id="details-embed" class="mb-4"></div>
+      </div>
+      <div class="md:w-64 bg-gray-50 p-4 flex-shrink-0 sticky md:top-0 bottom-0 md:h-auto h-16 flex items-center justify-center md:border-l border-t md:border-t-0">
+        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Buy Now</button>
+      </div>
+    </div>
+  </div>
 
-    // Fetch with timeout
+  <!-- Payment Modal -->
+  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="countdown-timer" class="mb-4">
+        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <div class="flex items-center space-x-2">
+        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+      </div>
+      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Ref Code Modal -->
+  <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
+      <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
+      <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
+      <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Post-Submission Status Modal -->
+  <div id="status-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="status-countdown" class="mb-4">
+        <p class="text-gray-600">Confirming payment... Time remaining: <span id="status-timer-text">5:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="status-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <p id="status-message" class="text-gray-600 mb-4"></p>
+    </div>
+  </div>
+
+  <!-- Static Page Modal -->
+  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full relative max-h-[80vh] overflow-y-auto">
+      <button id="static-page-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <h3 id="static-page-title" class="text-2xl font-bold text-gray-900 mb-4"></h3>
+      <div id="static-page-content" class="prose"></div>
+    </div>
+  </div>
+
+  <script>
+    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+    let products = [];
+    let categories = [];
+    let settings = {};
+    let staticPages = [];
+    let exchangeRate = null;
+
     async function fetchWithTimeout(url, options, timeout = 10000) {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
-      try {
-        const response = await fetch(url, { ...options, signal: controller.signal });
-        clearTimeout(id);
-        return response;
-      } catch (error) {
-        clearTimeout(id);
-        throw error;
-      }
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(id);
+      return response;
     }
 
-    // Fetch exchange rate (USD to KES)
     async function getExchangeRate() {
+      if (exchangeRate) return exchangeRate;
       try {
-        const response = await fetchWithTimeout('https://api.exchangerate.host/convert?from=USD&to=KES', { credentials: 'include' });
-        if (!response.ok) throw new Error(`Exchange rate API failed with status: ${response.status}`);
+        const response = await fetchWithTimeout('https://api.exchangerate.host/convert?from=USD&to=KES', {}, 5000);
         const data = await response.json();
-        return data.result || settings.fallbackRate;
+        exchangeRate = data.result || settings.fallbackRate || 130;
       } catch (error) {
         console.error('Error fetching exchange rate:', error.message);
-        return settings.fallbackRate;
+        exchangeRate = settings.fallbackRate || 130;
       }
+      return exchangeRate;
     }
 
-    // Fetch data from server with retries
     async function fetchData() {
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const response = await fetchWithTimeout('/api/data', { credentials: 'include' }, 10000);
-          if (!response.ok) {
-            throw new Error(`Server responded with status: ${response.status} (${response.statusText})`);
-          }
-          const data = await response.json();
-          products = data.products || [];
-          categories = data.categories || [];
-          settings = data.settings || {};
-          staticPages = data.staticPages || [];
-          return true;
-        } catch (error) {
-          console.error(`Error fetching data (attempt ${4 - retries}/3):`, error.message);
-          retries--;
-          if (retries > 0) {
-            console.log(`Retrying in 1 second... (${retries} retries left)`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            console.error('All retries exhausted. Failed to fetch data.');
-          }
-        }
-      }
-      alert('Failed to load store data after multiple attempts. Please refresh the page or contact support at ' + (settings.supportEmail || 'kaylie254.business@gmail.com') + '.');
-      return false;
-    }
-
-    // Poll for updates every 60 seconds
-    function startPolling() {
-      setInterval(async () => {
-        const success = await fetchData();
-        if (success) {
-          renderNavLinks();
-          renderProducts();
-          updateFooter();
-          showUrgentMessage();
-        }
-      }, 60000);
-    }
-
-    // Fetch modal content
-    async function fetchModalContent() {
       try {
-        const paymentRes = await fetchWithTimeout('/api/page/payment-modal', { credentials: 'include' }, 5000);
-        if (!paymentRes.ok) {
-          throw new Error(`Failed to fetch payment modal: ${paymentRes.status} ${paymentRes.statusText}`);
-        }
-        const paymentData = await paymentRes.json();
-        if (paymentData.success) {
-          const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
-          paymentModalDiv.innerHTML = paymentData.page.content;
-          const confirmPayment = paymentModalDiv.querySelector('#confirm-payment');
-          const paymentCancel = paymentModalDiv.querySelector('#payment-cancel');
-          if (confirmPayment) {
-            confirmPayment.addEventListener('click', () => {
-              const item = confirmPayment.dataset.item;
-              const product = products.find(p => p.item === item);
-              const kesPrice = confirmPayment.dataset.kesPrice;
-              const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-              document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
-              document.getElementById('payment-modal').classList.add('hidden');
-              showRefCodeModal(product, kesPrice);
-            });
-          }
-          if (paymentCancel) {
-            paymentCancel.addEventListener('click', () => {
-              document.getElementById('payment-modal').classList.add('hidden');
-            });
-          }
-        } else {
-          console.error('Payment modal fetch failed:', paymentData.error);
-        }
-
-        const refRes = await fetchWithTimeout('/api/page/ref-code-modal', { credentials: 'include' }, 5000);
-        if (!refRes.ok) {
-          throw new Error(`Failed to fetch ref code modal: ${refRes.status} ${refRes.statusText}`);
-        }
-        const refData = await refRes.json();
-        if (refData.success) {
-          const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
-          refCodeModalDiv.innerHTML = refData.page.content;
-          const submitRefCode = refCodeModalDiv.querySelector('#submit-ref-code');
-          const refCodeCancel = refCodeModalDiv.querySelector('#ref-code-cancel');
-          if (submitRefCode) {
-            submitRefCode.addEventListener('click', async () => {
-              const refCode = refCodeModalDiv.querySelector('#ref-code-input')?.value?.trim();
-              if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
-                alert('Please enter a valid MPESA ref code.');
-                return;
-              }
-              const item = submitRefCode.dataset.item;
-              const kesPrice = submitRefCode.dataset.kesPrice;
-              const product = products.find(p => p.item === item);
-              try {
-                const response = await fetchWithTimeout('/api/submit-ref', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    item: product.item,
-                    refCode,
-                    amount: kesPrice,
-                    timestamp: new Date().toISOString()
-                  }),
-                  credentials: 'include'
-                }, 10000);
-                if (!response.ok) throw new Error(`Failed to submit ref code: ${response.status}`);
-                const data = await response.json();
-                if (data.success) {
-                  alert('Ref code submitted! You will receive your bot soon.');
-                  document.cookie = `payment_${product.item}=submitted; path=/`;
-                  document.getElementById('ref-code-modal').classList.add('hidden');
-                } else {
-                  alert('Failed to submit ref code.');
-                }
-              } catch (error) {
-                console.error('Error submitting ref code:', error.message);
-                alert('Error submitting ref code. Please try again.');
-              }
-            });
-          }
-          if (refCodeCancel) {
-            refCodeCancel.addEventListener('click', () => {
-              document.getElementById('ref-code-modal').classList.add('hidden');
-            });
-          }
-        } else {
-          console.error('Ref code modal fetch failed:', refData.error);
-        }
+        const response = await fetchWithTimeout('/api/data', { credentials: 'include' }, 10000);
+        if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
+        const data = await response.json();
+        products = data.products.filter(p => !p.isArchived);
+        categories = data.categories;
+        settings = data.settings;
+        staticPages = data.staticPages;
+        return true;
       } catch (error) {
-        console.error('Error fetching modal content:', error.message);
-        console.error('Error details:', error);
+        console.error('Error fetching data:', error.message);
+        document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>.`;
+        return false;
       }
     }
 
-    // Render products
-    function renderProducts(filter = 'all', search = '') {
+    async function fetchModalContent() {
+      const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
+      const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+      if (paymentModalContent) {
+        const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
+        paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
+      }
+      if (refCodeModalContent) {
+        const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
+        refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
+      }
+    }
+
+    function renderNavLinks() {
+      const navLinks = document.getElementById('nav-links');
+      const mobileNavLinks = document.getElementById('mobile-nav-links');
+      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
+      categories.forEach(cat => {
+        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
+        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
+      });
+
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', e => {
+          e.preventDefault();
+          const category = link.dataset.category;
+          filterProducts(category);
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
+          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
+          document.getElementById('mobile-menu').classList.remove('open');
+        });
+      });
+    }
+
+    async function renderProducts(category = 'all', search = '') {
       const grid = document.getElementById('product-grid');
       const loadingMessage = document.getElementById('loading-message');
-      loadingMessage.classList.add('hidden'); // Hide loading message when rendering
-
-      grid.innerHTML = ''; // Clear existing content
-      let filteredProducts = products.filter(p => !p.isArchived);
-      
-      if (filter !== 'all') {
-        filteredProducts = filteredProducts.filter(p => p.category === filter);
+      loadingMessage.classList.add('hidden');
+      grid.innerHTML = '';
+      let filteredProducts = products;
+      if (category !== 'all') {
+        filteredProducts = products.filter(p => p.category === category);
       }
-      
       if (search) {
-        const term = search.toLowerCase();
-        filteredProducts = filteredProducts.filter(p => 
-          p.name.toLowerCase().includes(term) || p.item.toLowerCase().includes(term)
-        );
+        const searchTerm = search.toLowerCase();
+        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
       }
-
-      if (filteredProducts.length === 0) {
-        grid.innerHTML = '<p class="col-span-full text-center text-gray-600">No bots available at the moment. Please try again later or contact support.</p>';
+      if (!filteredProducts.length) {
+        grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
         return;
       }
-
       filteredProducts.forEach(product => {
         const card = document.createElement('div');
         card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
-          <div class="aspect-w-16 aspect-h-9">
-            <img src="${product.img}" alt="${product.name}" class="object-cover">
+          <div class="relative">
+            <img src="${product.img}" alt="${product.name}" class="w-full h-48 object-cover rounded-t-lg" style="aspect-ratio: 16/9; object-fit: cover;">
+            ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
           </div>
           <div class="p-6">
-            ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
             <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
             <p class="mt-2 text-gray-600 text-sm truncate-2-lines">${product.desc}</p>
             <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
             <p class="mt-1 text-gray-500 text-sm">Item: ${product.item}</p>
-            <button class="buy-now mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">Buy Now</button>
+            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
           </div>
         `;
         grid.appendChild(card);
       });
 
-      document.querySelectorAll('.buy-now').forEach(btn => {
+      document.querySelectorAll('.view-details').forEach(btn => {
         btn.addEventListener('click', async () => {
           const item = btn.dataset.item;
           const product = products.find(p => p.item === item);
           const rate = await getExchangeRate();
           const kesPrice = (product.price * rate).toFixed(2);
-          showPaymentModal(product, kesPrice);
-          const confirmPaymentBtn = document.getElementById('confirm-payment');
-          confirmPaymentBtn.dataset.item = item;
-          confirmPaymentBtn.dataset.kesPrice = kesPrice;
-          const submitRefCodeBtn = document.getElementById('submit-ref-code');
-          submitRefCodeBtn.dataset.item = item;
-          submitRefCodeBtn.dataset.kesPrice = kesPrice;
+
+          document.getElementById('details-thumbnail').src = product.img;
+          document.getElementById('details-name').textContent = product.name;
+          document.getElementById('details-desc').textContent = product.desc;
+          const embedDiv = document.getElementById('details-embed');
+          if (product.embed) {
+            embedDiv.innerHTML = `<iframe class="w-full h-64 rounded-md" src="${product.embed}" frameborder="0" allowfullscreen></iframe>`;
+          } else {
+            embedDiv.innerHTML = '';
+          }
+
+          const modal = document.getElementById('details-modal');
+          modal.classList.remove('hidden');
+
+          const buyNowBtn = document.getElementById('details-buy-now');
+          buyNowBtn.dataset.item = item;
+          buyNowBtn.dataset.kesPrice = kesPrice;
+          buyNowBtn.onclick = () => {
+            modal.classList.add('hidden');
+            showPaymentModal(product, kesPrice);
+            const confirmPaymentBtn = document.getElementById('confirm-payment');
+            confirmPaymentBtn.dataset.item = item;
+            confirmPaymentBtn.dataset.kesPrice = kesPrice;
+            const submitRefCodeBtn = document.getElementById('submit-ref-code');
+            submitRefCodeBtn.dataset.item = item;
+            submitRefCodeBtn.dataset.kesPrice = kesPrice;
+          };
+
+          document.getElementById('details-close').onclick = () => {
+            modal.classList.add('hidden');
+          };
         });
       });
     }
 
-    // Show payment modal
+    function filterProducts(category) {
+      const search = document.getElementById('search-bar').value || document.getElementById('mobile-search-bar').value;
+      renderProducts(category, search);
+    }
+
     async function showPaymentModal(product, kesPrice) {
       const modal = document.getElementById('payment-modal');
       document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
@@ -409,7 +473,49 @@
       document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
       modal.classList.remove('hidden');
 
+      let timeLeft = 10 * 60;
+      const timerText = document.getElementById('timer-text');
+      const timerBar = document.getElementById('timer-bar');
+
+      const countdown = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          modal.classList.add('hidden');
+          window.location.href = WHATSAPP_REDIRECT;
+          return;
+        }
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const percentage = (timeLeft / (10 * 60)) * 100;
+        timerBar.style.width = `${percentage}%`;
+        timeLeft--;
+      }, 1000);
+
+      const copyTillBtn = document.getElementById('copy-till');
+      copyTillBtn.onclick = () => {
+        const tillNumber = document.getElementById('mpesa-till-number').textContent;
+        navigator.clipboard.writeText(tillNumber).then(() => {
+          copyTillBtn.textContent = 'Copied';
+          setTimeout(() => {
+            copyTillBtn.textContent = 'Copy Till';
+          }, 2000);
+        }).catch(err => {
+          const textarea = document.createElement('textarea');
+          textarea.value = tillNumber;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          copyTillBtn.textContent = 'Copied';
+          setTimeout(() => {
+            copyTillBtn.textContent = 'Copy Till';
+          }, 2000);
+        });
+      };
+
       document.getElementById('confirm-payment').onclick = () => {
+        clearInterval(countdown);
         const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
         document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
         modal.classList.add('hidden');
@@ -417,11 +523,11 @@
       };
 
       document.getElementById('payment-cancel').onclick = () => {
+        clearInterval(countdown);
         modal.classList.add('hidden');
       };
     }
 
-    // Show ref code modal
     function showRefCodeModal(product, kesPrice) {
       const modal = document.getElementById('ref-code-modal');
       modal.classList.remove('hidden');
@@ -448,9 +554,50 @@
           if (!response.ok) throw new Error(`Failed to submit ref code: ${response.status}`);
           const data = await response.json();
           if (data.success) {
-            alert('Ref code submitted! You will receive your bot soon.');
-            document.cookie = `payment_${product.item}=submitted; path=/`;
             modal.classList.add('hidden');
+            const statusModal = document.getElementById('status-modal');
+            const statusMessage = document.getElementById('status-message');
+            const statusTimerText = document.getElementById('status-timer-text');
+            const statusTimerBar = document.getElementById('status-timer-bar');
+            statusModal.classList.remove('hidden');
+
+            let timeLeft = 5 * 60;
+            const countdown = setInterval(async () => {
+              if (timeLeft <= 0) {
+                clearInterval(countdown);
+                statusModal.classList.add('hidden');
+                window.location.href = WHATSAPP_REDIRECT;
+                return;
+              }
+              const minutes = Math.floor(timeLeft / 60);
+              const seconds = timeLeft % 60;
+              statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+              const percentage = (timeLeft / (5 * 60)) * 100;
+              statusTimerBar.style.width = `${percentage}%`;
+
+              const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
+              const statusData = await statusRes.json();
+              if (statusData.success && statusData.status !== 'pending') {
+                clearInterval(countdown);
+                if (statusData.status === 'confirmed') {
+                  statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
+                  const downloadLink = await fetchDownloadLink(product.item, refCode);
+                  setTimeout(() => {
+                    statusModal.classList.add('hidden');
+                    if (downloadLink) {
+                      window.location.href = downloadLink;
+                    } else {
+                      statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                    }
+                  }, 2000);
+                } else if (statusData.status === 'no payment') {
+                  statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
+                } else if (statusData.status === 'partial payment') {
+                  statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                }
+              }
+              timeLeft--;
+            }, 1000);
           } else {
             alert('Failed to submit ref code.');
           }
@@ -465,117 +612,166 @@
       };
     }
 
-    // Check cookie and redirect if needed
-    function checkPaymentCookie() {
-      const cookies = document.cookie.split(';').map(c => c.trim());
-      products.forEach(product => {
-        const cookie = cookies.find(c => c.startsWith(`payment_${product.item}=initiated`));
-        if (cookie) {
-          const expiryMatch = cookie.match(/expires=(.*?);/);
-          const expiry = expiryMatch ? new Date(expiryMatch[1]) : new Date(Date.now());
-          if (Date.now() > expiry) {
-            window.location.href = WHATSAPP_REDIRECT;
-          }
+    async function fetchDownloadLink(item, refCode) {
+      try {
+        const response = await fetch(`/api/order-status/${item}/${refCode}`);
+        const data = await response.json();
+        if (data.success && data.status === 'confirmed' && data.downloadLink) {
+          return data.downloadLink;
         }
-      });
+        return null;
+      } catch (error) {
+        console.error('Error fetching download link:', error.message);
+        return null;
+      }
     }
 
-    // Render nav links
-    function renderNavLinks() {
-      const navLinks = document.getElementById('nav-links');
-      const mobileNavLinks = document.getElementById('mobile-nav-links');
-      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
-      categories.forEach(cat => {
-        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
-        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
-      });
-
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
-          e.preventDefault();
-          filterProducts(link.dataset.category);
-          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
-          link.classList.add('border-b-2', 'border-green-500');
-          document.getElementById('mobile-menu').classList.remove('open');
-        });
-      });
-    }
-
-    // Filter products
-    function filterProducts(category) {
-      const search = document.getElementById('search-bar').value;
-      renderProducts(category, search);
-    }
-
-    // Search handler
-    document.getElementById('search-bar').addEventListener('input', e => {
-      const activeCategory = document.querySelector('.nav-link.border-green-500').dataset.category;
-      renderProducts(activeCategory, e.target.value);
-    });
-
-    // Mobile menu toggle
-    document.getElementById('mobile-menu-button').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.add('open');
-    });
-    document.getElementById('mobile-menu-close').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.remove('open');
-    });
-
-    // Update footer
     function updateFooter() {
       document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
       document.getElementById('support-email').textContent = settings.supportEmail;
       document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
-      
+
       const socialLinks = document.getElementById('social-links');
       socialLinks.innerHTML = '';
       if (settings.socials) {
         Object.entries(settings.socials).forEach(([platform, url]) => {
-          const a = document.createElement('a');
-          a.href = url;
-          a.className = 'text-gray-500 hover:text-green-600';
-          a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-          socialLinks.appendChild(a);
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            socialLinks.appendChild(a);
+          }
         });
       }
 
       const staticLinks = document.getElementById('static-links');
       staticLinks.innerHTML = '';
-      staticPages.forEach(page => {
-        const a = document.createElement('a');
-        a.href = page.slug;
-        a.className = 'text-gray-500 hover:text-green-600';
-        a.textContent = page.title;
-        staticLinks.appendChild(a);
-      });
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = 'text-gray-500 hover:text-green-600';
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
+            document.getElementById('static-page-content').innerHTML = page.content;
+            modal.classList.remove('hidden');
+          });
+          staticLinks.appendChild(a);
+        });
+
+      document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('mobile-support-email').textContent = settings.supportEmail;
+      document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+      const mobileSocialLinks = document.getElementById('mobile-social-links');
+      mobileSocialLinks.innerHTML = '';
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600 text-sm';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            mobileSocialLinks.appendChild(a);
+          }
+        });
+      }
+
+      const mobileStaticLinks = document.getElementById('mobile-static-links');
+      mobileStaticLinks.innerHTML = '';
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = 'text-gray-500 hover:text-green-600 text-sm';
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
+            document.getElementById('static-page-content').innerHTML = page.content;
+            modal.classList.remove('hidden');
+            document.getElementById('mobile-menu').classList.remove('open');
+          });
+          mobileStaticLinks.appendChild(a);
+        });
+
+      document.getElementById('static-page-close').onclick = () => {
+        document.getElementById('static-page-modal').classList.add('hidden');
+      };
     }
 
-    // Show urgent message
     function showUrgentMessage() {
       const urgentMessage = document.getElementById('urgent-message');
       const urgentText = document.getElementById('urgent-text');
-      if (settings.urgentMessage?.enabled && settings.urgentMessage.text) {
+      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
         urgentText.textContent = settings.urgentMessage.text;
         urgentMessage.classList.remove('hidden');
       }
-      document.getElementById('urgent-close').addEventListener('click', () => {
+      document.getElementById('urgent-close').onclick = () => {
         urgentMessage.classList.add('hidden');
-      });
+      };
     }
 
-    // Cookie popup
+    function checkPaymentCookie() {
+      const cookies = document.cookie.split(';');
+      const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
+      if (paymentCookie) {
+        const [itemKey, status] = paymentCookie.split('=');
+        const item = itemKey.replace('payment_', '');
+        if (status === 'initiated') {
+          const product = products.find(p => p.item === item);
+          if (product) {
+            getExchangeRate().then(rate => {
+              const kesPrice = (product.price * rate).toFixed(2);
+              showRefCodeModal(product, kesPrice);
+            });
+          }
+        }
+      }
+    }
+
+    function startPolling() {
+      setInterval(async () => {
+        const success = await fetchData();
+        if (success) {
+          renderNavLinks();
+          renderProducts();
+          updateFooter();
+          showUrgentMessage();
+        }
+      }, 60 * 1000);
+    }
+
     function handleCookiePopup() {
       if (!localStorage.getItem('cookiesAccepted')) {
         document.getElementById('cookie-popup').classList.remove('hidden');
       }
-      document.getElementById('cookie-accept').addEventListener('click', () => {
+      document.getElementById('cookie-accept').onclick = () => {
         localStorage.setItem('cookiesAccepted', 'true');
         document.getElementById('cookie-popup').classList.add('hidden');
-      });
+      };
     }
 
-    // Initialize
+    function isInAppBrowser() {
+      const ua = navigator.userAgent.toLowerCase();
+      return (
+        ua.includes('instagram') ||
+        ua.includes('tiktok') ||
+        ua.includes('facebook') ||
+        ua.includes('messenger') ||
+        ua.includes('snapchat')
+      );
+    }
+
     async function init() {
       const success = await fetchData();
       if (success) {
@@ -587,10 +783,40 @@
         startPolling();
         handleCookiePopup();
         await fetchModalContent();
+
+        if (isInAppBrowser()) {
+          const warning = document.createElement('div');
+          warning.className = 'fixed top-0 left-0 right-0 bg-yellow-500 text-white p-4 z-50';
+          warning.innerHTML = `
+            <p class="text-center">Downloads may not work in this app's browser (e.g., Instagram, TikTok). Please open this page in a standard browser like Chrome or Safari.</p>
+            <button id="warning-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
+          `;
+          document.body.appendChild(warning);
+          document.getElementById('warning-close').onclick = () => {
+            warning.remove();
+          };
+        }
       }
+
+      document.getElementById('mobile-menu-button').onclick = () => {
+        document.getElementById('mobile-menu').classList.add('open');
+      };
+
+      document.getElementById('mobile-menu-close').onclick = () => {
+        document.getElementById('mobile-menu').classList.remove('open');
+      };
+
+      const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
+      searchBars.forEach(searchBar => {
+        searchBar.addEventListener('input', () => {
+          const search = searchBar.value;
+          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+          renderProducts(category, search);
+        });
+      });
     }
 
-    init();
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
