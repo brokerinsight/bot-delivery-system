@@ -120,6 +120,34 @@ const fallbackRefCodeModal = {
   `
 };
 
+// Helper function to fetch item details (from comparison server.js)
+async function getItemDetails(itemNumber) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:J', // Match server (7).js structure
+    });
+    const row = response.data.values.find(row => row[0] == itemNumber);
+    if (!row) {
+      throw new Error(`Item ${itemNumber} not found in Sheet1`);
+    }
+    return {
+      fileId: row[1],
+      price: parseFloat(row[2]),
+      name: row[3],
+      desc: row[4] || '',
+      img: row[5] || 'https://via.placeholder.com/300',
+      category: row[6] || 'General',
+      embed: row[7] || '',
+      isNew: row[8] === 'TRUE',
+      isArchived: row[9] === 'TRUE'
+    };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error fetching item details for ${itemNumber}:`, error.message);
+    throw error;
+  }
+}
+
 // Load data from Google Sheets
 async function loadData() {
   try {
@@ -198,8 +226,17 @@ async function loadData() {
     console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
-    console.error(`[${new Date().toISOString()}] Error details:`, error);
     throw error;
+  }
+}
+
+// Refresh cache periodically
+async function refreshCache() {
+  try {
+    await loadData();
+    console.log(`[${new Date().toISOString()}] Cache refreshed successfully`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error refreshing cache:`, error.message);
   }
 }
 
@@ -225,7 +262,6 @@ async function streamUploadToDrive(file, filename) {
     return driveRes.data;
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error uploading file to Google Drive:`, error.message);
-    console.error(`[${new Date().toISOString()}] Error details:`, error.response ? error.response.data : error);
     throw error;
   }
 }
@@ -249,7 +285,6 @@ async function saveData() {
       ])
     ];
 
-    // Update both sheets
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J',
@@ -300,7 +335,6 @@ async function saveData() {
     console.log(`[${new Date().toISOString()}] Data saved successfully to Google Sheets`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
-    console.error(`[${new Date().toISOString()}] Error details:`, error);
     throw error;
   }
 }
@@ -320,11 +354,11 @@ async function deleteOldOrders() {
       }
 
       const currentTime = new Date();
-      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-      const filteredRows = [rows[0]]; // Keep the header row
+      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
+      const filteredRows = [rows[0]];
 
       for (let i = 1; i < rows.length; i++) {
-        const timestampStr = rows[i][3]; // Column D (TIMESTAMP)
+        const timestampStr = rows[i][3];
         let orderDate;
         try {
           orderDate = new Date(timestampStr);
@@ -341,13 +375,12 @@ async function deleteOldOrders() {
 
         const ageInMs = currentTime - orderDate;
         if (ageInMs <= threeDaysInMs) {
-          filteredRows.push(rows[i]); // Keep orders younger than 3 days
+          filteredRows.push(rows[i]);
         } else {
           console.log(`[${new Date().toISOString()}] Deleting order at row ${i + 1} in spreadsheet ${spreadsheetId}, timestamp: ${timestampStr}`);
         }
       }
 
-      // Update the sheet with filtered rows
       await sheets.spreadsheets.values.update({
         spreadsheetId,
         range: 'orders!A:F',
@@ -370,7 +403,7 @@ function isAuthenticated(req, res, next) {
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
-// Ensure Google Sheet tabs exist with correct headers for both spreadsheets
+// Ensure Google Sheet tabs exist with correct headers
 async function ensureSheetTabs(spreadsheetId) {
   const tabsToEnsure = {
     'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
@@ -393,15 +426,12 @@ async function ensureSheetTabs(spreadsheetId) {
           resource: {
             requests: [{
               addSheet: {
-                properties: {
-                  title: sheetName
-                }
+                properties: { title: sheetName }
               }
             }]
           }
         });
 
-        // Add headers to the new sheet
         await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: `${sheetName}!1:1`,
@@ -410,7 +440,6 @@ async function ensureSheetTabs(spreadsheetId) {
         });
         console.log(`[${new Date().toISOString()}] Added headers to ${sheetName} in spreadsheet ${spreadsheetId}: ${headers}`);
       } else {
-        // Verify headers
         const res = await sheets.spreadsheets.values.get({
           spreadsheetId,
           range: `${sheetName}!1:1`
@@ -438,7 +467,6 @@ async function ensureSheetTabs(spreadsheetId) {
 async function selfCheck() {
   console.log(`[${new Date().toISOString()}] Starting server self-check...`);
 
-  // Check Google Sheets connectivity
   try {
     await sheets.spreadsheets.get({ spreadsheetId: process.env.SPREADSHEET_ID });
     console.log(`[${new Date().toISOString()}] Successfully connected to SPREADSHEET_ID`);
@@ -453,11 +481,9 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
   }
 
-  // Ensure all required tabs exist in both spreadsheets
   await ensureSheetTabs(process.env.SPREADSHEET_ID);
   await ensureSheetTabs(process.env.PRODUCTS_SHEET_ID);
 
-  // Check Google Drive connectivity and folder existence
   try {
     const folder = await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
     if (folder.data.mimeType !== 'application/vnd.google-apps.folder') {
@@ -466,10 +492,8 @@ async function selfCheck() {
     console.log(`[${new Date().toISOString()}] Successfully connected to Google Drive folder`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
-    console.error(`[${new Date().toISOString()}] Please verify GOOGLE_DRIVE_FOLDER_ID: ${process.env.GOOGLE_DRIVE_FOLDER_ID}`);
   }
 
-  // Test email sending
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -482,7 +506,6 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] Failed to send test email:`, error.message);
   }
 
-  // Check if public/index.html exists
   const indexPath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(indexPath)) {
     console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
@@ -490,7 +513,6 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
   }
 
-  // Ping all routes
   async function pingRoutes() {
     const routesToTest = [
       '/api/data',
@@ -504,9 +526,6 @@ async function selfCheck() {
       try {
         const response = await fetch(`http://localhost:${PORT}${route}`, { method: 'GET' });
         console.log(`[${new Date().toISOString()}] Ping ${route}: ${response.status} ${response.statusText}`);
-        if (!response.ok) {
-          console.error(`[${new Date().toISOString()}] Route ${route} failed with status: ${response.status}`);
-        }
       } catch (error) {
         console.error(`[${new Date().toISOString()}] Failed to ping route ${route}:`, error.message);
       }
@@ -584,7 +603,6 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Bot not found' });
     }
 
-    // Delete the file from Google Drive
     const fileId = cachedData.products[productIndex].fileId;
     try {
       await drive.files.delete({ fileId });
@@ -593,10 +611,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       console.error(`[${new Date().toISOString()}] Error deleting file from Google Drive:`, error.message);
     }
 
-    // Remove from cachedData
     cachedData.products.splice(productIndex, 1);
-
-    // Update both Google Sheets
     await saveData();
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
@@ -615,7 +630,6 @@ app.post('/api/submit-ref', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    // Check if ref code already exists
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:F'
@@ -629,7 +643,6 @@ app.post('/api/submit-ref', async (req, res) => {
 
     const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
 
-    // Append to orders in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:F',
@@ -644,11 +657,9 @@ app.post('/api/submit-ref', async (req, res) => {
       resource: { values: orderData }
     });
 
-    // Send success response immediately
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
 
-    // Send email in the background
     transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: cachedData.settings.supportEmail,
@@ -661,17 +672,10 @@ app.post('/api/submit-ref', async (req, res) => {
       `
     }).catch(error => {
       console.error(`[${new Date().toISOString()}] Error sending email for ref code ${refCode}:`, error.message);
-      console.error(`[${new Date().toISOString()}] Email error details:`, error.stack);
     });
-
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
-    console.error(`[${new Date().toISOString()}] Error details:`, error.stack);
-    if (error.response && error.response.status === 400) {
-      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
-    } else {
-      res.status(500).json({ success: false, error: 'Failed to submit ref code' });
-    }
+    res.status(500).json({ success: false, error: 'Failed to submit ref code' });
   }
 });
 
@@ -694,22 +698,13 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
     console.log(`[${new Date().toISOString()}] Orders fetched successfully`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
-    if (error.response && error.response.status === 400) {
-      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
-    } else {
-      res.status(500).json({ success: false, error: 'Failed to fetch orders' });
-    }
+    res.status(500).json({ success: false, error: 'Failed to fetch orders' });
   }
 });
 
 app.get('/api/order-status/:item/:refCode', async (req, res) => {
   const { item, refCode } = req.params;
-
-  // Log request details for debugging
   console.log(`[${new Date().toISOString()}] Order status request for ${item}/${refCode}`);
-  console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
-  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
-  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
 
   try {
     const response = await sheets.spreadsheets.values.get({
@@ -720,17 +715,16 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
     const order = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
     if (!order) {
       console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
-      return res.status(404).json({ success: false, error: 'Order not found' });
+      return res.status(404).json({ success: false, error: 'Order not found. Please check the ref code or contact support.' });
     }
     const status = order[4] || 'pending';
     const downloaded = order[5] === 'TRUE';
     let downloadLink = null;
 
     if (status === 'confirmed' && !downloaded) {
-      const product = cachedData.products.find(p => p.item === item);
+      const product = cachedData.products.find(p => p.item === item) || await getItemDetails(item);
       if (product) {
         downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
-        // Mark the order as downloaded
         const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
         rows[orderIndex + 1][5] = 'TRUE';
         for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
@@ -742,17 +736,23 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
           });
         }
         console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
+      } else {
+        console.error(`[${new Date().toISOString()}] Product not found in cache or Sheet1 for item: ${item}`);
+        return res.status(500).json({ success: false, error: 'Product not found. Please contact support.' });
       }
     } else if (downloaded) {
       console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
-      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
+      return res.status(403).json({ success: false, error: 'Ref code already used for download. Contact support if you need assistance.' });
+    } else {
+      console.log(`[${new Date().toISOString()}] Order not confirmed: ${item}/${refCode}, status: ${status}`);
+      return res.status(400).json({ success: false, error: `Order is ${status}. Please wait for confirmation or contact support.` });
     }
 
     res.json({ success: true, status, downloadLink });
     console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to check order status' });
+    res.status(500).json({ success: false, error: 'Failed to check order status. Please contact support.' });
   }
 });
 
@@ -807,7 +807,6 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
     const emailData = [[email, subject, body]];
 
-    // Append to emails in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'emails!A:C',
@@ -822,7 +821,6 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       resource: { values: emailData }
     });
 
-    // Remove the order from both spreadsheets
     for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
       const ordersResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -845,11 +843,31 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
-    if (error.response && error.response.status === 400) {
-      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
-    } else {
-      res.status(500).json({ success: false, error: 'Failed to confirm order' });
+    res.status(500).json({ success: false, error: 'Failed to confirm order' });
+  }
+});
+
+// New endpoint from comparison server.js
+app.post('/deliver-bot', async (req, res) => {
+  try {
+    const { item, price, payment_method } = req.body;
+
+    if (!item || !price || !payment_method) {
+      return res.status(400).json({ success: false, error: 'Missing required parameters: item, price, payment_method' });
     }
+
+    const itemDetails = await getItemDetails(item);
+    if (price !== itemDetails.price) {
+      console.log(`[${new Date().toISOString()}] Price tampering detected for item ${item}: received ${price}, expected ${itemDetails.price}`);
+      return res.status(400).json({ success: false, error: 'Invalid price. Contact support.' });
+    }
+
+    const downloadLink = `https://bot-delivery-system.onrender.com/download/${itemDetails.fileId}`;
+    res.json({ success: true, downloadLink });
+    console.log(`[${new Date().toISOString()}] Generated download link for item ${item}: ${downloadLink}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error delivering file for item ${req.body.item}:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to generate download link. Contact support.' });
   }
 });
 
@@ -857,23 +875,18 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 app.get('/download/:fileId', async (req, res) => {
   const fileId = req.params.fileId;
 
-  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', 'https://bot-delivery-system.onrender.com');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
 
-  // Basic validation: Check if fileId exists in products
   const product = cachedData.products.find(p => p.fileId === fileId);
   if (!product) {
     console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
-    return res.status(403).json({ success: false, error: 'Invalid file ID' });
+    return res.status(403).json({ success: false, error: 'Invalid file ID. Contact support.' });
   }
 
-  // Log request details for debugging
   console.log(`[${new Date().toISOString()}] Download request for fileId: ${fileId}`);
-  console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
-
   try {
     const fileMetadata = await drive.files.get({ fileId, fields: 'name, mimeType' });
     const fileName = fileMetadata.data.name || `file-${fileId}`;
@@ -894,7 +907,7 @@ app.get('/download/:fileId', async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: 'Failed to download file' });
+      res.status(500).json({ success: false, error: 'Failed to download file. Contact support.' });
     }
   }
 });
@@ -915,7 +928,6 @@ app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
   let page = cachedData.staticPages.find(p => p.slug === slug);
   if (!page) {
-    // Check for fallback modals
     if (slug === '/payment-modal') page = fallbackPaymentModal;
     if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
   }
@@ -996,9 +1008,9 @@ app.get('/:slug', async (req, res) => {
 async function initialize() {
   await selfCheck();
   await loadData();
-  await deleteOldOrders(); // Run on startup
-  // Schedule deleteOldOrders to run every 24 hours
+  await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
+  setInterval(refreshCache, 15 * 60 * 1000); // Refresh cache every 15 minutes
 }
 
 initialize().catch(error => {
