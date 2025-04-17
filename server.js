@@ -5,11 +5,16 @@ const FileStore = require('session-file-store')(session);
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 const { Readable } = require('stream');
+const path = require('path');
 require('dotenv').config();
 
 // 1. App Setup
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
   credentials: true
