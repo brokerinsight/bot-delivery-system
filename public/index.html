@@ -83,6 +83,46 @@
     #cookie-popup button:hover {
       background-color: #15803d;
     }
+    #in-app-browser-popup {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #in-app-browser-popup .popup-content {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      max-width: 90%;
+      width: 400px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    #in-app-browser-popup h3 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #1f2937;
+      margin-bottom: 1rem;
+    }
+    #in-app-browser-popup p {
+      color: #4b5563;
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+    #in-app-browser-popup button {
+      background-color: #16a34a;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: background-color 0.3s;
+    }
+    #in-app-browser-popup button:hover {
+      background-color: #15803d;
+    }
     #details-modal .modal-content {
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
@@ -355,7 +395,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="mailto:kaylie254.business@gmail.com" class="underline text-green-600">kaylie254.business@gmail.com</a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
       </div>
     </div>
   </main>
@@ -372,6 +412,14 @@
   <div id="cookie-popup" class="hidden">
     <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
     <button id="cookie-accept" class="w-full">Accept Cookies</button>
+  </div>
+
+  <div id="in-app-browser-popup" class="hidden">
+    <div class="popup-content">
+      <h3 class="text-2xl">Open in Browser</h3>
+      <p>Open this page in your default browser for a smooth experience. Click the 3 dots (usually at the top right), then select "Open in Browser".</p>
+      <button id="in-app-browser-continue">Okay</button>
+    </div>
   </div>
 
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -447,6 +495,7 @@
     </div>
   </div>
 
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
   <script>
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
     const BASE_URL = 'https://bot-delivery-system.onrender.com';
@@ -455,6 +504,7 @@
     let settings = {};
     let staticPages = [];
     let exchangeRate = null;
+    let allowInAppBrowser = false;
 
     async function fetchWithTimeout(url, options = {}, timeout = 15000) {
       const controller = new AbortController();
@@ -821,22 +871,24 @@
             if (data.success && data.status !== 'pending') {
               clearInterval(countdown);
               if (data.status === 'confirmed') {
-                statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
-                const downloadLink = await fetchDownloadLink(product.item, refCode);
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  if (downloadLink) {
-                    window.location.href = downloadLink;
-                  } else {
-                    statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
-                    setTimeout(() => modal.classList.add('hidden'), 3000);
-                  }
-                }, 2000);
+                statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
+                const downloadSuccess = await fetchDownloadLink(product.item, refCode);
+                if (downloadSuccess) {
+                  setTimeout(() => {
+                    modal.classList.add('hidden');
+                  }, 2000);
+                } else {
+                  statusMessage.innerHTML = 'Error initiating download. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                  setTimeout(() => modal.classList.add('hidden'), 3000);
+                }
               } else if (data.status === 'no payment') {
                 statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
               } else if (data.status === 'partial payment') {
                 statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                setTimeout(() => modal.classList.add('hidden'), 3000);
+              } else if (data.error === 'Ref code already used for download') {
+                statusMessage.innerHTML = 'This ref code has already been used for a download. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support if you believe this is an error.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
               }
             }
@@ -851,15 +903,42 @@
 
     async function fetchDownloadLink(item, refCode) {
       try {
-        const response = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`);
-        const data = await response.json();
-        if (data.success && data.status === 'confirmed' && data.downloadLink) {
-          return data.downloadLink;
+        const statusResponse = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`);
+        const statusData = await statusResponse.json();
+        if (!statusData.success || !statusData.downloadLink) {
+          console.error('Failed to get download link:', statusData.error || 'No download link provided');
+          return false;
         }
-        return null;
+
+        const downloadLink = statusData.downloadLink;
+        const fileResponse = await fetch(downloadLink);
+        if (!fileResponse.ok) {
+          throw new Error(`Failed to fetch file: ${fileResponse.statusText}`);
+        }
+
+        const blob = await fileResponse.blob();
+        const contentDisposition = fileResponse.headers.get('Content-Disposition');
+        let fileName = `downloaded_file_${item}`;
+        if (contentDisposition) {
+          const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (fileNameMatch && fileNameMatch[1]) {
+            fileName = fileNameMatch[1];
+          }
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        return true;
       } catch (error) {
         console.error('Error fetching download link:', error.message);
-        return null;
+        return false;
       }
     }
 
@@ -1012,11 +1091,30 @@
         ua.includes('tiktok') ||
         ua.includes('facebook') ||
         ua.includes('messenger') ||
-        ua.includes('snapchat')
+        ua.includes('snapchat') ||
+        ua.includes('line') ||
+        ua.includes('whatsapp') ||
+        ua.includes('linkedin')
       );
     }
 
+    async function handleInAppBrowser() {
+      if (isInAppBrowser()) {
+        document.getElementById('in-app-browser-popup').classList.remove('hidden');
+        return new Promise(resolve => {
+          document.getElementById('in-app-browser-continue').onclick = () => {
+            document.getElementById('in-app-browser-popup').classList.add('hidden');
+            allowInAppBrowser = true;
+            resolve();
+          };
+        });
+      }
+    }
+
     async function init() {
+      await handleInAppBrowser();
+      if (isInAppBrowser() && !allowInAppBrowser) return;
+
       const success = await fetchData();
       if (success) {
         renderNavLinks();
@@ -1027,19 +1125,6 @@
         startPolling();
         handleCookiePopup();
         await fetchModalContent();
-
-        if (isInAppBrowser()) {
-          const warning = document.createElement('div');
-          warning.className = 'fixed top-0 left-0 right-0 bg-yellow-500 text-white p-4 z-50';
-          warning.innerHTML = `
-            <p class="text-center">Downloads may not work in this app's browser (e.g., Instagram, TikTok). Please open this page in a standard browser like Chrome or Safari.</p>
-            <button id="warning-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
-          `;
-          document.body.appendChild(warning);
-          document.getElementById('warning-close').onclick = () => {
-            warning.remove();
-          };
-        }
       }
 
       document.getElementById('mobile-menu-button').onclick = () => {
@@ -1062,5 +1147,6 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931f18653c1453f2',t:'MTc0NDkyNjE3OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
