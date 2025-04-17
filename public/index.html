@@ -17,20 +17,8 @@
       border-radius: 0 0 10px 10px;
       animation: slideDown 0.5s ease-out;
     }
-    #cookie-popup {
-      background: rgba(75, 85, 99, 0.9); /* greyish bg-gray-600 */
-      border-radius: 10px;
-      animation: slideUp 0.5s ease-out;
-      max-width: 300px;
-      right: 1rem;
-      bottom: 1rem;
-    }
     @keyframes slideDown {
       from { transform: translateY(-100%); }
-      to { transform: translateY(0); }
-    }
-    @keyframes slideUp {
-      from { transform: translateY(100%); }
       to { transform: translateY(0); }
     }
     .search-container {
@@ -48,56 +36,87 @@
       height: 1.25rem;
       color: #6b7280;
     }
-    /* Responsive footer for Blogger */
-    #static-links {
-      flex-wrap: wrap;
-      gap: 1rem;
-      max-width: 100%;
+    #cookie-popup {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      max-width: 90%;
+      width: 400px;
+      z-index: 100;
+      border: 1px solid #e5e7eb;
     }
-    @media (max-width: 300px) {
-      #static-links a {
-        font-size: 0.75rem;
-      }
+    #cookie-popup p {
+      color: #374151;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
     }
-    /* Modal animation */
-    .modal {
-      transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    #cookie-popup button {
+      background-color: #16a34a;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: background-color 0.3s;
     }
-    .modal.hidden {
-      transform: scale(0.95);
-      opacity: 0;
+    #cookie-popup button:hover {
+      background-color: #15803d;
+    }
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+    }
+    #loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #16a34a;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-100 dark:bg-gray-900">
+<body class="bg-gray-100">
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="hidden">
+    <div id="loading-spinner"></div>
+  </div>
+
   <!-- Urgent Message -->
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
     <p id="urgent-text" class="text-center text-lg font-semibold"></p>
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
-  <!-- Cookie Pop-Up -->
-  <div id="cookie-popup" class="fixed text-white p-4 z-50 hidden">
-    <p class="text-sm text-white mb-2">We use cookies to enhance your experience. Accept to continue.</p>
-    <button id="cookie-accept" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Accept</button>
-  </div>
-
   <!-- Navbar -->
-  <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-20">
+  <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
         <div class="flex items-center">
           <div id="logo-container">
-            <h1 class="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">Deriv Bot Store</h1>
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Deriv Bot Store</h1>
           </div>
           <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
-            <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white px-1 pt-1 text-sm font-medium">Home</a>
+            <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
           </div>
         </div>
         <div class="flex items-center">
-          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm font-medium">Create Account</a>
-          <button id="mobile-menu-button" class="sm:hidden text-gray-500 dark:text-gray-300 p-2">
+          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
+          <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -105,10 +124,10 @@
         </div>
       </div>
     </div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-800 shadow-lg z-30 hidden">
+    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30 hidden">
       <div class="flex justify-between items-center p-4 border-b">
-        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Menu</h2>
-        <button id="mobile-menu-close" class="text-gray-500 dark:text-gray-300">
+        <h2 class="text-lg font-bold text-gray-800">Menu</h2>
+        <button id="mobile-menu-close" class="text-gray-500">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -124,32 +143,32 @@
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
-      <input id="search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border dark:bg-gray-700 dark:text-white">
+      <input id="search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
     </div>
   </div>
 
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Explore Our Bots</h2>
+    <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
   </main>
 
   <!-- Payment Modal -->
-  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-      <h3 id="payment-title" class="text-xl font-bold text-gray-900 dark:text-white mb-4"></h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-4">Please send the payment via MPESA to:</p>
-      <p class="font-semibold text-gray-900 dark:text-white">Till Number: <span id="mpesa-till-number">4933614</span></p>
-      <p id="payment-amount" class="text-green-600 dark:text-green-400 font-bold mt-2"></p>
+  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
       <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
       <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
     </div>
   </div>
 
   <!-- Ref Code Modal -->
-  <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Enter MPESA Ref Code</h3>
+  <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
       <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
       <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
       <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
@@ -157,14 +176,20 @@
   </div>
 
   <!-- Footer -->
-  <footer class="bg-white dark:bg-gray-800 shadow-inner mt-12 py-6">
+  <footer class="bg-white shadow-inner mt-12 py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <p id="copyright-text" class="text-gray-600 dark:text-gray-300"></p>
-      <p class="text-gray-500 dark:text-gray-400 mt-2">Support: <a id="support-email" class="underline"></a></p>
+      <p id="copyright-text" class="text-gray-600"></p>
+      <p class="text-gray-500 mt-2">Support: <a id="support-email" class="underline"></a></p>
       <div id="social-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
-      <div id="static-links" class="mt-4 flex justify-center space-x-4"></div>
+      <div id="static-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
     </div>
   </footer>
+
+  <!-- Cookie Popup -->
+  <div id="cookie-popup" class="hidden">
+    <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
+    <button id="cookie-accept" class="w-full">Accept Cookies</button>
+  </div>
 
   <script>
     let products = [];
@@ -172,45 +197,19 @@
     let categories = [];
     let staticPages = [];
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
-    let exchangeRateCache = { rate: null, timestamp: null };
 
-    // Cookie helper functions
-    function setCookie(name, value, ms) {
-      const expires = new Date(Date.now() + ms).toUTCString();
-      document.cookie = `${name}=${value}; expires=${expires}; path=/`;
-    }
-    function getCookie(name) {
-      const cookies = document.cookie.split(';').map(c => c.trim());
-      const cookie = cookies.find(c => c.startsWith(`${name}=`));
-      return cookie ? cookie.split('=')[1] : null;
+    // Show loading overlay
+    function showLoading(show) {
+      document.getElementById('loading-overlay').classList.toggle('hidden', !show);
     }
 
-    // Show cookie pop-up
-    function showCookiePopup() {
-      if (!getCookie('cookieConsent')) {
-        const popup = document.getElementById('cookie-popup');
-        popup.classList.remove('hidden');
-        document.getElementById('cookie-accept').addEventListener('click', () => {
-          setCookie('cookieConsent', 'accepted', 3 * 24 * 60 * 60 * 1000); // 3 days
-          popup.classList.add('hidden');
-        });
-      }
-    }
-
-    // Fetch exchange rate (USD to KES) with caching
+    // Fetch exchange rate (USD to KES)
     async function getExchangeRate() {
-      const now = Date.now();
-      if (exchangeRateCache.rate && now - exchangeRateCache.timestamp < 3600000) { // 1 hour cache
-        return exchangeRateCache.rate;
-      }
       try {
-        const response = await fetch('https://api.exchangerate.host/convert?from=USD&to=KES');
+        const response = await fetch('https://api.exchangerate.host/convert?from=USD&to=KES', { credentials: 'include' });
         const data = await response.json();
-        exchangeRateCache = { rate: data.result || settings.fallbackRate, timestamp: now };
-        return exchangeRateCache.rate;
-      } catch (error) {
-        console.error('Exchange rate fetch failed:', error);
-        exchangeRateCache = { rate: settings.fallbackRate, timestamp: now };
+        return data.result || settings.fallbackRate;
+      } catch {
         return settings.fallbackRate;
       }
     }
@@ -221,21 +220,33 @@
       while (retries > 0) {
         try {
           const response = await fetch('/api/data', { credentials: 'include' });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
           products = data.products || [];
           categories = data.categories || [];
           settings = data.settings || {};
           staticPages = data.staticPages || [];
-          return;
+          return true;
         } catch (error) {
           console.error('Error fetching data (retrying):', error);
           retries--;
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
-      console.error('Failed to load store data after retries');
-      alert('Failed to load store data. Please try again later.');
+      alert('Failed to load store data after multiple attempts.');
+      return false;
+    }
+
+    // Poll for updates every 30 seconds
+    function startPolling() {
+      setInterval(async () => {
+        const success = await fetchData();
+        if (success) {
+          renderNavLinks();
+          renderProducts();
+          updateFooter();
+          showUrgentMessage();
+        }
+      }, 30000);
     }
 
     // Fetch modal content
@@ -275,9 +286,11 @@
           const refCodeCancel = refCodeModalDiv.querySelector('#ref-code-cancel');
           if (submitRefCode) {
             submitRefCode.addEventListener('click', async () => {
+              showLoading(true);
               const refCode = refCodeModalDiv.querySelector('#ref-code-input')?.value?.trim();
               if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
                 alert('Please enter a valid MPESA ref code.');
+                showLoading(false);
                 return;
               }
               const item = submitRefCode.dataset.item;
@@ -306,6 +319,7 @@
               } catch {
                 alert('Error submitting ref code.');
               }
+              showLoading(false);
             });
           }
           if (refCodeCancel) {
@@ -336,24 +350,19 @@
         );
       }
 
-      if (filteredProducts.length === 0) {
-        grid.innerHTML = `<p class="text-center text-gray-600 dark:text-gray-300 col-span-full">No products available. Check back later!</p>`;
-        return;
-      }
-
       filteredProducts.forEach(product => {
         const card = document.createElement('div');
-        card.className = 'bg-white dark:bg-gray-700 rounded-lg shadow-md hover:scale-105 transition-all';
+        card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
           <div class="aspect-w-16 aspect-h-9">
             <img src="${product.img}" alt="${product.name}" class="object-cover">
           </div>
           <div class="p-6">
             ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${product.name}</h3>
-            <p class="mt-2 text-gray-600 dark:text-gray-300 text-sm truncate-2-lines">${product.desc}</p>
-            <p class="mt-2 text-green-600 dark:text-green-400 font-bold">$${product.price}</p>
-            <p class="mt-1 text-gray-500 dark:text-gray-400 text-sm">Item: ${product.item}</p>
+            <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
+            <p class="mt-2 text-gray-600 text-sm truncate-2-lines">${product.desc}</p>
+            <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
+            <p class="mt-1 text-gray-500 text-sm">Item: ${product.item}</p>
             <button class="buy-now mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">Buy Now</button>
           </div>
         `;
@@ -362,6 +371,7 @@
 
       document.querySelectorAll('.buy-now').forEach(btn => {
         btn.addEventListener('click', async () => {
+          showLoading(true);
           const item = btn.dataset.item;
           const product = products.find(p => p.item === item);
           const rate = await getExchangeRate();
@@ -373,6 +383,7 @@
           const submitRefCodeBtn = document.getElementById('submit-ref-code');
           submitRefCodeBtn.dataset.item = item;
           submitRefCodeBtn.dataset.kesPrice = kesPrice;
+          showLoading(false);
         });
       });
     }
@@ -403,9 +414,11 @@
       modal.classList.remove('hidden');
 
       document.getElementById('submit-ref-code').onclick = async () => {
+        showLoading(true);
         const refCode = document.getElementById('ref-code-input').value.trim();
         if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
           alert('Please enter a valid MPESA ref code.');
+          showLoading(false);
           return;
         }
 
@@ -432,6 +445,7 @@
         } catch {
           alert('Error submitting ref code.');
         }
+        showLoading(false);
       };
 
       document.getElementById('ref-code-cancel').onclick = () => {
@@ -445,7 +459,8 @@
       products.forEach(product => {
         const cookie = cookies.find(c => c.startsWith(`payment_${product.item}=initiated`));
         if (cookie) {
-          const expiry = new Date(cookie.match(/expires=(.*?);/)?.[1] || Date.now());
+          const expiryMatch = cookie.match(/expires=(.*?);/);
+          const expiry = expiryMatch ? new Date(expiryMatch[1]) : new Date(Date.now());
           if (Date.now() > expiry) {
             window.location.href = WHATSAPP_REDIRECT;
           }
@@ -457,11 +472,11 @@
     function renderNavLinks() {
       const navLinks = document.getElementById('nav-links');
       const mobileNavLinks = document.getElementById('mobile-nav-links');
-      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 dark:text-white px-1 pt-1 text-sm font-medium">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 dark:text-white text-sm font-medium">Home</a>`;
+      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
       categories.forEach(cat => {
-        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-1 pt-1 text-sm font-medium">${cat}</a>`;
-        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white text-sm font-medium">${cat}</a>`;
+        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
+        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
       });
 
       document.querySelectorAll('.nav-link').forEach(link => {
@@ -472,19 +487,6 @@
           link.classList.add('border-b-2', 'border-green-500');
           document.getElementById('mobile-menu').classList.remove('open');
         });
-      });
-    }
-
-    // Render static pages in footer
-    function renderStaticLinks() {
-      const staticLinks = document.getElementById('static-links');
-      staticLinks.innerHTML = '';
-      staticPages.forEach(page => {
-        const link = document.createElement('a');
-        link.href = page.slug;
-        link.className = 'text-gray-500 hover:text-green-600';
-        link.textContent = page.title;
-        staticLinks.appendChild(link);
       });
     }
 
@@ -515,6 +517,7 @@
       document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '&copy;');
       const socialLinks = document.getElementById('social-links');
       const socialIcons = { tiktok: 'TikTok', whatsapp: 'WhatsApp', call: 'Call', instagram: 'Instagram', x: 'X', facebook: 'Facebook', youtube: 'YouTube' };
+      socialLinks.innerHTML = '';
       Object.keys(settings.socials).forEach(key => {
         if (settings.socials[key]) {
           const link = document.createElement('a');
@@ -525,7 +528,17 @@
           socialLinks.appendChild(link);
         }
       });
-      renderStaticLinks();
+      const staticLinks = document.getElementById('static-links');
+      staticLinks.innerHTML = '';
+      staticPages
+        .filter(page => !['/payment-modal', '/ref-code-modal'].includes(page.slug))
+        .forEach(page => {
+          const link = document.createElement('a');
+          link.href = page.slug;
+          link.className = 'text-gray-500 hover:text-green-600';
+          link.textContent = page.title;
+          staticLinks.appendChild(link);
+        });
     }
 
     // Urgent message
@@ -538,19 +551,37 @@
       }
     }
 
+    // Cookie popup
+    function showCookiePopup() {
+      if (!localStorage.getItem('cookieAccepted')) {
+        document.getElementById('cookie-popup').classList.remove('hidden');
+        document.getElementById('cookie-accept').addEventListener('click', () => {
+          localStorage.setItem('cookieAccepted', 'true');
+          document.getElementById('cookie-popup').classList.add('hidden');
+        });
+      }
+    }
+
     // Initialize
     async function initialize() {
-      await fetchData();
-      await fetchModalContent();
-      renderNavLinks();
-      renderProducts();
-      updateFooter();
-      showUrgentMessage();
-      showCookiePopup();
-      setInterval(checkPaymentCookie, 60000);
+      showLoading(true);
+      const success = await fetchData();
+      if (success) {
+        await fetchModalContent();
+        renderNavLinks();
+        renderProducts();
+        updateFooter();
+        showUrgentMessage();
+        showCookiePopup();
+        startPolling();
+        setInterval(checkPaymentCookie, 60000);
+      }
+      showLoading(false);
     }
 
     initialize();
   </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'930cc481daa9b03d',t:'MTc0NDczMzk5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931b9d907b49b016',t:'MTc0NDg4OTY4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
