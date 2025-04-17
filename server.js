@@ -26,10 +26,7 @@ app.use(session({
 
 // 2. Google APIs Module
 const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  },
+  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
 });
 const sheets = google.sheets({ version: 'v4', auth });
@@ -284,7 +281,7 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
-  if (password === process.env.ADMIN_PASSWORD) {
+  if (password === cachedData.settings.adminPassword) {
     req.session.isAuthenticated = true;
     res.json({ success: true });
   } else {
