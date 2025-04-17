@@ -89,6 +89,27 @@
     #details-modal .sticky {
       position: sticky;
     }
+    /* Ensure iframe maintains 16:9 aspect ratio */
+    .embed-container {
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      height: 0;
+      overflow: hidden;
+    }
+    .embed-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    /* Improve image rendering */
+    .thumbnail-image {
+      image-rendering: -webkit-optimize-contrast; /* For Chrome/Safari */
+      image-rendering: crisp-edges; /* For Firefox */
+      image-rendering: pixelated; /* Fallback */
+    }
     @media (max-width: 768px) {
       #details-modal .flex {
         flex-direction: column;
@@ -235,7 +256,7 @@
         </svg>
       </button>
       <div class="p-6 overflow-y-auto flex-1">
-        <img id="details-thumbnail" class="w-full h-auto rounded-md mb-4" style="aspect-ratio: 16/9; object-fit: cover;" src="" alt="">
+        <img id="details-thumbnail" class="w-full rounded-md mb-4 thumbnail-image" style="aspect-ratio: 16/9; object-fit: contain;" src="" alt="" srcset="" sizes="(max-width: 768px) 100vw, 50vw">
         <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-4"></h3>
         <p id="details-desc" class="text-gray-600 mb-4"></p>
         <div id="details-embed" class="mb-4"></div>
@@ -406,7 +427,7 @@
         card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
           <div class="relative">
-            <img src="${product.img}" alt="${product.name}" class="w-full h-48 object-cover rounded-t-lg" style="aspect-ratio: 16/9; object-fit: cover;">
+            <img src="${product.img}" alt="${product.name}" class="w-full h-48 rounded-t-lg thumbnail-image" style="aspect-ratio: 16/9; object-fit: contain;">
             ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
           </div>
           <div class="p-6">
@@ -432,7 +453,11 @@
           document.getElementById('details-desc').textContent = product.desc;
           const embedDiv = document.getElementById('details-embed');
           if (product.embed) {
-            embedDiv.innerHTML = `<iframe class="w-full h-64 rounded-md" src="${product.embed}" frameborder="0" allowfullscreen></iframe>`;
+            embedDiv.innerHTML = `
+              <div class="embed-container">
+                <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
+              </div>
+            `;
           } else {
             embedDiv.innerHTML = '';
           }
@@ -576,10 +601,10 @@
               statusTimerBar.style.width = `${percentage}%`;
 
               const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
-              const statusData = await statusRes.json();
-              if (statusData.success && statusData.status !== 'pending') {
+              const data = await statusRes.json();
+              if (data.success && data.status !== 'pending') {
                 clearInterval(countdown);
-                if (statusData.status === 'confirmed') {
+                if (data.status === 'confirmed') {
                   statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
                   const downloadLink = await fetchDownloadLink(product.item, refCode);
                   setTimeout(() => {
@@ -590,9 +615,9 @@
                       statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                     }
                   }, 2000);
-                } else if (statusData.status === 'no payment') {
+                } else if (data.status === 'no payment') {
                   statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
-                } else if (statusData.status === 'partial payment') {
+                } else if (data.status === 'partial payment') {
                   statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                 }
               }
