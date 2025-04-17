@@ -28,7 +28,9 @@ if (!fs.existsSync(sessionsDir)) {
 // CORS configuration
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Middleware
@@ -104,6 +106,31 @@ let cachedData = {
   staticPages: []
 };
 
+// Fallback content for modals
+const fallbackPaymentModal = {
+  title: 'Payment Modal',
+  slug: '/payment-modal',
+  content: `
+    <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+  `
+};
+
+const fallbackRefCodeModal = {
+  title: 'Ref Code Modal',
+  slug: '/ref-code-modal',
+  content: `
+    <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
+    <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
+    <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
+    <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+  `
+};
+
 // Load data from Google Sheets
 async function loadData() {
   try {
@@ -150,16 +177,28 @@ async function loadData() {
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'staticPages!A:C'
     });
-    const staticPages = pagesRes.data.values?.slice(1).map(row => ({
+    let staticPages = pagesRes.data.values?.slice(1).map(row => ({
       title: row[0],
       slug: row[1],
       content: row[2]
     })) || [];
 
+    // Ensure modal pages exist in staticPages
+    if (!staticPages.find(page => page.slug === '/payment-modal')) {
+      console.log(`[${new Date().toISOString()}] Adding fallback for /payment-modal`);
+      staticPages.push(fallbackPaymentModal);
+    }
+    if (!staticPages.find(page => page.slug === '/ref-code-modal')) {
+      console.log(`[${new Date().toISOString()}] Adding fallback for /ref-code-modal`);
+      staticPages.push(fallbackRefCodeModal);
+    }
+
     cachedData = { products, categories, settings, staticPages };
     console.log(`[${new Date().toISOString()}] Data loaded successfully from Google Sheets`);
+    console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error details:`, error);
     throw error;
   }
 }
@@ -269,6 +308,54 @@ function isAuthenticated(req, res, next) {
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
+// Ensure Google Sheet tabs exist with correct headers
+async function ensureSheetTabs() {
+  const spreadsheetId = process.env.PRODUCTS_SHEET_ID;
+  const tabsToEnsure = {
+    'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
+    'settings': ['KEY', 'VALUE'],
+    'categories': ['CATEGORY'],
+    'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
+    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP'],
+    'emails': ['EMAIL', 'SUBJECT', 'BODY']
+  };
+
+  try {
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+    const existingSheets = spreadsheet.data.sheets.map(sheet => sheet.properties.title);
+
+    for (const [sheetName, headers] of Object.entries(tabsToEnsure)) {
+      if (!existingSheets.includes(sheetName)) {
+        console.log(`[${new Date().toISOString()}] Creating missing sheet: ${sheetName}`);
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          resource: {
+            requests: [{
+              addSheet: {
+                properties: {
+                  title: sheetName
+                }
+              }
+            }]
+          }
+        });
+
+        // Add headers to the new sheet
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${sheetName}!1:1`,
+          valueInputOption: 'RAW',
+          resource: { values: [headers] }
+        });
+        console.log(`[${new Date().toISOString()}] Added headers to ${sheetName}: ${headers}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error ensuring sheet tabs:`, error.message);
+    throw error;
+  }
+}
+
 // Self-check on startup
 async function selfCheck() {
   console.log(`[${new Date().toISOString()}] Starting server self-check...`);
@@ -287,6 +374,9 @@ async function selfCheck() {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
   }
+
+  // Ensure all required tabs exist
+  await ensureSheetTabs();
 
   // Check sheet headers
   const expectedHeaders = {
@@ -307,6 +397,14 @@ async function selfCheck() {
       const actualHeaders = res.data.values?.[0] || [];
       if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
         console.error(`[${new Date().toISOString()}] Header mismatch in ${sheet}. Expected: ${headers}, Got: ${actualHeaders}`);
+        // Fix headers by overwriting the first row
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+          range: `${sheet}!1:1`,
+          valueInputOption: 'RAW',
+          resource: { values: [headers] }
+        });
+        console.log(`[${new Date().toISOString()}] Fixed headers for ${sheet}`);
       } else {
         console.log(`[${new Date().toISOString()}] Headers verified for ${sheet}`);
       }
@@ -545,12 +643,18 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
-  const page = cachedData.staticPages.find(p => p.slug === slug);
+  let page = cachedData.staticPages.find(p => p.slug === slug);
+  if (!page) {
+    // Check for fallback modals
+    if (slug === '/payment-modal') page = fallbackPaymentModal;
+    if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
+  }
   if (!page) {
     console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
     return res.status(404).json({ success: false, error: 'Page not found' });
   }
   res.json({ success: true, page });
+  console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
 });
 
 app.get(['/', '/index.html'], (req, res) => {
