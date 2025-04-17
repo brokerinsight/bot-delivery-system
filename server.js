@@ -31,7 +31,7 @@ app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
 }));
 
 // Middleware
@@ -47,13 +47,38 @@ app.use(express.static(publicPath));
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
 
 // Session middleware with FileStore
-app.use(session({
-  store: new FileStore({
+const ensureSessionsDir = (req, res, next) => {
+  if (!fs.existsSync(sessionsDir)) {
+    try {
+      fs.mkdirSync(sessionsDir, { recursive: true });
+      console.log(`[${new Date().toISOString()}] Re-created sessions directory: ${sessionsDir}`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Failed to create sessions directory: ${error.message}`);
+    }
+  }
+  next();
+};
+
+let sessionStore;
+try {
+  sessionStore = new FileStore({
     path: sessionsDir,
-    ttl: 24 * 60 * 60,
-    retries: 2,
-    logFn: console.log
-  }),
+    ttl: 24 * 60 * 60, // 24 hours
+    retries: 5, // Increased from 2 to 5
+    reapInterval: 3600, // Clean up expired sessions every hour
+    fileExtension: '.json',
+    logFn: (message) => console.log(`[${new Date().toISOString()}] [session-file-store] ${message}`),
+  });
+  console.log(`[${new Date().toISOString()}] Using FileStore for sessions`);
+} catch (error) {
+  console.error(`[${new Date().toISOString()}] Failed to initialize FileStore: ${error.message}`);
+  console.warn(`[${new Date().toISOString()}] Falling back to in-memory session store (not recommended for production)`);
+  sessionStore = new session.MemoryStore();
+}
+
+app.use(ensureSessionsDir);
+app.use(session({
+  store: sessionStore,
   name: 'sid',
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -62,7 +87,7 @@ app.use(session({
     secure: 'auto',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
 
@@ -716,8 +741,15 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
 });
 
 app.get('/api/order-status/:item/:refCode', async (req, res) => {
+  const { item, refCode } = req.params;
+
+  // Logissy request details for debugging
+  console.log(`[${new Date().toISOString()}] Order status request for ${item}/${refCode}`);
+  console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
+  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
+  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
+
   try {
-    const { item, refCode } = req.params;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:F'
@@ -757,7 +789,7 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
     res.json({ success: true, status, downloadLink });
     console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to check order status' });
   }
 });
@@ -862,6 +894,24 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 // File Download Route with Streaming
 app.get('/download/:fileId', async (req, res) => {
   const fileId = req.params.fileId;
+
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', 'https://bot-delivery-system.onrender.com');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
+
+  // Basic validation: Check if fileId exists in products
+  const product = cachedData.products.find(p => p.fileId === fileId);
+  if (!product) {
+    console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
+    return res.status(403).json({ success: false, error: 'Invalid file ID' });
+  }
+
+  // Log request details for debugging
+  console.log(`[${new Date().toISOString()}] Download request for fileId: ${fileId}`);
+  console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
+
   try {
     const fileMetadata = await drive.files.get({ fileId, fields: 'name, mimeType' });
     const fileName = fileMetadata.data.name || `file-${fileId}`;
@@ -869,10 +919,21 @@ app.get('/download/:fileId', async (req, res) => {
     res.setHeader('Content-Type', fileMetadata.data.mimeType || 'application/octet-stream');
     const file = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
     file.data.pipe(res);
-    console.log(`[${new Date().toISOString()}] File downloaded successfully: ${fileId}`);
+    console.log(`[${new Date().toISOString()}] File download started: ${fileId} (${fileName})`);
+    file.data.on('end', () => {
+      console.log(`[${new Date().toISOString()}] File download completed: ${fileId}`);
+    });
+    file.data.on('error', (error) => {
+      console.error(`[${new Date().toISOString()}] Stream error during download of ${fileId}:`, error.message);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Failed to stream file' });
+      }
+    });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error downloading file:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to download file' });
+    console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Failed to download file' });
+    }
   }
 });
 
