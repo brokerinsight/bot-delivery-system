@@ -392,6 +392,7 @@
 
   <script>
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+    const BASE_URL = 'https://bot-delivery-system.onrender.com'; // Added to ensure correct server URL
     let products = [];
     let categories = [];
     let settings = {};
@@ -421,17 +422,18 @@
 
     async function fetchData() {
       try {
-        const response = await fetchWithTimeout('/api/data', { credentials: 'include' }, 10000);
+        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 10000);
         if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
         const data = await response.json();
         products = data.products.filter(p => !p.isArchived);
         categories = data.categories;
         settings = data.settings;
         staticPages = data.staticPages;
+        console.log('Data fetched successfully:', { products, categories, settings, staticPages });
         return true;
       } catch (error) {
         console.error('Error fetching data:', error.message);
-        document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>.`;
+        document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>. (Error: ${error.message})`;
         return false;
       }
     }
@@ -633,7 +635,7 @@
         }
 
         try {
-          const response = await fetchWithTimeout('/api/submit-ref', {
+          const response = await fetchWithTimeout(`${BASE_URL}/api/submit-ref`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -695,7 +697,7 @@
         elapsed += 1;
         if (elapsed % pollInterval === 0) {
           try {
-            const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
+            const statusRes = await fetch(`${BASE_URL}/api/order-status/${product.item}/${refCode}`);
             const data = await statusRes.json();
             if (data.success && data.status !== 'pending') {
               clearInterval(countdown);
@@ -714,7 +716,7 @@
               } else if (data.status === 'no payment') {
                 statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
-              } else if (data.status === 'partial payment') {
+              } other if (data.status === 'partial payment') {
                 statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
               }
@@ -730,7 +732,7 @@
 
     async function fetchDownloadLink(item, refCode) {
       try {
-        const response = await fetch(`/api/order-status/${item}/${refCode}`);
+        const response = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`);
         const data = await response.json();
         if (data.success && data.status === 'confirmed' && data.downloadLink) {
           return data.downloadLink;
@@ -908,8 +910,7 @@
             <button id="warning-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
           `;
           document.body.appendChild(warning);
-          document.getElementById('warning-close').onclick Investigators
-onclick = () => {
+          document.getElementById('warning-close').onclick = () => {
             warning.remove();
           };
         }
