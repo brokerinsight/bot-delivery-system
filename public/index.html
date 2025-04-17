@@ -83,15 +83,27 @@
     #cookie-popup button:hover {
       background-color: #15803d;
     }
-    #details-modal .overflow-y-auto {
-      max-height: calc(90vh - 8rem);
-    }
     /* Stylish modal enhancements */
     #details-modal .modal-content {
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
       border: 1px solid #e5e7eb;
+      max-width: 800px;
+      width: 100%;
+      max-height: 80vh;
+      overflow: hidden;
+    }
+    #details-modal .modal-main {
+      flex: 1;
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+    #details-modal .modal-sidebar {
+      width: 200px;
+      background: #f9fafb;
+      padding: 1.5rem;
+      border-left: 1px solid #e5e7eb;
     }
     #details-modal .close-btn {
       background-color: #ef4444;
@@ -126,21 +138,28 @@
     }
     /* Improve image rendering */
     .thumbnail-image {
-      image-rendering: -webkit-optimize-contrast; /* For Chrome/Safari */
-      image-rendering: crisp-edges; /* For Firefox */
-      image-rendering: pixelated; /* Fallback */
-      max-width: 100%;
+      width: 480px;
       height: auto;
       border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      image-rendering: auto;
     }
     /* Hide item text but keep it in DOM */
     .item-hidden {
       display: none;
     }
     @media (max-width: 768px) {
-      #details-modal .flex {
+      #details-modal .modal-content {
         flex-direction: column;
+      }
+      #details-modal .modal-sidebar {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+      }
+      #details-modal .thumbnail-image {
+        width: 100%;
+        max-width: 480px;
       }
     }
     @media (max-width: 640px) {
@@ -178,7 +197,7 @@
   </style>
 </head>
 <body class="bg-gray-100">
-  <!-- Urgent Message -->
+  <!-- urgent message -->
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
     <p id="urgent-text" class="text-center text-lg font-semibold"></p>
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
@@ -269,18 +288,20 @@
 
   <!-- Product Details Modal -->
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="modal-content max-w-4xl w-full flex flex-col relative max-h-[90vh]">
+    <div class="modal-content flex flex-col md:flex-row relative">
       <button id="details-close" class="absolute top-4 right-4 close-btn">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-      <div class="p-6">
-        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-4">Buy Now</button>
-        <img id="details-thumbnail" class="w-full rounded-md mb-4 thumbnail-image" style="aspect-ratio: 16/9; object-fit: contain;" src="" alt="" srcset="" sizes="(max-width: 768px) 100vw, 50vw">
-        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-4"></h3>
+      <div class="modal-main">
+        <img id="details-thumbnail" class="thumbnail-image mb-4" src="" alt="">
+        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-2"></h3>
         <p id="details-desc" class="text-gray-600 mb-4"></p>
         <div id="details-embed" class="mb-4"></div>
+      </div>
+      <div class="modal-sidebar">
+        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-4">Buy Now</button>
       </div>
     </div>
   </div>
@@ -595,58 +616,12 @@
             credentials: 'include'
           }, 10000);
 
-          if (!response.ok) {
-            throw new Error(`Server responded with status: ${response.status}`);
-          }
-
           const data = await response.json();
-          if (data.success) {
+          if (response.ok && data.success) {
             modal.classList.add('hidden');
-            const statusModal = document.getElementById('status-modal');
-            const statusMessage = document.getElementById('status-message');
-            const statusTimerText = document.getElementById('status-timer-text');
-            const statusTimerBar = document.getElementById('status-timer-bar');
-            statusModal.classList.remove('hidden');
-
-            let timeLeft = 5 * 60;
-            const countdown = setInterval(async () => {
-              if (timeLeft <= 0) {
-                clearInterval(countdown);
-                statusModal.classList.add('hidden');
-                window.location.href = WHATSAPP_REDIRECT;
-                return;
-              }
-              const minutes = Math.floor(timeLeft / 60);
-              const seconds = timeLeft % 60;
-              statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-              const percentage = (timeLeft / (5 * 60)) * 100;
-              statusTimerBar.style.width = `${percentage}%`;
-
-              const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
-              const statusData = await statusRes.json();
-              if (statusData.success && statusData.status !== 'pending') {
-                clearInterval(countdown);
-                if (statusData.status === 'confirmed') {
-                  statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
-                  const downloadLink = await fetchDownloadLink(product.item, refCode);
-                  setTimeout(() => {
-                    statusModal.classList.add('hidden');
-                    if (downloadLink) {
-                      window.location.href = downloadLink;
-                    } else {
-                      statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
-                    }
-                  }, 2000);
-                } else if (statusData.status === 'no payment') {
-                  statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
-                } else if (statusData.status === 'partial payment') {
-                  statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
-                }
-              }
-              timeLeft--;
-            }, 1000);
+            await showStatusModal(product, refCode);
           } else {
-            throw new Error(data.error || 'Failed to submit ref code.');
+            throw new Error(data.error || `Failed to submit ref code: ${response.status}`);
           }
         } catch (error) {
           console.error('Error submitting ref code:', error.message);
@@ -657,6 +632,71 @@
       document.getElementById('ref-code-cancel').onclick = () => {
         modal.classList.add('hidden');
       };
+    }
+
+    async function showStatusModal(product, refCode) {
+      const modal = document.getElementById('status-modal');
+      const statusMessage = document.getElementById('status-message');
+      const statusTimerText = document.getElementById('status-timer-text');
+      const statusTimerBar = document.getElementById('status-timer-bar');
+      statusMessage.textContent = 'Confirming payment...';
+      modal.classList.remove('hidden');
+
+      let timeLeft = 5 * 60;
+      const pollInterval = 5; // Poll every 5 seconds
+      let elapsed = 0;
+
+      const countdown = setInterval(async () => {
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          statusMessage.innerHTML = 'Confirmation timed out. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+          setTimeout(() => {
+            modal.classList.add('hidden');
+            window.location.href = WHATSAPP_REDIRECT;
+          }, 3000);
+          return;
+        }
+
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const percentage = (timeLeft / (5 * 60)) * 100;
+        statusTimerBar.style.width = `${percentage}%`;
+
+        elapsed += 1;
+        if (elapsed % pollInterval === 0) {
+          try {
+            const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
+            const data = await statusRes.json();
+            if (data.success && data.status !== 'pending') {
+              clearInterval(countdown);
+              if (data.status === 'confirmed') {
+                statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
+                const downloadLink = await fetchDownloadLink(product.item, refCode);
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  if (downloadLink) {
+                    window.location.href = downloadLink;
+                  } else {
+                    statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                    setTimeout(() => modal.classList.add('hidden'), 3000);
+                  }
+                }, 2000);
+              } else if (data.status === 'no payment') {
+                statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
+                setTimeout(() => modal.classList.add('hidden'), 3000);
+              } else if (data.status === 'partial payment') {
+                statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
+                setTimeout(() => modal.classList.add('hidden'), 3000);
+              }
+            }
+          } catch (error) {
+            console.error('Error checking order status:', error.message);
+            statusMessage.textContent = 'Error checking payment status. Please wait...';
+          }
+        }
+        timeLeft--;
+      }, 1000);
     }
 
     async function fetchDownloadLink(item, refCode) {
