@@ -115,10 +115,19 @@
       align-items: center;
       justify-content: center;
       transition: transform 0.2s, background-color 0.3s;
+      z-index: 10;
     }
     #details-modal .close-btn:hover {
       background-color: #dc2626;
       transform: scale(1.1);
+    }
+    /* Improve description spacing */
+    #details-desc {
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+    #details-desc p {
+      margin-bottom: 0.5rem;
     }
     /* Ensure iframe maintains 16:9 aspect ratio */
     .embed-container {
@@ -143,6 +152,24 @@
       border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       image-rendering: auto;
+    }
+    /* Product card image with strict 16:9 aspect ratio */
+    .product-image-container {
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      width: 100%;
+      overflow: hidden;
+    }
+    .product-image-container img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      image-rendering: auto;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
     }
     /* Hide item text but keep it in DOM */
     .item-hidden {
@@ -197,7 +224,7 @@
   </style>
 </head>
 <body class="bg-gray-100">
-  <!-- urgent message -->
+  <!-- Urgent Message -->
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
     <p id="urgent-text" class="text-center text-lg font-semibold"></p>
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
@@ -466,7 +493,9 @@
         card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
           <div class="relative">
-            <img src="${product.img}" alt="${product.name}" class="w-full h-48 rounded-t-lg thumbnail-image" style="aspect-ratio: 16/9; object-fit: contain;">
+            <div class="product-image-container">
+              <img src="${product.img}" alt="${product.name}" class="thumbnail-image">
+            </div>
             ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
           </div>
           <div class="p-6">
@@ -879,7 +908,8 @@
             <button id="warning-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
           `;
           document.body.appendChild(warning);
-          document.getElementById('warning-close').onclick = () => {
+          document.getElementById('warning-close').onclick Investigators
+onclick = () => {
             warning.remove();
           };
         }
