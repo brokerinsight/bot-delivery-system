@@ -86,8 +86,27 @@
     #details-modal .overflow-y-auto {
       max-height: calc(90vh - 8rem);
     }
-    #details-modal .sticky {
-      position: sticky;
+    /* Stylish modal enhancements */
+    #details-modal .modal-content {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      border: 1px solid #e5e7eb;
+    }
+    #details-modal .close-btn {
+      background-color: #ef4444;
+      color: white;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, background-color 0.3s;
+    }
+    #details-modal .close-btn:hover {
+      background-color: #dc2626;
+      transform: scale(1.1);
     }
     /* Ensure iframe maintains 16:9 aspect ratio */
     .embed-container {
@@ -103,24 +122,25 @@
       width: 100%;
       height: 100%;
       border: 0;
+      border-radius: 8px;
     }
     /* Improve image rendering */
     .thumbnail-image {
       image-rendering: -webkit-optimize-contrast; /* For Chrome/Safari */
       image-rendering: crisp-edges; /* For Firefox */
       image-rendering: pixelated; /* Fallback */
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    /* Hide item text but keep it in DOM */
+    .item-hidden {
+      display: none;
     }
     @media (max-width: 768px) {
       #details-modal .flex {
         flex-direction: column;
-      }
-      #details-modal .sticky {
-        position: fixed;
-        width: 100%;
-        bottom: 0;
-        z-index: 10;
-        background: white;
-        border-top: 1px solid #e5e7eb;
       }
     }
     @media (max-width: 640px) {
@@ -249,20 +269,18 @@
 
   <!-- Product Details Modal -->
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg max-w-4xl w-full flex flex-col md:flex-row relative max-h-[90vh]">
-      <button id="details-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="modal-content max-w-4xl w-full flex flex-col relative max-h-[90vh]">
+      <button id="details-close" class="absolute top-4 right-4 close-btn">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
-      <div class="p-6 overflow-y-auto flex-1">
+      <div class="p-6">
+        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-4">Buy Now</button>
         <img id="details-thumbnail" class="w-full rounded-md mb-4 thumbnail-image" style="aspect-ratio: 16/9; object-fit: contain;" src="" alt="" srcset="" sizes="(max-width: 768px) 100vw, 50vw">
         <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-4"></h3>
         <p id="details-desc" class="text-gray-600 mb-4"></p>
         <div id="details-embed" class="mb-4"></div>
-      </div>
-      <div class="md:w-64 bg-gray-50 p-4 flex-shrink-0 sticky md:top-0 bottom-0 md:h-auto h-16 flex items-center justify-center md:border-l border-t md:border-t-0">
-        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Buy Now</button>
       </div>
     </div>
   </div>
@@ -434,7 +452,7 @@
             <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
             <p class="mt-2 text-gray-600 text-sm truncate-2-lines">${product.desc}</p>
             <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
-            <p class="mt-1 text-gray-500 text-sm">Item: ${product.item}</p>
+            <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
             <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
           </div>
         `;
@@ -576,7 +594,11 @@
             }),
             credentials: 'include'
           }, 10000);
-          if (!response.ok) throw new Error(`Failed to submit ref code: ${response.status}`);
+
+          if (!response.ok) {
+            throw new Error(`Server responded with status: ${response.status}`);
+          }
+
           const data = await response.json();
           if (data.success) {
             modal.classList.add('hidden');
@@ -601,10 +623,10 @@
               statusTimerBar.style.width = `${percentage}%`;
 
               const statusRes = await fetch(`/api/order-status/${product.item}/${refCode}`);
-              const data = await statusRes.json();
-              if (data.success && data.status !== 'pending') {
+              const statusData = await statusRes.json();
+              if (statusData.success && statusData.status !== 'pending') {
                 clearInterval(countdown);
-                if (data.status === 'confirmed') {
+                if (statusData.status === 'confirmed') {
                   statusMessage.textContent = 'Payment successful! Loading the file, do not exit the page...';
                   const downloadLink = await fetchDownloadLink(product.item, refCode);
                   setTimeout(() => {
@@ -615,20 +637,20 @@
                       statusMessage.innerHTML = 'Error retrieving download link. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                     }
                   }, 2000);
-                } else if (data.status === 'no payment') {
+                } else if (statusData.status === 'no payment') {
                   statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
-                } else if (data.status === 'partial payment') {
+                } else if (statusData.status === 'partial payment') {
                   statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                 }
               }
               timeLeft--;
             }, 1000);
           } else {
-            alert('Failed to submit ref code.');
+            throw new Error(data.error || 'Failed to submit ref code.');
           }
         } catch (error) {
           console.error('Error submitting ref code:', error.message);
-          alert('Error submitting ref code. Please try again.');
+          alert('Error submitting ref code: ' + error.message + '. Please try again or contact support.');
         }
       };
 
