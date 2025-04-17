@@ -1,35 +1,78 @@
 const express = require('express');
-const cors = require('cors');
-const session = require('express-session');
-const FileStore = require('session-file-store')(session);
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
-const { Readable } = require('stream');
+const cookieParser = require('cookie-parser');
+const multer = require('multer');
+const marked = require('marked');
+const sanitizeHtml = require('sanitize-html');
+const session = require('express-session');
+const FileStore = require('session-file-store')(session);
+const cors = require('cors');
+const dotenv = require('dotenv');
 const path = require('path');
-require('dotenv').config();
+const fs = require('fs');
+const stream = require('stream');
 
-// 1. App Setup
+dotenv.config();
+
 const app = express();
-const port = process.env.PORT || 3000;
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Serve static files from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Ensure the sessions directory exists
+const sessionsDir = path.join(__dirname, 'sessions');
+if (!fs.existsSync(sessionsDir)) {
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  console.log('Created sessions directory:', sessionsDir);
+}
 
+// CORS configuration
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Serve static files from 'public' directory
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+
+// Log static file middleware setup
+console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
+
+// Session middleware with FileStore
 app.use(session({
-  store: new FileStore({ path: './sessions', ttl: 24 * 60 * 60 }),
-  secret: process.env.SESSION_SECRET || 'your-secret',
+  store: new FileStore({
+    path: sessionsDir,
+    ttl: 24 * 60 * 60,
+    retries: 2,
+    logFn: console.log
+  }),
+  name: 'sid',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: 'auto',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 }));
 
-// 2. Google APIs Module
+// Log session details for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
+  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
+  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
+  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
+  next();
+});
+
+// Google API setup
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
   scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -37,7 +80,7 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const drive = google.drive({ version: 'v3', auth });
 
-// 3. Nodemailer Module
+// Email setup
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -46,280 +89,318 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 4. Data Module
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-const PRODUCTS_SHEET_ID = process.env.PRODUCTS_SHEET_ID;
-const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+// Cache for data
 let cachedData = {
   products: [],
-  settings: {},
   categories: [],
-  staticPages: [],
-  orders: [],
-  emails: []
+  settings: {
+    supportEmail: 'kaylie254.business@gmail.com',
+    copyrightText: '© 2025 Deriv Bot Store',
+    logoUrl: '',
+    socials: {},
+    urgentMessage: { enabled: false, text: '' },
+    fallbackRate: 130
+  },
+  staticPages: []
 };
 
+// Load data from Google Sheets
 async function loadData() {
   try {
-    // Load products (Sheet1)
     const productRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A2:K'
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:J'
     });
-    const headers = ['item', 'fileId', 'price', 'name', 'desc', 'img', 'category', 'embed', 'isNew', 'isArchived'];
-    cachedData.products = productRes.data.values?.map(row =>
-      headers.reduce((obj, header, i) => ({ ...obj, [header]: row[i] || '' }), {})
-    ) || [];
+    const products = productRes.data.values?.slice(1).map(row => ({
+      item: row[0],
+      fileId: row[1],
+      price: parseFloat(row[2]),
+      name: row[3],
+      desc: row[4] || '',
+      img: row[5] || 'https://via.placeholder.com/300',
+      category: row[6] || 'General',
+      embed: row[7] || '',
+      isNew: row[8] === 'TRUE',
+      isArchived: row[9] === 'TRUE'
+    })) || [];
 
-    // Load settings
     const settingsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: PRODUCTS_SHEET_ID,
-      range: 'settings!A2:B'
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'settings!A:B'
     });
-    cachedData.settings = settingsRes.data.values?.reduce((obj, [key, value]) => {
-      try {
-        return { ...obj, [key]: JSON.parse(value) };
-      } catch {
-        return { ...obj, [key]: value };
-      }
-    }, { mpesaTill: '4933614', fallbackRate: 130 }) || {};
+    const settingsData = Object.fromEntries(settingsRes.data.values?.map(([k, v]) => [k, v]) || []);
+    const settings = {
+      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
+      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
+      logoUrl: settingsData.logoUrl || '',
+      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
+      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
+      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
+      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
+      adminPassword: settingsData.adminPassword || 'securepassword123'
+    };
 
-    // Load categories
-    const catRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: PRODUCTS_SHEET_ID,
-      range: 'categories!A2:A'
+    const categoriesRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'categories!A:A'
     });
-    cachedData.categories = catRes.data.values?.flat() || [];
+    const categories = categoriesRes.data.values?.slice(1).flat() || ['General'];
 
-    // Load static pages
     const pagesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: PRODUCTS_SHEET_ID,
-      range: 'staticPages!A2:C'
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'staticPages!A:C'
     });
-    cachedData.staticPages = pagesRes.data.values?.map(([title, slug, content]) => ({
-      title, slug, content
+    const staticPages = pagesRes.data.values?.slice(1).map(row => ({
+      title: row[0],
+      slug: row[1],
+      content: row[2]
     })) || [];
 
-    // Load orders
-    const ordersRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'orders!A2:D'
-    });
-    cachedData.orders = ordersRes.data.values?.map(([item, refCode, amount, timestamp]) => ({
-      item, refCode, amount, timestamp
-    })) || [];
-
-    // Load emails
-    const emailsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'emails!A2:C'
-    });
-    cachedData.emails = emailsRes.data.values?.map(([email, subject, body]) => ({
-      email, subject, body
-    })) || [];
+    cachedData = { products, categories, settings, staticPages };
+    console.log(`[${new Date().toISOString()}] Data loaded successfully from Google Sheets`);
   } catch (error) {
-    console.error('Error loading data:', error.message);
+    console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
     throw error;
   }
 }
 
-async function saveData(range, values, spreadsheetId = SPREADSHEET_ID) {
-  try {
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${range.split('!')[0]}!A1:K`
-    });
-    const lastRow = res.data.values ? res.data.values.length : 1;
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range,
-      valueInputOption: 'RAW',
-      resource: { values }
-    });
-
-    if (range.includes('Sheet1')) {
-      const otherId = spreadsheetId === SPREADSHEET_ID ? PRODUCTS_SHEET_ID : SPREADSHEET_ID;
-      const otherRes = await sheets.spreadsheets.values.get({
-        spreadsheetId: otherId,
-        range: 'Sheet1!A1:K'
-      });
-      const otherLastRow = otherRes.data.values ? otherRes.data.values.length : 1;
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: otherId,
-        range: 'Sheet1',
-        valueInputOption: 'RAW',
-        resource: { values }
-      });
-    }
-  } catch (error) {
-    console.error('Error saving data:', error.message);
-    throw error;
-  }
-}
-
-async function editData(item, updates, spreadsheetId = SPREADSHEET_ID) {
-  try {
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'Sheet1!A2:K'
-    });
-    const rows = res.data.values || [];
-    const headers = ['item', 'fileId', 'price', 'name', 'desc', 'img', 'category', 'embed', 'isNew', 'isArchived'];
-    const rowIndex = rows.findIndex(row => row[0] === item);
-    if (rowIndex === -1) throw new Error(`Item ${item} not found`);
-
-    const updatedRow = headers.map((header, i) => updates[header] || rows[rowIndex][i] || '');
-    rows[rowIndex] = updatedRow;
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `Sheet1!A${rowIndex + 2}:K${rowIndex + 2}`,
-      valueInputOption: 'RAW',
-      resource: { values: [updatedRow] }
-    });
-
-    const otherId = spreadsheetId === SPREADSHEET_ID ? PRODUCTS_SHEET_ID : SPREADSHEET_ID;
-    const otherRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: otherId,
-      range: 'Sheet1!A2:K'
-    });
-    const otherRows = otherRes.data.values || [];
-    const otherRowIndex = otherRows.findIndex(row => row[0] === item);
-    if (otherRowIndex !== -1) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: otherId,
-        range: `Sheet1!A${otherRowIndex + 2}:K${otherRowIndex + 2}`,
-        valueInputOption: 'RAW',
-        resource: { values: [updatedRow] }
-      });
-    }
-  } catch (error) {
-    console.error('Error editing data:', error.message);
-    throw error;
-  }
-}
-
-async function deleteProduct(item) {
-  try {
-    for (const spreadsheetId of [SPREADSHEET_ID, PRODUCTS_SHEET_ID]) {
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'Sheet1!A2:K'
-      });
-      const rows = res.data.values || [];
-      const rowIndex = rows.findIndex(row => row[0] === item);
-      if (rowIndex === -1) continue;
-
-      if (rows[rowIndex][1]) {
-        await drive.files.delete({ fileId: rows[rowIndex][1] }).catch(error => {
-          console.error('Drive delete error:', error.message);
-          throw error;
-        });
-      }
-
-      rows.splice(rowIndex, 1);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: 'Sheet1!A2:K',
-        valueInputOption: 'RAW',
-        resource: { values: rows }
-      });
-    }
-    await loadData();
-  } catch (error) {
-    console.error('Error deleting product:', error.message);
-    throw error;
-  }
-}
-
-// 5. File Upload Module
+// Stream file to Google Drive
 async function streamUploadToDrive(file, filename) {
-  const fileMetadata = {
-    name: filename,
-    parents: [GOOGLE_DRIVE_FOLDER_ID]
-  };
-  const media = {
-    mimeType: file.mimetype,
-    body: Readable.from(file.buffer)
-  };
-
   try {
-    const res = await drive.files.create({
+    const fileMetadata = {
+      name: filename,
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
+    };
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(file.buffer);
+    const media = {
+      mimeType: file.mimetype,
+      body: bufferStream
+    };
+    const driveRes = await drive.files.create({
       resource: fileMetadata,
       media,
-      fields: 'id, webContentLink'
+      fields: 'id'
     });
-    return res.data;
+    console.log(`[${new Date().toISOString()}] File uploaded to Google Drive, ID: ${driveRes.data.id}`);
+    return driveRes.data;
   } catch (error) {
-    console.error('Drive upload error:', error.message);
+    console.error(`[${new Date().toISOString()}] Error uploading file to Google Drive:`, error.message);
     throw error;
   }
 }
 
-// 6. Routes Module
+// Save data to Google Sheets
+async function saveData() {
+  try {
+    const productValues = [
+      ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
+      ...cachedData.products.map(p => [
+        p.item,
+        p.fileId,
+        p.price,
+        p.name,
+        p.desc,
+        p.img,
+        p.category,
+        p.embed,
+        p.isNew ? 'TRUE' : 'FALSE',
+        p.isArchived ? 'TRUE' : 'FALSE'
+      ])
+    ];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:J',
+      valueInputOption: 'RAW',
+      resource: { values: productValues }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'Sheet1!A:J',
+      valueInputOption: 'RAW',
+      resource: { values: productValues }
+    });
+
+    const settingsForSheet = Object.entries(cachedData.settings).map(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        return [key, JSON.stringify(value)];
+      }
+      return [key, value];
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'settings!A:B',
+      valueInputOption: 'RAW',
+      resource: { values: settingsForSheet }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'categories!A:A',
+      valueInputOption: 'RAW',
+      resource: { values: [['CATEGORY'], ...cachedData.categories.map(c => [c])] }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'staticPages!A:C',
+      valueInputOption: 'RAW',
+      resource: {
+        values: [['TITLE', 'SLUG', 'CONTENT'], ...cachedData.staticPages.map(p => [p.title, p.slug, p.content])]
+      }
+    });
+
+    console.log(`[${new Date().toISOString()}] Data saved successfully to Google Sheets`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
+    throw error;
+  }
+}
+
+// Middleware to check admin session
 function isAuthenticated(req, res, next) {
   if (req.session.isAuthenticated) {
     return next();
   }
-  console.error('Unauthorized access attempt:', req.url);
+  console.log(`[${new Date().toISOString()}] Unauthorized access attempt to ${req.url}`);
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
+// Self-check on startup
+async function selfCheck() {
+  console.log(`[${new Date().toISOString()}] Starting server self-check...`);
+
+  // Check Google Sheets connectivity
+  try {
+    await sheets.spreadsheets.get({ spreadsheetId: process.env.SPREADSHEET_ID });
+    console.log(`[${new Date().toISOString()}] Successfully connected to SPREADSHEET_ID`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to connect to SPREADSHEET_ID:`, error.message);
+  }
+
+  try {
+    await sheets.spreadsheets.get({ spreadsheetId: process.env.PRODUCTS_SHEET_ID });
+    console.log(`[${new Date().toISOString()}] Successfully connected to PRODUCTS_SHEET_ID`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
+  }
+
+  // Check sheet headers
+  const expectedHeaders = {
+    'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
+    'settings': ['KEY', 'VALUE'],
+    'categories': ['CATEGORY'],
+    'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
+    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP'],
+    'emails': ['EMAIL', 'SUBJECT', 'BODY']
+  };
+
+  for (const [sheet, headers] of Object.entries(expectedHeaders)) {
+    try {
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+        range: `${sheet}!1:1`
+      });
+      const actualHeaders = res.data.values?.[0] || [];
+      if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
+        console.error(`[${new Date().toISOString()}] Header mismatch in ${sheet}. Expected: ${headers}, Got: ${actualHeaders}`);
+      } else {
+        console.log(`[${new Date().toISOString()}] Headers verified for ${sheet}`);
+      }
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Failed to verify headers for ${sheet}:`, error.message);
+    }
+  }
+
+  // Check Google Drive connectivity
+  try {
+    await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
+    console.log(`[${new Date().toISOString()}] Successfully connected to Google Drive folder`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
+  }
+
+  // Test email sending
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: 'Test Email from Deriv Bot Store Server',
+      text: 'Server is up and running!'
+    });
+    console.log(`[${new Date().toISOString()}] Test email sent successfully`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send test email:`, error.message);
+  }
+
+  // Check if public/index.html exists
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
+  } else {
+    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
+  }
+
+  console.log(`[${new Date().toISOString()}] Self-check completed`);
+}
+
+// Session check endpoint
+app.get('/api/check-session', (req, res) => {
+  res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
+});
+
+// API Routes
 app.get('/api/data', async (req, res) => {
   try {
-    await loadData();
-    res.json({
-      success: true,
-      data: {
-        products: cachedData.products,
-        settings: cachedData.settings,
-        categories: cachedData.categories,
-        staticPages: cachedData.staticPages
-      }
-    });
+    res.json(cachedData);
+    console.log(`[${new Date().toISOString()}] Served /api/data successfully`);
   } catch (error) {
-    console.error('Error in /api/data:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to load data' });
+    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch data' });
   }
 });
 
-app.post('/api/login', (req, res) => {
-  const { password } = req.body;
-  if (password === cachedData.settings.adminPassword) {
-    req.session.isAuthenticated = true;
-    res.json({ success: true });
-  } else {
-    console.error('Login failed for:', req.body);
-    res.status(401).json({ success: false, error: 'Invalid password' });
-  }
-});
-
-app.post('/api/add-bot', isAuthenticated, async (req, res) => {
+app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    const { file, body: { item, price, name, desc, img, category, embed, isNew, isArchived } } = req;
+    cachedData = req.body;
+    await saveData();
+    res.json({ success: true });
+    console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to save data' });
+  }
+});
+
+app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
+  try {
+    const { item, name, price, desc, embed, category, img, isNew } = req.body;
+    const file = req.file;
     if (!file) throw new Error('No file uploaded');
 
-    const driveData = await streamUploadToDrive(file, file.originalname);
-    const values = [[
+    const driveData = await streamUploadToDrive(file, `${item}_${name}.${file.originalname.split('.').pop()}`);
+    const product = {
       item,
-      driveData.id,
-      price,
+      fileId: driveData.id,
+      price: parseFloat(price),
       name,
       desc,
       img,
       category,
       embed,
-      isNew === 'true' ? 'TRUE' : 'FALSE',
-      isArchived === 'true' ? 'TRUE' : 'FALSE'
-    ]];
-    await saveData('Sheet1', values);
-    await saveData('Sheet1', values, PRODUCTS_SHEET_ID);
+      isNew: isNew === 'true',
+      isArchived: false
+    };
 
-    await loadData();
-    res.json({ success: true, fileId: driveData.id });
+    cachedData.products.push(product);
+    await saveData();
+    res.json({ success: true, product });
+    console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
-    console.error('Error in /api/add-bot:', error.message);
+    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -328,41 +409,19 @@ app.post('/api/submit-ref', async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
     const product = cachedData.products.find(p => p.item === item);
-    if (!product) throw new Error('Product not found');
+    if (!product) {
+      console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
 
-    await saveData('orders', [[item, refCode, amount, timestamp]]);
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: cachedData.settings.supportEmail,
-      subject: `New Order: ${item}`,
-      text: `Item: ${item}\nRef Code: ${refCode}\nAmount: ${amount} KES\nTimestamp: ${timestamp}`
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:D',
+      valueInputOption: 'RAW',
+      resource: { values: [[item, refCode, amount, timestamp]] }
     });
 
-    await loadData();
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/submit-ref:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to submit ref code' });
-  }
-});
-
-app.get('/api/orders', isAuthenticated, async (req, res) => {
-  try {
-    await loadData();
-    res.json({ success: true, data: cachedData.orders });
-  } catch (error) {
-    console.error('Error in /api/orders:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to load orders' });
-  }
-});
-
-app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
-  try {
-    const { item, refCode } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) throw new Error('Product not found');
-
-    const file = await drive.files.get({
+    const fileRes = await drive.files.get({
       fileId: product.fileId,
       fields: 'webContentLink'
     });
@@ -370,73 +429,207 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: cachedData.settings.supportEmail,
-      subject: `Order Confirmed: ${item}`,
-      text: `Download link: ${file.data.webContentLink}`
+      subject: 'New Order - Ref Code Submitted',
+      html: `
+        <p><strong>Item:</strong> ${product.name} (${item})</p>
+        <p><strong>Ref Code:</strong> ${refCode}</p>
+        <p><strong>Amount:</strong> ${amount} KES</p>
+        <p><strong>Timestamp:</strong> ${timestamp}</p>
+        <p><strong>Download Link:</strong> <a href="${fileRes.data.webContentLink}">${product.name}</a></p>
+      `
     });
 
-    res.json({ success: true, downloadLink: file.data.webContentLink });
+    res.json({ success: true });
+    console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
   } catch (error) {
-    console.error('Error in /api/confirm-order:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to confirm order' });
-  }
-});
-
-app.post('/api/save-data', isAuthenticated, async (req, res) => {
-  try {
-    const { type, data } = req.body;
-    if (type === 'product') {
-      await editData(data.item, data);
-    } else if (type === 'category') {
-      await saveData('categories', [[data]], PRODUCTS_SHEET_ID);
-    } else if (type === 'staticPage') {
-      await saveData('staticPages', [[data.title, data.slug, data.content]], PRODUCTS_SHEET_ID);
+    console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to submit ref code' });
     }
-    await loadData();
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error in /api/save-data:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
 
-app.post('/api/delete-product', isAuthenticated, async (req, res) => {
+app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
-    const { item } = req.body;
-    await deleteProduct(item);
-    res.json({ success: true });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:D'
+    });
+    const rows = response.data.values || [];
+    const orders = rows.slice(1).map(row => ({
+      item: row[0],
+      refCode: row[1],
+      amount: row[2],
+      timestamp: row[3]
+    }));
+    res.json({ success: true, orders });
+    console.log(`[${new Date().toISOString()}] Orders fetched successfully`);
   } catch (error) {
-    console.error('Error in /api/delete-product:', error.message);
-    res.status(500).json({ success: false, error: 'Failed to delete product' });
+    console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+    }
   }
 });
 
-// 7. Startup Module
+app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
+  try {
+    const { item, refCode, amount, timestamp } = req.body;
+    const product = cachedData.products.find(p => p.item === item);
+    if (!product) {
+      console.log(`[${new Date().toISOString()}] Product not found for order confirmation: ${item}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    const fileId = product.fileId;
+
+    const fileResponse = await drive.files.get({
+      fileId,
+      fields: 'webContentLink, mimeType, name'
+    });
+
+    const downloadLink = fileResponse.data.webContentLink;
+    const email = cachedData.settings.supportEmail;
+    const subject = `Your Deriv Bot Purchase - ${item}`;
+    const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'emails!A:C',
+      valueInputOption: 'RAW',
+      resource: { values: [[email, subject, body]] }
+    });
+
+    const ordersResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:D'
+    });
+    const ordersRows = ordersResponse.data.values || [];
+    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+    if (orderIndex !== -1) {
+      ordersRows.splice(orderIndex + 1, 1);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        range: 'orders!A:D',
+        valueInputOption: 'RAW',
+        resource: { values: ordersRows }
+      });
+    }
+
+    res.json({ success: true, downloadLink });
+    console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
+    if (error.response && error.response.status === 400) {
+      res.status(400).json({ success: false, error: 'Invalid SPREADSHEET_ID. Please check the SPREADSHEET_ID environment variable.' });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to confirm order' });
+    }
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
+    req.session.isAuthenticated = true;
+    console.log(`[${new Date().toISOString()}] User logged in successfully, session:`, req.session);
+    res.json({ success: true });
+  } else {
+    console.log(`[${new Date().toISOString()}] Failed login attempt with email: ${email}`);
+    res.status(401).json({ success: false, error: 'Invalid credentials' });
+  }
+});
+
+app.get('/api/page/:slug', async (req, res) => {
+  const slug = `/${req.params.slug}`;
+  const page = cachedData.staticPages.find(p => p.slug === slug);
+  if (!page) {
+    console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
+    return res.status(404).json({ success: false, error: 'Page not found' });
+  }
+  res.json({ success: true, page });
+});
+
+app.get(['/', '/index.html'], (req, res) => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    console.log(`[${new Date().toISOString()}] Serving index.html for request: ${req.url}`);
+    res.sendFile(indexPath);
+  } else {
+    console.error(`[${new Date().toISOString()}] index.html not found at: ${indexPath}`);
+    res.status(404).send(`
+      <h1>404 - File Not Found</h1>
+      <p>The requested file (index.html) was not found on the server.</p>
+      <p>Please ensure that the 'public' directory contains 'index.html' and that the server is deployed correctly on Render.</p>
+    `);
+  }
+});
+
+app.get('/virus.html', (req, res) => {
+  const virusPath = path.join(__dirname, 'public', 'virus.html');
+  if (fs.existsSync(virusPath)) {
+    console.log(`[${new Date().toISOString()}] Serving virus.html for request: ${req.url}`);
+    res.sendFile(virusPath);
+  } else {
+    console.error(`[${new Date().toISOString()}] virus.html not found at: ${virusPath}`);
+    res.status(404).send(`
+      <h1>404 - File Not Found</h1>
+      <p>The requested file (virus.html) was not found on the server.</p>
+      <p>Please ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly on Render.</p>
+    `);
+  }
+});
+
+app.get('/:slug', async (req, res) => {
+  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
+  if (!page) {
+    console.log(`[${new Date().toISOString()}] Static page not found: /${req.params.slug}`);
+    return res.status(404).send('Page not found');
+  }
+  const htmlContent = sanitizeHtml(marked(page.content));
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${page.title} - Deriv Bot Store</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-100">
+      <nav class="bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16">
+            <div class="flex items-center">
+              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+        <div class="prose">${htmlContent}</div>
+      </main>
+    </body>
+    </html>
+  `);
+});
+
+// Initialize server
 async function initialize() {
-  console.log('Initializing server...');
-  const checks = [
-    { name: 'Sheet1 (Main)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Sheet1!A1:K1' }) },
-    { name: 'Sheet1 (Products)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'Sheet1!A1:K1' }) },
-    { name: 'settings', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'settings!A1:B' }) },
-    { name: 'categories', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'categories!A1:A' }) },
-    { name: 'staticPages', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'staticPages!A1:C' }) },
-    { name: 'orders', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'orders!A1:D' }) },
-    { name: 'emails', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'emails!A1:C' }) },
-    { name: 'Google Drive', fn: () => drive.files.get({ fileId: GOOGLE_DRIVE_FOLDER_ID }) },
-    { name: 'Nodemailer', fn: () => transporter.verify() }
-  ];
-
-  for (const check of checks) {
-    try {
-      await check.fn();
-      console.log(`${check.name}: OK`);
-    } catch (error) {
-      console.error(`${check.name}: FAILED - ${error.message}`);
-    }
-  }
+  await selfCheck();
+  await loadData();
 }
 
-app.listen(port, async () => {
-  console.log(`Server running on port ${port}`);
-  await initialize();
-  await loadData();
+initialize().catch(error => {
+  console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
+  process.exit(1);
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
 });
