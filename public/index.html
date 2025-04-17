@@ -83,7 +83,6 @@
     #cookie-popup button:hover {
       background-color: #15803d;
     }
-    /* Stylish modal enhancements */
     #details-modal .modal-content {
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
@@ -121,7 +120,6 @@
       background-color: #dc2626;
       transform: scale(1.1);
     }
-    /* Improve description spacing */
     #details-desc {
       line-height: 1.5;
       margin-bottom: 1rem;
@@ -129,10 +127,9 @@
     #details-desc p {
       margin-bottom: 0.5rem;
     }
-    /* Ensure iframe maintains 16:9 aspect ratio */
     .embed-container {
       position: relative;
-      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      padding-bottom: 56.25%;
       height: 0;
       overflow: hidden;
     }
@@ -145,7 +142,6 @@
       border: 0;
       border-radius: 8px;
     }
-    /* Improve image rendering */
     .thumbnail-image {
       width: 480px;
       height: auto;
@@ -153,10 +149,9 @@
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       image-rendering: auto;
     }
-    /* Product card image with strict 16:9 aspect ratio */
     .product-image-container {
       position: relative;
-      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+      padding-bottom: 56.25%;
       width: 100%;
       overflow: hidden;
     }
@@ -171,7 +166,6 @@
       border-top-left-radius: 8px;
       border-top-right-radius: 8px;
     }
-    /* Hide item text but keep it in DOM */
     .item-hidden {
       display: none;
     }
@@ -224,13 +218,11 @@
   </style>
 </head>
 <body class="bg-gray-100">
-  <!-- Urgent Message -->
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
     <p id="urgent-text" class="text-center text-lg font-semibold"></p>
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
-  <!-- Navigation -->
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -277,7 +269,6 @@
     </div>
   </nav>
 
-  <!-- Mobile Search Bar -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
     <div class="search-container">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -287,7 +278,6 @@
     </div>
   </div>
 
-  <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -297,7 +287,6 @@
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="bg-white shadow-inner mt-12 py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
       <p id="copyright-text" class="text-gray-600"></p>
@@ -307,13 +296,11 @@
     </div>
   </footer>
 
-  <!-- Cookie Popup -->
   <div id="cookie-popup" class="hidden">
     <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
     <button id="cookie-accept" class="w-full">Accept Cookies</button>
   </div>
 
-  <!-- Product Details Modal -->
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="modal-content flex flex-col md:flex-row relative">
       <button id="details-close" class="absolute top-4 right-4 close-btn">
@@ -333,7 +320,6 @@
     </div>
   </div>
 
-  <!-- Payment Modal -->
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <div id="countdown-timer" class="mb-4">
@@ -354,7 +340,6 @@
     </div>
   </div>
 
-  <!-- Ref Code Modal -->
   <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
@@ -364,7 +349,6 @@
     </div>
   </div>
 
-  <!-- Post-Submission Status Modal -->
   <div id="status-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <div id="status-countdown" class="mb-4">
@@ -377,7 +361,6 @@
     </div>
   </div>
 
-  <!-- Static Page Modal -->
   <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 max-w-2xl w-full relative max-h-[80vh] overflow-y-auto">
       <button id="static-page-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
@@ -392,17 +375,24 @@
 
   <script>
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
-    const BASE_URL = 'https://bot-delivery-system.onrender.com'; // Added to ensure correct server URL
+    const BASE_URL = 'https://bot-delivery-system.onrender.com';
     let products = [];
     let categories = [];
     let settings = {};
     let staticPages = [];
     let exchangeRate = null;
 
-    async function fetchWithTimeout(url, options, timeout = 10000) {
+    async function fetchWithTimeout(url, options, timeout = 15000) {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { 
+        ...options, 
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
       clearTimeout(id);
       return response;
     }
@@ -413,6 +403,7 @@
         const response = await fetchWithTimeout('https://api.exchangerate.host/convert?from=USD&to=KES', {}, 5000);
         const data = await response.json();
         exchangeRate = data.result || settings.fallbackRate || 130;
+        console.log('Exchange rate fetched:', exchangeRate);
       } catch (error) {
         console.error('Error fetching exchange rate:', error.message);
         exchangeRate = settings.fallbackRate || 130;
@@ -422,8 +413,10 @@
 
     async function fetchData() {
       try {
-        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 10000);
-        if (!response.ok) throw new Error(`Failed to fetch data: ${response.status}`);
+        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 15000);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}, StatusText: ${response.statusText}`);
+        }
         const data = await response.json();
         products = data.products.filter(p => !p.isArchived);
         categories = data.categories;
@@ -645,7 +638,7 @@
               timestamp: new Date().toISOString()
             }),
             credentials: 'include'
-          }, 10000);
+          }, 15000);
 
           const data = await response.json();
           if (response.ok && data.success) {
@@ -674,7 +667,7 @@
       modal.classList.remove('hidden');
 
       let timeLeft = 5 * 60;
-      const pollInterval = 5; // Poll every 5 seconds
+      const pollInterval = 5;
       let elapsed = 0;
 
       const countdown = setInterval(async () => {
@@ -716,7 +709,7 @@
               } else if (data.status === 'no payment') {
                 statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
-              } other if (data.status === 'partial payment') {
+              } else if (data.status === 'partial payment') {
                 statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
                 setTimeout(() => modal.classList.add('hidden'), 3000);
               }
