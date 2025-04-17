@@ -49,7 +49,7 @@ console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPa
 // Session middleware with FileStore
 app.use(session({
   store: new FileStore({
-    path: sessionsDir, // Use /tmp/sessions
+    path: sessionsDir,
     ttl: 24 * 60 * 60,
     retries: 2,
     logFn: console.log
@@ -243,23 +243,6 @@ async function streamUploadToDrive(file, filename) {
   }
 }
 
-// Generate a one-time download link
-async function generateDownloadLink(fileId) {
-  try {
-    const fileRes = await drive.files.get({
-      fileId,
-      fields: 'id'
-    });
-    const fileIdValue = fileRes.data.id;
-    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileIdValue}`;
-    console.log(`[${new Date().toISOString()}] Generated download link for file ID: ${fileId}`);
-    return downloadUrl;
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error generating download link for file ID ${fileId}:`, error.message);
-    return null;
-  }
-}
-
 // Save data to Google Sheets
 async function saveData() {
   try {
@@ -335,6 +318,62 @@ async function saveData() {
   }
 }
 
+// Delete orders older than 3 days
+async function deleteOldOrders() {
+  try {
+    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'orders!A:F'
+      });
+      const rows = response.data.values || [];
+      if (rows.length <= 1) {
+        console.log(`[${new Date().toISOString()}] No orders to delete in spreadsheet ${spreadsheetId}`);
+        continue;
+      }
+
+      const currentTime = new Date();
+      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+      const filteredRows = [rows[0]]; // Keep the header row
+
+      for (let i = 1; i < rows.length; i++) {
+        const timestampStr = rows[i][3]; // Column D (TIMESTAMP)
+        let orderDate;
+        try {
+          orderDate = new Date(timestampStr);
+          if (isNaN(orderDate.getTime())) {
+            console.warn(`[${new Date().toISOString()}] Invalid timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
+            filteredRows.push(rows[i]);
+            continue;
+          }
+        } catch (error) {
+          console.warn(`[${new Date().toISOString()}] Error parsing timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
+          filteredRows.push(rows[i]);
+          continue;
+        }
+
+        const ageInMs = currentTime - orderDate;
+        if (ageInMs <= threeDaysInMs) {
+          filteredRows.push(rows[i]); // Keep orders younger than 3 days
+        } else {
+          console.log(`[${new Date().toISOString()}] Deleting order at row ${i + 1} in spreadsheet ${spreadsheetId}, timestamp: ${timestampStr}`);
+        }
+      }
+
+      // Update the sheet with filtered rows
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'orders!A:F',
+        valueInputOption: 'RAW',
+        resource: { values: filteredRows }
+      });
+      console.log(`[${new Date().toISOString()}] Old orders deleted successfully in spreadsheet ${spreadsheetId}`);
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting old orders:`, error.message);
+  }
+}
+
 // Middleware to check admin session
 function isAuthenticated(req, res, next) {
   if (req.session.isAuthenticated) {
@@ -351,7 +390,7 @@ async function ensureSheetTabs(spreadsheetId) {
     'settings': ['KEY', 'VALUE'],
     'categories': ['CATEGORY'],
     'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
-    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS'],
+    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED'],
     'emails': ['EMAIL', 'SUBJECT', 'BODY']
   };
 
@@ -589,19 +628,31 @@ app.post('/api/submit-ref', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const orderData = [[item, refCode, amount, timestamp, 'pending']];
+    // Check if ref code already exists
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:F'
+    });
+    const rows = response.data.values || [];
+    const existingOrder = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
+    if (existingOrder) {
+      console.log(`[${new Date().toISOString()}] Ref code already submitted: ${refCode} for item: ${item}`);
+      return res.status(400).json({ success: false, error: 'Ref code already submitted' });
+    }
+
+    const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
 
     // Append to orders in both spreadsheets
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:E',
+      range: 'orders!A:F',
       valueInputOption: 'RAW',
       resource: { values: orderData }
     });
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'orders!A:E',
+      range: 'orders!A:F',
       valueInputOption: 'RAW',
       resource: { values: orderData }
     });
@@ -641,7 +692,7 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:E'
+      range: 'orders!A:F'
     });
     const rows = response.data.values || [];
     const orders = rows.slice(1).map(row => ({
@@ -649,7 +700,8 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
       refCode: row[1],
       amount: row[2],
       timestamp: row[3],
-      status: row[4] || 'pending'
+      status: row[4] || 'pending',
+      downloaded: row[5] === 'TRUE'
     }));
     res.json({ success: true, orders });
     console.log(`[${new Date().toISOString()}] Orders fetched successfully`);
@@ -668,7 +720,7 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
     const { item, refCode } = req.params;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:E'
+      range: 'orders!A:F'
     });
     const rows = response.data.values || [];
     const order = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
@@ -677,15 +729,33 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
     const status = order[4] || 'pending';
+    const downloaded = order[5] === 'TRUE';
     let downloadLink = null;
-    if (status === 'confirmed') {
+
+    if (status === 'confirmed' && !downloaded) {
       const product = cachedData.products.find(p => p.item === item);
       if (product) {
-        downloadLink = await generateDownloadLink(product.fileId);
+        downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
+        // Mark the order as downloaded
+        const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+        rows[orderIndex + 1][5] = 'TRUE';
+        for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: 'orders!A:F',
+            valueInputOption: 'RAW',
+            resource: { values: rows }
+          });
+        }
+        console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
       }
+    } else if (downloaded) {
+      console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
+      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
     }
+
     res.json({ success: true, status, downloadLink });
-    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}`);
+    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to check order status' });
@@ -702,7 +772,7 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
     for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: 'orders!A:E'
+        range: 'orders!A:F'
       });
       const rows = response.data.values || [];
       const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
@@ -713,7 +783,7 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
       rows[orderIndex + 1][4] = status;
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: 'orders!A:E',
+        range: 'orders!A:F',
         valueInputOption: 'RAW',
         resource: { values: rows }
       });
@@ -735,14 +805,8 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       console.log(`[${new Date().toISOString()}] Product not found for order confirmation: ${item}`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
-    const fileId = product.fileId;
 
-    const fileResponse = await drive.files.get({
-      fileId,
-      fields: 'webContentLink, mimeType, name'
-    });
-
-    const downloadLink = fileResponse.data.webContentLink;
+    const downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
     const email = cachedData.settings.supportEmail;
     const subject = `Your Deriv Bot Purchase - ${item}`;
     const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
@@ -768,7 +832,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
       const ordersResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: 'orders!A:E'
+        range: 'orders!A:F'
       });
       const ordersRows = ordersResponse.data.values || [];
       const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
@@ -776,7 +840,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
         ordersRows.splice(orderIndex + 1, 1);
         await sheets.spreadsheets.values.update({
           spreadsheetId,
-          range: 'orders!A:E',
+          range: 'orders!A:F',
           valueInputOption: 'RAW',
           resource: { values: ordersRows }
         });
@@ -792,6 +856,23 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     } else {
       res.status(500).json({ success: false, error: 'Failed to confirm order' });
     }
+  }
+});
+
+// File Download Route with Streaming
+app.get('/download/:fileId', async (req, res) => {
+  const fileId = req.params.fileId;
+  try {
+    const fileMetadata = await drive.files.get({ fileId, fields: 'name, mimeType' });
+    const fileName = fileMetadata.data.name || `file-${fileId}`;
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', fileMetadata.data.mimeType || 'application/octet-stream');
+    const file = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+    file.data.pipe(res);
+    console.log(`[${new Date().toISOString()}] File downloaded successfully: ${fileId}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error downloading file:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to download file' });
   }
 });
 
@@ -892,6 +973,9 @@ app.get('/:slug', async (req, res) => {
 async function initialize() {
   await selfCheck();
   await loadData();
+  await deleteOldOrders(); // Run on startup
+  // Schedule deleteOldOrders to run every 24 hours
+  setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
 }
 
 initialize().catch(error => {
