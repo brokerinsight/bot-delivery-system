@@ -465,7 +465,7 @@
           if (data.success) {
             alert('Ref code submitted! You will receive your bot soon.');
             document.cookie = `payment_${product.item}=submitted; path=/`;
-            modal.classList.add('hidden');
+            document.getElementById('ref-code-modal').classList.add('hidden');
           } else {
             alert('Failed to submit ref code.');
           }
@@ -542,7 +542,7 @@
     function updateFooter() {
       document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
       document.getElementById('support-email').textContent = settings.supportEmail;
-      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '&copy;');
+      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
       const socialLinks = document.getElementById('social-links');
       const socialIcons = { tiktok: 'TikTok', whatsapp: 'WhatsApp', call: 'Call', instagram: 'Instagram', x: 'X', facebook: 'Facebook', youtube: 'YouTube' };
       socialLinks.innerHTML = '';
@@ -590,26 +590,43 @@
       }
     }
 
+    // Timeout promise
+    function timeout(ms) {
+      return new Promise(resolve => setTimeout(() => resolve('timeout'), ms));
+    }
+
     // Initialize
     async function initialize() {
       showLoading(true);
       try {
-        const success = await fetchData();
-        if (success) {
-          await fetchModalContent();
-          renderNavLinks();
-          renderProducts();
-          updateFooter();
-          showUrgentMessage();
-          showCookiePopup();
-          startPolling();
-          setInterval(checkPaymentCookie, 60000);
+        // Run initialization with a 2-second timeout
+        const result = await Promise.race([
+          (async () => {
+            const success = await fetchData();
+            if (success) {
+              await fetchModalContent();
+              renderNavLinks();
+              renderProducts();
+              updateFooter();
+              showUrgentMessage();
+              showCookiePopup();
+              startPolling();
+              setInterval(checkPaymentCookie, 60000);
+            }
+            return 'success';
+          })(),
+          timeout(2000) // 2-second timeout
+        ]);
+
+        if (result === 'timeout') {
+          console.warn('Initialization timed out after 2 seconds. Hiding loader, but data may still be loading in the background.');
+          // Data might still load eventually, so we don't stop the process
         }
       } catch (error) {
         console.error('Initialization failed:', error.message);
         alert('An unexpected error occurred while loading the store. Please refresh the page or contact support at ' + (settings.supportEmail || 'kaylie254.business@gmail.com') + '.');
       } finally {
-        showLoading(false);
+        showLoading(false); // Always hide the spinner after 2 seconds
       }
     }
 
