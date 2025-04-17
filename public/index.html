@@ -402,7 +402,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
       </div>
     </div>
   </main>
@@ -851,6 +851,7 @@
           statusMessage.innerHTML = 'Confirmation timed out. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
           setTimeout(() => {
             modal.classList.add('hidden');
+            clearPaymentCookie(product.item);
             window.location.href = WHATSAPP_REDIRECT;
           }, 3000);
           return;
@@ -865,7 +866,7 @@
         elapsed += 1;
         if (elapsed % pollInterval === 0) {
           try {
-            const statusRes = await fetch(`${BASE_URL}/api/order-status/${product.item}/${refCode}`);
+            const statusRes = await fetch(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, { credentials: 'include' });
             const data = await statusRes.json();
             if (data.success && data.status !== 'pending') {
               clearInterval(countdown);
@@ -875,20 +876,34 @@
                 if (downloadSuccess) {
                   setTimeout(() => {
                     modal.classList.add('hidden');
+                    clearPaymentCookie(product.item);
                   }, 2000);
                 } else {
                   statusMessage.innerHTML = 'Error initiating download. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
-                  setTimeout(() => modal.classList.add('hidden'), 3000);
+                  setTimeout(() => {
+                    modal.classList.add('hidden');
+                    clearPaymentCookie(product.item);
+                  }, 3000);
                 }
               } else if (data.status === 'no payment') {
                 statusMessage.innerHTML = 'Payment not received. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Click here to contact support if you paid.</a>';
-                setTimeout(() => modal.classList.add('hidden'), 3000);
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  clearPaymentCookie(product.item);
+                }, 3000);
               } else if (data.status === 'partial payment') {
                 statusMessage.innerHTML = 'You did not pay the full amount. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support.</a>';
-                setTimeout(() => modal.classList.add('hidden'), 3000);
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  clearPaymentCookie(product.item);
+                }, 3000);
               } else if (data.error === 'Ref code already used for download') {
+                clearInterval(countdown);
                 statusMessage.innerHTML = 'This ref code has already been used for a download. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support if you believe this is an error.</a>';
-                setTimeout(() => modal.classList.add('hidden'), 3000);
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  clearPaymentCookie(product.item);
+                }, 3000);
               }
             }
           } catch (error) {
@@ -900,9 +915,14 @@
       }, 1000);
     }
 
+    function clearPaymentCookie(item) {
+      document.cookie = `payment_${item}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+      console.log(`Cleared payment cookie for item ${item}`);
+    }
+
     async function fetchDownloadLink(item, refCode) {
       try {
-        const statusResponse = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`);
+        const statusResponse = await fetch(`${BASE_URL}/api/order-status/${item}/${refCode}`, { credentials: 'include' });
         const statusData = await statusResponse.json();
         if (!statusData.success || !statusData.downloadLink) {
           console.error('Failed to get download link:', statusData.error || 'No download link provided');
@@ -1036,7 +1056,7 @@
       };
     }
 
-    function checkPaymentCookie() {
+    async function checkPaymentCookie() {
       const cookies = document.cookie.split(';');
       const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
       if (paymentCookie) {
@@ -1045,6 +1065,29 @@
         if (status === 'initiated') {
           const product = products.find(p => p.item === item);
           if (product) {
+            // Check order status before proceeding
+            try {
+              const refCodeResponse = await fetch(`${BASE_URL}/api/last-ref/${item}`, { credentials: 'include' });
+              const refData = await refCodeResponse.json();
+              if (refData.success && refData.refCode) {
+                const statusRes = await fetch(`${BASE_URL}/api/order-status/${item}/${refData.refCode}`, { credentials: 'include' });
+                const statusData = await statusRes.json();
+                if (statusData.error === 'Ref code already used for download') {
+                  const modal = document.getElementById('status-modal');
+                  const statusMessage = document.getElementById('status-message');
+                  statusMessage.innerHTML = 'This ref code has already been used for a download. <a href="' + WHATSAPP_REDIRECT + '" class="text-green-600 underline">Contact support if you believe this is an error.</a>';
+                  modal.classList.remove('hidden');
+                  setTimeout(() => {
+                    modal.classList.add('hidden');
+                    clearPaymentCookie(item);
+                  }, 3000);
+                  return;
+                }
+              }
+            } catch (error) {
+              console.error('Error checking last ref code:', error.message);
+            }
+
             getExchangeRate().then(rate => {
               const kesPrice = (product.price * rate).toFixed(2);
               showRefCodeModal(product, kesPrice);
