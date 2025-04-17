@@ -1,33 +1,30 @@
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
-const FileStore = require('express-session-file-store')(session); // Use FileStore for sessions
+const FileStore = require('session-file-store')(session);
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 const { Readable } = require('stream');
 require('dotenv').config();
 
+// 1. App Setup
 const app = express();
 const port = process.env.PORT || 3000;
-
-// CORS setup
 app.use(cors({
   origin: 'https://bot-delivery-system.onrender.com',
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Session setup with FileStore
 app.use(session({
-  store: new FileStore({ path: './sessions', ttl: 24 * 60 * 60 }), // Store sessions in ./sessions, 24-hour TTL
+  store: new FileStore({ path: './sessions', ttl: 24 * 60 * 60 }),
   secret: process.env.SESSION_SECRET || 'your-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+  cookie: { secure: true, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Google APIs setup
+// 2. Google APIs Module
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -38,7 +35,7 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const drive = google.drive({ version: 'v3', auth });
 
-// Nodemailer setup
+// 3. Nodemailer Module
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -47,7 +44,10 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Cache and data
+// 4. Data Module
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
+const PRODUCTS_SHEET_ID = process.env.PRODUCTS_SHEET_ID;
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 let cachedData = {
   products: [],
   settings: {},
@@ -56,36 +56,7 @@ let cachedData = {
   orders: [],
   emails: []
 };
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-const PRODUCTS_SHEET_ID = process.env.PRODUCTS_SHEET_ID;
-const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-// Startup checks
-async function initialize() {
-  console.log('Initializing server...');
-  const checks = [
-    { name: 'Sheet1 (Main)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Sheet1!A1:K1' }) },
-    { name: 'Sheet1 (Products)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'Sheet1!A1:K1' }) },
-    { name: 'settings', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'settings!A1:B' }) },
-    { name: 'categories', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'categories!A1:A' }) },
-    { name: 'staticPages', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'staticPages!A1:C' }) },
-    { name: 'orders', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'orders!A1:D' }) },
-    { name: 'emails', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'emails!A1:C' }) },
-    { name: 'Google Drive', fn: () => drive.files.get({ fileId: GOOGLE_DRIVE_FOLDER_ID }) },
-    { name: 'Nodemailer', fn: () => transporter.verify() }
-  ];
-
-  for (const check of checks) {
-    try {
-      await check.fn();
-      console.log(`${check.name}: OK`);
-    } catch (error) {
-      console.error(`${check.name}: FAILED - ${error.message}`);
-    }
-  }
-}
-
-// Load data from Google Sheets
 async function loadData() {
   try {
     // Load products (Sheet1)
@@ -145,22 +116,19 @@ async function loadData() {
       email, subject, body
     })) || [];
   } catch (error) {
-    console.error('Error loading data:', error);
+    console.error('Error loading data:', error.message);
     throw error;
   }
 }
 
-// Save data to Google Sheets
 async function saveData(range, values, spreadsheetId = SPREADSHEET_ID) {
   try {
-    // Get existing data to determine last row
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: `${range.split('!')[0]}!A1:K`
     });
     const lastRow = res.data.values ? res.data.values.length : 1;
 
-    // Append new data below last row
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range,
@@ -168,7 +136,6 @@ async function saveData(range, values, spreadsheetId = SPREADSHEET_ID) {
       resource: { values }
     });
 
-    // If Sheet1, sync to other spreadsheet
     if (range.includes('Sheet1')) {
       const otherId = spreadsheetId === SPREADSHEET_ID ? PRODUCTS_SHEET_ID : SPREADSHEET_ID;
       const otherRes = await sheets.spreadsheets.values.get({
@@ -184,12 +151,11 @@ async function saveData(range, values, spreadsheetId = SPREADSHEET_ID) {
       });
     }
   } catch (error) {
-    console.error('Error saving data:', error);
+    console.error('Error saving data:', error.message);
     throw error;
   }
 }
 
-// Edit data by item
 async function editData(item, updates, spreadsheetId = SPREADSHEET_ID) {
   try {
     const res = await sheets.spreadsheets.values.get({
@@ -211,7 +177,6 @@ async function editData(item, updates, spreadsheetId = SPREADSHEET_ID) {
       resource: { values: [updatedRow] }
     });
 
-    // Sync to other spreadsheet
     const otherId = spreadsheetId === SPREADSHEET_ID ? PRODUCTS_SHEET_ID : SPREADSHEET_ID;
     const otherRes = await sheets.spreadsheets.values.get({
       spreadsheetId: otherId,
@@ -228,12 +193,11 @@ async function editData(item, updates, spreadsheetId = SPREADSHEET_ID) {
       });
     }
   } catch (error) {
-    console.error('Error editing data:', error);
+    console.error('Error editing data:', error.message);
     throw error;
   }
 }
 
-// Delete product and shift rows
 async function deleteProduct(item) {
   try {
     for (const spreadsheetId of [SPREADSHEET_ID, PRODUCTS_SHEET_ID]) {
@@ -245,12 +209,13 @@ async function deleteProduct(item) {
       const rowIndex = rows.findIndex(row => row[0] === item);
       if (rowIndex === -1) continue;
 
-      // Delete file from Drive
       if (rows[rowIndex][1]) {
-        await drive.files.delete({ fileId: rows[rowIndex][1] }).catch(err => console.error('Drive delete error:', err));
+        await drive.files.delete({ fileId: rows[rowIndex][1] }).catch(error => {
+          console.error('Drive delete error:', error.message);
+          throw error;
+        });
       }
 
-      // Remove row and shift others up
       rows.splice(rowIndex, 1);
       await sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -261,21 +226,12 @@ async function deleteProduct(item) {
     }
     await loadData();
   } catch (error) {
-    console.error('Error deleting product:', error);
+    console.error('Error deleting product:', error.message);
     throw error;
   }
 }
 
-// Middleware for authentication
-function isAuthenticated(req, res, next) {
-  if (req.session.isAuthenticated) {
-    return next();
-  }
-  console.error('Unauthorized access attempt:', req.url);
-  res.status(401).json({ success: false, error: 'Unauthorized' });
-}
-
-// Stream file upload to Google Drive
+// 5. File Upload Module
 async function streamUploadToDrive(file, filename) {
   const fileMetadata = {
     name: filename,
@@ -294,12 +250,20 @@ async function streamUploadToDrive(file, filename) {
     });
     return res.data;
   } catch (error) {
-    console.error('Drive upload error:', error);
+    console.error('Drive upload error:', error.message);
     throw error;
   }
 }
 
-// Routes
+// 6. Routes Module
+function isAuthenticated(req, res, next) {
+  if (req.session.isAuthenticated) {
+    return next();
+  }
+  console.error('Unauthorized access attempt:', req.url);
+  res.status(401).json({ success: false, error: 'Unauthorized' });
+}
+
 app.get('/api/data', async (req, res) => {
   try {
     await loadData();
@@ -313,7 +277,7 @@ app.get('/api/data', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error in /api/data:', error);
+    console.error('Error in /api/data:', error.message);
     res.status(500).json({ success: false, error: 'Failed to load data' });
   }
 });
@@ -334,10 +298,7 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
     const { file, body: { item, price, name, desc, img, category, embed, isNew, isArchived } } = req;
     if (!file) throw new Error('No file uploaded');
 
-    // Stream upload to Drive
     const driveData = await streamUploadToDrive(file, file.originalname);
-
-    // Save to Sheet1
     const values = [[
       item,
       driveData.id,
@@ -356,7 +317,7 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true, fileId: driveData.id });
   } catch (error) {
-    console.error('Error in /api/add-bot:', error);
+    console.error('Error in /api/add-bot:', error.message);
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -367,10 +328,7 @@ app.post('/api/submit-ref', async (req, res) => {
     const product = cachedData.products.find(p => p.item === item);
     if (!product) throw new Error('Product not found');
 
-    // Save order
     await saveData('orders', [[item, refCode, amount, timestamp]]);
-
-    // Send email
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: cachedData.settings.supportEmail,
@@ -381,7 +339,7 @@ app.post('/api/submit-ref', async (req, res) => {
     await loadData();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/submit-ref:', error);
+    console.error('Error in /api/submit-ref:', error.message);
     res.status(500).json({ success: false, error: 'Failed to submit ref code' });
   }
 });
@@ -391,7 +349,7 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true, data: cachedData.orders });
   } catch (error) {
-    console.error('Error in /api/orders:', error);
+    console.error('Error in /api/orders:', error.message);
     res.status(500).json({ success: false, error: 'Failed to load orders' });
   }
 });
@@ -416,7 +374,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
     res.json({ success: true, downloadLink: file.data.webContentLink });
   } catch (error) {
-    console.error('Error in /api/confirm-order:', error);
+    console.error('Error in /api/confirm-order:', error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
@@ -434,7 +392,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     await loadData();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/save-data:', error);
+    console.error('Error in /api/save-data:', error.message);
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
@@ -445,12 +403,36 @@ app.post('/api/delete-product', isAuthenticated, async (req, res) => {
     await deleteProduct(item);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in /api/delete-product:', error);
+    console.error('Error in /api/delete-product:', error.message);
     res.status(500).json({ success: false, error: 'Failed to delete product' });
   }
 });
 
-// Start server
+// 7. Startup Module
+async function initialize() {
+  console.log('Initializing server...');
+  const checks = [
+    { name: 'Sheet1 (Main)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'Sheet1!A1:K1' }) },
+    { name: 'Sheet1 (Products)', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'Sheet1!A1:K1' }) },
+    { name: 'settings', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'settings!A1:B' }) },
+    { name: 'categories', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'categories!A1:A' }) },
+    { name: 'staticPages', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: PRODUCTS_SHEET_ID, range: 'staticPages!A1:C' }) },
+    { name: 'orders', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'orders!A1:D' }) },
+    { name: 'emails', fn: () => sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: 'emails!A1:C' }) },
+    { name: 'Google Drive', fn: () => drive.files.get({ fileId: GOOGLE_DRIVE_FOLDER_ID }) },
+    { name: 'Nodemailer', fn: () => transporter.verify() }
+  ];
+
+  for (const check of checks) {
+    try {
+      await check.fn();
+      console.log(`${check.name}: OK`);
+    } catch (error) {
+      console.error(`${check.name}: FAILED - ${error.message}`);
+    }
+  }
+}
+
 app.listen(port, async () => {
   console.log(`Server running on port ${port}`);
   await initialize();
