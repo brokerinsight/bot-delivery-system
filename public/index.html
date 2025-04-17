@@ -88,67 +88,93 @@
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
       border: 1px solid #e5e7eb;
-      max-width: 800px;
-      width: 100%;
-      max-height: 80vh;
+      max-width: 900px;
+      width: 90%;
+      max-height: 85vh;
       overflow: hidden;
+      display: flex;
+      flex-direction: row;
     }
     #details-modal .modal-main {
       flex: 1;
-      padding: 1.5rem;
+      padding: 2rem;
       overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #16a34a #e5e7eb;
+    }
+    #details-modal .modal-main::-webkit-scrollbar {
+      width: 8px;
+    }
+    #details-modal .modal-main::-webkit-scrollbar-track {
+      background: #e5e7eb;
+      border-radius: 4px;
+    }
+    #details-modal .modal-main::-webkit-scrollbar-thumb {
+      background: #16a34a;
+      border-radius: 4px;
     }
     #details-modal .modal-sidebar {
-      width: 200px;
+      width: 250px;
       background: #f9fafb;
-      padding: 1.5rem;
+      padding: 2rem;
       border-left: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      position: sticky;
+      top: 0;
+      height: 100%;
     }
     #details-modal .close-btn {
       background-color: #ef4444;
       color: white;
       border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      width: 36px;
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: transform 0.2s, background-color 0.3s;
       z-index: 10;
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
     }
     #details-modal .close-btn:hover {
       background-color: #dc2626;
       transform: scale(1.1);
     }
     #details-desc {
-      line-height: 1.6;
-      margin-bottom: 1.5rem;
+      line-height: 1.8;
+      margin-bottom: 2rem;
+      color: #4b5563;
     }
     #details-desc p {
-      margin-bottom: 0.75rem;
+      margin-bottom: 1rem;
     }
     #details-desc ul {
       list-style: none;
       padding-left: 0;
-      margin-bottom: 1rem;
+      margin-bottom: 1.5rem;
     }
     #details-desc li {
       display: flex;
       align-items: flex-start;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
     }
     #details-desc li::before {
       content: "•";
       color: #16a34a;
-      margin-right: 0.5rem;
-      font-size: 1.2rem;
-      line-height: 1.6;
+      margin-right: 0.75rem;
+      font-size: 1.3rem;
+      line-height: 1.8;
     }
     .embed-container {
       position: relative;
       padding-bottom: 56.25%;
       height: 0;
       overflow: hidden;
+      margin-bottom: 2rem;
     }
     .embed-container iframe {
       position: absolute;
@@ -160,16 +186,17 @@
       border-radius: 8px;
     }
     .thumbnail-image {
-      width: 480px;
+      width: 100%;
+      max-width: 640px;
       height: auto;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      image-rendering: auto;
+      border-radius: 12px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
     }
     .product-image-container {
       position: relative;
-      padding-bottom: 56.25%;
       width: 100%;
+      padding-bottom: 56.25%;
       overflow: hidden;
     }
     .product-image-container img {
@@ -179,9 +206,22 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      image-rendering: auto;
       border-top-left-radius: 8px;
       border-top-right-radius: 8px;
+      aspect-ratio: 16 / 9;
+    }
+    .new-badge {
+      position: absolute;
+      top: 0.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #16a34a;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      z-index: 10;
     }
     .item-hidden {
       display: none;
@@ -189,15 +229,27 @@
     @media (max-width: 768px) {
       #details-modal .modal-content {
         flex-direction: column;
+        max-height: 90vh;
+      }
+      #details-modal .modal-main {
+        padding: 1.5rem;
       }
       #details-modal .modal-sidebar {
         width: 100%;
         border-left: none;
         border-top: 1px solid #e5e7eb;
+        position: sticky;
+        bottom: 0;
+        background: #f9fafb;
+        padding: 1rem;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+        z-index: 10;
+      }
+      #details-modal .modal-sidebar .buy-now-btn {
+        width: 100%;
       }
       #details-modal .thumbnail-image {
-        width: 100%;
-        max-width: 480px;
+        max-width: 100%;
       }
     }
     @media (max-width: 640px) {
@@ -214,6 +266,10 @@
       #mobile-nav-links a {
         padding: 0.5rem 0;
         width: 100%;
+      }
+      .create-account-btn {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
       }
     }
     @media (max-width: 640px) {
@@ -258,7 +314,7 @@
             </svg>
             <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
           </div>
-          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
+          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -320,19 +376,20 @@
 
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="modal-content flex flex-col md:flex-row relative">
-      <button id="details-close" class="absolute top-4 right-4 close-btn">
+      <button id="details-close" class="close-btn">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
       <div class="modal-main">
-        <img id="details-thumbnail" class="thumbnail-image mb-4" src="" alt="">
-        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-2"></h3>
-        <div id="details-desc" class="text-gray-600 mb-4"></div>
-        <div id="details-embed" class="mb-4"></div>
+        <img id="details-thumbnail" class="thumbnail-image" src="" alt="">
+        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-3"></h3>
+        <p id="details-item" class="text-sm text-gray-500 mb-3">File: <span id="details-item-name"></span></p>
+        <div id="details-desc" class="text-gray-600"></div>
+        <div id="details-embed"></div>
       </div>
       <div class="modal-sidebar">
-        <button id="details-buy-now" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-4">Buy Now</button>
+        <button id="details-buy-now" class="buy-now-btn bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Buy Now</button>
       </div>
     </div>
   </div>
@@ -399,16 +456,17 @@
     let staticPages = [];
     let exchangeRate = null;
 
-    async function fetchWithTimeout(url, options, timeout = 15000) {
+    async function fetchWithTimeout(url, options = {}, timeout = 15000) {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), timeout);
+      const headers = options.headers || {};
+      if (options.method === 'GET') {
+        delete headers['Content-Type'];
+      }
       const response = await fetch(url, { 
         ...options, 
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+        headers
       });
       clearTimeout(id);
       return response;
@@ -417,9 +475,9 @@
     async function getExchangeRate() {
       if (exchangeRate) return exchangeRate;
       try {
-        const response = await fetchWithTimeout('https://api.exchangerate.host/convert?from=USD&to=KES', {}, 5000);
+        const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 5000);
         const data = await response.json();
-        exchangeRate = data.result || settings.fallbackRate || 130;
+        exchangeRate = data.rates.KES || settings.fallbackRate || 130;
         console.log('Exchange rate fetched:', exchangeRate);
       } catch (error) {
         console.error('Error fetching exchange rate:', error.message);
@@ -451,6 +509,10 @@
     async function fetchModalContent() {
       const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
       const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+      if (typeof sanitizeHtml !== 'function') {
+        console.error('sanitizeHtml is not available. Skipping modal content rendering.');
+        return;
+      }
       if (paymentModalContent) {
         const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
         paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
@@ -516,7 +578,11 @@
     async function renderProducts(category = 'all', search = '') {
       const grid = document.getElementById('product-grid');
       const loadingMessage = document.getElementById('loading-message');
-      loadingMessage.classList.add('hidden');
+      if (loadingMessage) {
+        loadingMessage.classList.add('hidden');
+      } else {
+        console.warn('Loading message element not found.');
+      }
       grid.innerHTML = '';
       let filteredProducts = products;
       if (category !== 'all') {
@@ -538,11 +604,11 @@
             <div class="product-image-container">
               <img src="${product.img}" alt="${product.name}" class="thumbnail-image">
             </div>
-            ${product.isNew ? '<span class="absolute top-2 right-2 bg-green-600 text-white text-xs px-2 py-1 rounded">NEW</span>' : ''}
+            ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
           </div>
           <div class="p-6">
             <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
-            <p class="mt-2 text-gray-600 text-sm truncate-2-lines">${product.desc}</p>
+            <p class="mt-2 text-gray-600 text-sm truncate-3-lines">${product.desc}</p>
             <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
             <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
             <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
@@ -560,6 +626,7 @@
 
           document.getElementById('details-thumbnail').src = product.img;
           document.getElementById('details-name').textContent = product.name;
+          document.getElementById('details-item-name').textContent = product.item;
           document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
           const embedDiv = document.getElementById('details-embed');
           if (product.embed) {
@@ -596,9 +663,21 @@
       });
     }
 
-    function filterProducts(category) {
-      const search = document.getElementById('search-bar').value || document.getElementById('mobile-search-bar').value;
+    function debounce(func, wait) {
+      let timeout;
+      return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
+    }
+
+    const debouncedFilterProducts = debounce((category) => {
+      const search = document.getElementById('search-bar')?.value || document.getElementById('mobile-search-bar')?.value || '';
       renderProducts(category, search);
+    }, 300);
+
+    function filterProducts(category) {
+      debouncedFilterProducts(category);
     }
 
     async function showPaymentModal(product, kesPrice) {
@@ -906,15 +985,22 @@
           updateFooter();
           showUrgentMessage();
         }
-      }, 60 * 1000);
+      }, 5 * 60 * 1000);
     }
 
     function handleCookiePopup() {
-      if (!localStorage.getItem('cookiesAccepted')) {
+      const cookieAccepted = localStorage.getItem('cookiesAccepted');
+      const lastShown = localStorage.getItem('cookiePopupLastShown');
+      const threeDays = 3 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+
+      if (!cookieAccepted || (lastShown && now - lastShown > threeDays)) {
         document.getElementById('cookie-popup').classList.remove('hidden');
       }
+
       document.getElementById('cookie-accept').onclick = () => {
         localStorage.setItem('cookiesAccepted', 'true');
+        localStorage.setItem('cookiePopupLastShown', now.toString());
         document.getElementById('cookie-popup').classList.add('hidden');
       };
     }
@@ -966,11 +1052,11 @@
 
       const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
       searchBars.forEach(searchBar => {
-        searchBar.addEventListener('input', () => {
+        searchBar.addEventListener('input', debounce(() => {
           const search = searchBar.value;
           const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
           renderProducts(category, search);
-        });
+        }, 300));
       });
     }
 
