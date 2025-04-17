@@ -1006,7 +1006,7 @@
         .forEach(page => {
           const a = document.createElement('a');
           a.href = '#';
-          a.className = 'text-gray-500 hover:text-green-600 text-sm';
+          a.className = "text-gray-500 hover:text-green-600 text-sm";
           a.textContent = page.title;
           a.dataset.slug = page.slug;
           a.addEventListener('click', e => {
@@ -1086,35 +1086,65 @@
 
     function isInAppBrowser() {
       const ua = navigator.userAgent.toLowerCase();
-      return (
-        ua.includes('instagram') ||
-        ua.includes('tiktok') ||
-        ua.includes('facebook') ||
-        ua.includes('messenger') ||
-        ua.includes('snapchat') ||
-        ua.includes('line') ||
-        ua.includes('whatsapp') ||
-        ua.includes('linkedin')
-      );
+
+      // Check for known in-app browser signatures
+      const inAppBrowserSignatures = [
+        'instagram',       // Instagram
+        'tiktok',         // TikTok
+        'facebook',       // Facebook
+        'messenger',      // Facebook Messenger
+        'snapchat',       // Snapchat
+        'telegram',       // Telegram
+        'twitter',        // X/Twitter
+        'whatsapp',       // WhatsApp (already in previous version)
+        'linkedin'        // LinkedIn (already in previous version)
+      ];
+
+      const isInApp = inAppBrowserSignatures.some(signature => ua.includes(signature));
+
+      // Exclude known standard browsers
+      const standardBrowserSignatures = [
+        'chrome',         // Chrome
+        'firefox',        // Firefox
+        'safari',         // Safari (but exclude Mobile Safari in in-app contexts)
+        'edge',           // Microsoft Edge
+        'brave',          // Brave
+        'opera',          // Opera
+        'ucbrowser',      // UC Browser
+        'samsunginternet' // Samsung Internet
+      ];
+
+      const isStandardBrowser = standardBrowserSignatures.some(signature => ua.includes(signature));
+
+      // Additional check for Safari to differentiate between Mobile Safari in in-app browsers
+      const isMobileSafari = ua.includes('safari') && ua.includes('mobile') && !ua.includes('crios') && !ua.includes('fxios');
+      const isInAppWithSafari = isMobileSafari && inAppBrowserSignatures.some(signature => ua.includes(signature));
+
+      // Log the user agent for debugging
+      console.log('User Agent:', ua);
+      console.log('Is In-App Browser:', isInApp && !isStandardBrowser || isInAppWithSafari);
+
+      // Return true only if it's an in-app browser and not a standard browser, or if it's a Mobile Safari in an in-app context
+      return (isInApp && !isStandardBrowser) || isInAppWithSafari;
     }
 
-    async function handleInAppBrowser() {
+    function handleInAppBrowser() {
       if (isInAppBrowser()) {
-        document.getElementById('in-app-browser-popup').classList.remove('hidden');
-        return new Promise(resolve => {
-          document.getElementById('in-app-browser-continue').onclick = () => {
-            document.getElementById('in-app-browser-popup').classList.add('hidden');
-            allowInAppBrowser = true;
-            resolve();
-          };
-        });
+        const popup = document.getElementById('in-app-browser-popup');
+        popup.classList.remove('hidden');
+
+        const continueButton = document.getElementById('in-app-browser-continue');
+        continueButton.onclick = () => {
+          popup.classList.add('hidden');
+          allowInAppBrowser = true;
+          proceedWithInit();
+        };
+      } else {
+        proceedWithInit();
       }
     }
 
-    async function init() {
-      await handleInAppBrowser();
-      if (isInAppBrowser() && !allowInAppBrowser) return;
-
+    async function proceedWithInit() {
       const success = await fetchData();
       if (success) {
         renderNavLinks();
@@ -1143,6 +1173,10 @@
           renderProducts(category, search);
         }, 300));
       });
+    }
+
+    async function init() {
+      handleInAppBrowser();
     }
 
     document.addEventListener('DOMContentLoaded', init);
