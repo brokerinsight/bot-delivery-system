@@ -6,7 +6,6 @@ const multer = require('multer');
 const marked = require('marked');
 const sanitizeHtml = require('sanitize-html');
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -18,13 +17,6 @@ dotenv.config();
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
-
-// Ensure the sessions directory exists in /tmp for Render's ephemeral filesystem
-const sessionsDir = path.join('/tmp', 'sessions');
-if (!fs.existsSync(sessionsDir)) {
-  fs.mkdirSync(sessionsDir, { recursive: true });
-  console.log('Created sessions directory:', sessionsDir);
-}
 
 // CORS configuration
 app.use(cors({
@@ -46,39 +38,9 @@ app.use(express.static(publicPath));
 // Log static file middleware setup
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
 
-// Session middleware with FileStore
-const ensureSessionsDir = (req, res, next) => {
-  if (!fs.existsSync(sessionsDir)) {
-    try {
-      fs.mkdirSync(sessionsDir, { recursive: true });
-      console.log(`[${new Date().toISOString()}] Re-created sessions directory: ${sessionsDir}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Failed to create sessions directory: ${error.message}`);
-    }
-  }
-  next();
-};
-
-let sessionStore;
-try {
-  sessionStore = new FileStore({
-    path: sessionsDir,
-    ttl: 24 * 60 * 60, // 24 hours
-    retries: 5, // Increased from 2 to 5
-    reapInterval: 3600, // Clean up expired sessions every hour
-    fileExtension: '.json',
-    logFn: (message) => console.log(`[${new Date().toISOString()}] [session-file-store] ${message}`),
-  });
-  console.log(`[${new Date().toISOString()}] Using FileStore for sessions`);
-} catch (error) {
-  console.error(`[${new Date().toISOString()}] Failed to initialize FileStore: ${error.message}`);
-  console.warn(`[${new Date().toISOString()}] Falling back to in-memory session store (not recommended for production)`);
-  sessionStore = new session.MemoryStore();
-}
-
-app.use(ensureSessionsDir);
+// Session middleware with MemoryStore
 app.use(session({
-  store: sessionStore,
+  store: new session.MemoryStore(),
   name: 'sid',
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -743,7 +705,7 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
 app.get('/api/order-status/:item/:refCode', async (req, res) => {
   const { item, refCode } = req.params;
 
-  // Logissy request details for debugging
+  // Log request details for debugging
   console.log(`[${new Date().toISOString()}] Order status request for ${item}/${refCode}`);
   console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
   console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
