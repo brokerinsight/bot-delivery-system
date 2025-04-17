@@ -388,3 +388,7 @@ app.post('/api/update-password', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to update credentials' });
   }
 });
+// ✅ Start the server (required by Render)
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
