@@ -507,7 +507,7 @@
       }, duration);
     }
 
-    let data = { products: [], categories: [], settings: {}, staticPages: [] };
+    let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
     let orders = [];
 
     // Fetch data from server
@@ -878,20 +878,46 @@
       }
     });
 
-    // Settings
-    document.getElementById('urgent-toggle').addEventListener('change', () => {
-      document.getElementById('urgent-message').disabled = !document.getElementById('urgent-toggle').checked;
+    // Settings - Urgent Message Fix
+    const urgentToggle = document.getElementById('urgent-toggle');
+    const urgentMessage = document.getElementById('urgent-message');
+    
+    // Ensure urgent message textarea is correctly initialized and toggled
+    function initializeUrgentMessage() {
+      if (!urgentToggle || !urgentMessage) {
+        console.error('Urgent message elements not found in DOM');
+        return;
+      }
+      urgentMessage.disabled = !urgentToggle.checked;
+    }
+
+    urgentToggle.addEventListener('change', () => {
+      if (!urgentMessage) {
+        console.error('Urgent message textarea not found');
+        return;
+      }
+      urgentMessage.disabled = !urgentToggle.checked;
+      if (!urgentMessage.disabled) {
+        urgentMessage.focus();
+      }
     });
 
     document.getElementById('save-urgent').addEventListener('click', async () => {
       const btn = document.getElementById('save-urgent');
+      if (!urgentToggle || !urgentMessage) {
+        console.error('Urgent message elements not found');
+        alert('Error: Unable to save urgent message. Elements not found.');
+        return;
+      }
       showButtonFeedback(btn, 'Saving...', 'Save Message');
       data.settings.urgentMessage = {
-        enabled: document.getElementById('urgent-toggle').checked,
-        text: document.getElementById('urgent-message').value.trim()
+        enabled: urgentToggle.checked,
+        text: urgentMessage.value.trim()
       };
-      await saveData();
-      alert('Urgent message saved!');
+      const success = await saveData();
+      if (success) {
+        alert('Urgent message saved!');
+      }
     });
 
     document.getElementById('save-email').addEventListener('click', async () => {
@@ -1027,16 +1053,16 @@
         renderBots();
         renderCategories();
         renderPages();
-        document.getElementById('support-email').value = data.settings.supportEmail;
-        document.getElementById('copyright-text').value = data.settings.copyrightText;
-        document.getElementById('logo-url').value = data.settings.logoUrl;
+        document.getElementById('support-email').value = data.settings.supportEmail || '';
+        document.getElementById('copyright-text').value = data.settings.copyrightText || '';
+        document.getElementById('logo-url').value = data.settings.logoUrl || '';
         document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
-        document.getElementById('urgent-toggle').checked = data.settings.urgentMessage.enabled;
-        document.getElementById('urgent-message').value = data.settings.urgentMessage.text;
-        document.getElementById('urgent-message').disabled = !data.settings.urgentMessage.enabled;
-        document.getElementById('fallback-rate').value = data.settings.fallbackRate;
-        Object.keys(data.settings.socials).forEach(key => {
-          document.getElementById(key).value = data.settings.socials[key];
+        document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
+        document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
+        initializeUrgentMessage(); // Initialize urgent message state
+        document.getElementById('fallback-rate').value = data.settings.fallbackRate || '';
+        Object.keys(data.settings.socials || {}).forEach(key => {
+          document.getElementById(key).value = data.settings.socials[key] || '';
         });
         startOrdersPolling(); // Start polling for orders
       }
