@@ -6,45 +6,225 @@
   <title>Admin Panel - Deriv Bot Store</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* Modal blur effect */
-    body:has(#login-modal:not(.hidden)) > *:not(#login-modal) {
-      filter: blur(5px);
+    /* Prevent background scrolling when modals are active */
+    body.modal-active {
+      overflow: hidden;
     }
+    /* Modal blur effect */
+    body:has(#login-modal:not(.hidden)) > *:not(#login-modal),
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
+    }
+    /* Navigation styling */
+    nav {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .nav-link {
+      transition: all 0.3s ease;
+    }
+    .nav-link:hover {
+      color: #16a34a !important;
+      transform: translateY(-2px);
+    }
+    .nav-link.border-green-500 {
+      color: #16a34a !important;
+    }
+    /* Section styling */
+    .section {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    .section:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    /* Form inputs and labels */
+    input, textarea, select {
+      transition: all 0.3s ease;
+      border-color: #d1d5db;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+      outline: none;
+    }
+    label {
+      font-weight: 500;
+      color: #374151;
+    }
+    /* Buttons */
+    button {
+      transition: all 0.3s ease;
+    }
+    button.bg-green-600 {
+      background: linear-gradient(90deg, #16a34a, #22c55e);
+    }
+    button.bg-green-600:hover {
+      background: linear-gradient(90deg, #15803d, #16a34a);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    }
+    button.bg-blue-600 {
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+    }
+    button.bg-blue-600:hover {
+      background: linear-gradient(90deg, #1d4ed8, #2563eb);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+    button.bg-red-600 {
+      background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+    button.bg-red-600:hover {
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+    button.bg-gray-600 {
+      background: linear-gradient(90deg, #6b7280, #9ca3af);
+    }
+    button.bg-gray-600:hover {
+      background: linear-gradient(90deg, #4b5563, #6b7280);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
     }
     /* Upload progress bar styling */
     #upload-progress {
       width: 100%;
-      height: 8px;
+      height: 10px;
       background: #e5e7eb;
-      border-radius: 4px;
+      border-radius: 8px;
       overflow: hidden;
-      margin-top: 8px;
+      margin-top: 12px;
     }
     #upload-progress-bar {
       height: 100%;
-      background: #16a34a;
+      background: linear-gradient(90deg, #16a34a, #22c55e);
       width: 0;
-      transition: width 0.3s;
+      transition: width 0.3s ease;
+    }
+    /* Bot list and page list items */
+    #bot-list li, #page-list li {
+      background: #f9fafb;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+    #bot-list li:hover, #page-list li:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+    }
+    /* Category list items */
+    #category-list li {
+      background: #f9fafb;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+    #category-list li:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
     /* Orders table styling */
     #orders-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 1rem;
+      margin-top: 1.5rem;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
     #orders-table th, #orders-table td {
       border: 1px solid #e5e7eb;
-      padding: 0.5rem;
+      padding: 1rem;
       text-align: left;
+      font-size: 0.95rem;
+      color: #374151;
     }
     #orders-table th {
-      background: #f3f3f3;
+      background: linear-gradient(90deg, #f3f3f3, #e5e7eb);
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #1f2937;
+    }
+    #orders-table tr {
+      transition: all 0.3s ease;
     }
     #orders-table tr:nth-child(even) {
       background: #f9fafb;
+    }
+    #orders-table tr:hover {
+      background: #f0f4f8;
+      transform: scale(1.01);
+    }
+    .status-select {
+      background: #fff;
+      border-radius: 8px;
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      transition: all 0.3s ease;
+    }
+    .status-select:hover, .status-select:focus {
+      border-color: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+    }
+    /* Modals */
+    #login-modal, #edit-modal {
+      background: rgba(0, 0, 0, 0.7);
+      animation: fadeIn 0.3s ease-out;
+    }
+    #login-modal > div, #edit-modal > div {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      transform: translateY(20px) scale(0.9);
+      animation: popupFadeIn 0.5s ease-out forwards;
+      max-width: 90%;
+      width: 500px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes popupFadeIn {
+      from { transform: translateY(20px) scale(0.9); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    /* Toggle password button */
+    #toggle-password {
+      top: 2.5rem;
+      font-size: 0.9rem;
+      color: #16a34a;
+      transition: all 0.3s ease;
+    }
+    #toggle-password:hover {
+      color: #15803d;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 640px) {
+      .section {
+        padding: 1rem;
+      }
+      #orders-table th, #orders-table td {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+      }
+      #orders-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      #product-form, #edit-form {
+        grid-template-columns: 1fr;
+      }
+      #login-modal > div, #edit-modal > div {
+        width: 90%;
+        padding: 1.5rem;
+      }
     }
   </style>
 </head>
@@ -435,6 +615,22 @@
       });
     }
 
+    // Start polling for orders every 5 seconds when Orders section is active
+    function startOrdersPolling() {
+      setInterval(async () => {
+        const ordersSection = document.getElementById('orders');
+        const isOrdersActive = !ordersSection.classList.contains('hidden');
+        const isModalOpen = !document.getElementById('login-modal').classList.contains('hidden') || 
+                           !document.getElementById('edit-modal').classList.contains('hidden');
+        if (isOrdersActive && !isModalOpen) {
+          console.log('Polling for new orders...');
+          await fetchOrders();
+        } else {
+          console.log('Polling skipped: Orders section not active or modal is open');
+        }
+      }, 5 * 1000);
+    }
+
     // Navigation
     document.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', e => {
@@ -489,6 +685,7 @@
         const result = await response.json();
         if (result.success) {
           document.getElementById('login-modal').classList.add('hidden');
+          document.body.classList.remove('modal-active');
           initialize();
         } else {
           alert('Invalid credentials. Please try again.');
@@ -590,6 +787,7 @@
           categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
           categorySelect.value = product.category;
           document.getElementById('edit-modal').classList.remove('hidden');
+          document.body.classList.add('modal-active');
         });
       });
 
@@ -623,10 +821,12 @@
       await saveData();
       renderBots();
       document.getElementById('edit-modal').classList.add('hidden');
+      document.body.classList.remove('modal-active');
     });
 
     document.getElementById('edit-cancel').addEventListener('click', () => {
       document.getElementById('edit-modal').classList.add('hidden');
+      document.body.classList.remove('modal-active');
     });
 
     // Categories
@@ -765,6 +965,7 @@
       await saveData();
       alert('Credentials updated! Please login again.');
       document.getElementById('login-modal').classList.remove('hidden');
+      document.body.classList.add('modal-active');
     });
 
     // Static Pages
@@ -812,27 +1013,12 @@
       });
     }
 
-    document.getElementById('add-page').addEventListener('click', async () => {
-      const btn = document.getElementById('add-page');
-      showButtonFeedback(btn, 'Adding...', 'Add Page');
-      const title = document.getElementById('page-title').value.trim();
-      const slug = document.getElementById('page-slug').value.trim();
-      const content = document.getElementById('page-content').value.trim();
-      if (title && slug && content) {
-        data.staticPages.push({ title, slug, content });
-        await saveData();
-        renderPages();
-        document.getElementById('page-title').value = '';
-        document.getElementById('page-slug').value = '';
-        document.getElementById('page-content').value = '';
-      }
-    });
-
     // Initialize
     async function initialize() {
       const isAuthenticated = await checkSession();
       if (!isAuthenticated) {
         document.getElementById('login-modal').classList.remove('hidden');
+        document.body.classList.add('modal-active');
         return;
       }
 
@@ -852,11 +1038,13 @@
         Object.keys(data.settings.socials).forEach(key => {
           document.getElementById(key).value = data.settings.socials[key];
         });
+        startOrdersPolling(); // Start polling for orders
       }
     }
 
     initialize();
   </script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
