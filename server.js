@@ -18,13 +18,26 @@ dotenv.config();
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Allowed domains for CORS and download links
+const ALLOWED_ORIGINS = [
+  'https://bot-delivery-system.onrender.com',
+  'https://botblitz.store',
+  'https://www.botblitz.store'
+];
+
+// Helper to get the base URL based on request origin
+function getBaseUrl(req) {
+  const origin = req.get('origin') || req.get('referer');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    return origin;
+  }
+  // Default to botblitz.store for external or non-matching origins
+  return 'https://botblitz.store';
+}
+
 // CORS configuration
 app.use(cors({
-  origin: [
-    'https://bot-delivery-system.onrender.com',
-    'https://botblitz.store',
-    'https://www.botblitz.store'
-  ],
+  origin: ALLOWED_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
@@ -180,9 +193,7 @@ async function loadData() {
       console.error(`[${new Date().toISOString()}] Invalid headers in settings tab. Expected: ["KEY", "VALUE"], Got: ${settingsRows[0]}`);
       throw new Error('Invalid headers in settings tab');
     }
-    const
-
- settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
+    const settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
     const settings = {
       supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
@@ -370,7 +381,7 @@ async function deleteOldOrders() {
         } catch (error) {
           console.warn(`[${new Date().toISOString()}] Error parsing timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
           filteredRows.push(rows[i]);
-          continue;
+            continue;
         }
 
         const ageInMs = currentTime - orderDate;
@@ -737,7 +748,7 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
     if (status === 'confirmed' && !downloaded) {
       const product = cachedData.products.find(p => p.item === item) || await getItemDetails(item);
       if (product) {
-        downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
+        downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
         const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
         rows[orderIndex + 1][5] = 'TRUE';
         await sheets.spreadsheets.values.update({
@@ -809,7 +820,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
+    const downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
     const email = cachedData.settings.supportEmail;
     const subject = `Your Deriv Bot Purchase - ${item}`;
     const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
@@ -861,7 +872,7 @@ app.post('/deliver-bot', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid price. Contact support.' });
     }
 
-    const downloadLink = `https://bot-delivery-system.onrender.com/download/${itemDetails.fileId}`;
+    const downloadLink = `${getBaseUrl(req)}/download/${itemDetails.fileId}`;
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Generated download link for item ${item}: ${downloadLink}`);
   } catch (error) {
@@ -873,7 +884,13 @@ app.post('/deliver-bot', async (req, res) => {
 app.get('/download/:fileId', async (req, res) => {
   const fileId = req.params.fileId;
 
-  res.setHeader('Access-Control-Allow-Origin', 'https://bot-delivery-system.onrender.com');
+  // Set dynamic CORS headers for download route
+  const origin = req.get('origin') || req.get('referer');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://botblitz.store');
+  }
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
