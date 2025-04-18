@@ -311,14 +311,14 @@ async function saveData() {
       resource: { values: settingsForSheet }
     });
 
-    await sheets.spreadsheets.values.append({
+    await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'categories!A:A',
       valueInputOption: 'RAW',
       resource: { values: [['CATEGORY'], ...[...new Set(cachedData.categories)].map(c => [c])] }
     });
 
-    await sheets.spreadsheets.values.append({
+    await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'staticPages!A:C',
       valueInputOption: 'RAW',
@@ -376,7 +376,7 @@ async function deleteOldOrders() {
         }
       }
 
-      await sheets.spreadsheets.values.append({
+      await sheets.spreadsheets.values.update({
         spreadsheetId,
         range: 'orders!A:F',
         valueInputOption: 'RAW',
@@ -427,7 +427,7 @@ async function ensureSheetTabs(spreadsheetId) {
           }
         });
 
-        await sheets.spreadsheets.values.append({
+        await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: `${sheetName}!1:1`,
           valueInputOption: 'RAW',
@@ -442,7 +442,7 @@ async function ensureSheetTabs(spreadsheetId) {
         const actualHeaders = res.data.values?.[0] || [];
         if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
           console.log(`[${new Date().toISOString()}] Fixing headers for ${sheetName} in spreadsheet ${spreadsheetId}. Expected: ${headers}, Got: ${actualHeaders}`);
-          await sheets.spreadsheets.values.append({
+          await sheets.spreadsheets.values.update({
             spreadsheetId,
             range: `${sheetName}!1:1`,
             valueInputOption: 'RAW',
@@ -621,7 +621,7 @@ async function sendOrderNotification(item, refCode, amount) {
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER, // Use EMAIL_USER for self-sending
+      to: process.env.EMAIL_USER,
       subject: `New Order - KES-${parseFloat(amount).toFixed(2)}`,
       text: `M-PESA Ref: ${refCode}\nItem Number: ${item}`
     });
@@ -653,15 +653,9 @@ app.post('/api/submit-ref', async (req, res) => {
 
     const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
 
+    // Write only to SPREADSHEET_ID to avoid sync issues
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F',
-      valueInputOption: 'RAW',
-      resource: { values: orderData }
-    });
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'orders!A:F',
       valueInputOption: 'RAW',
       resource: { values: orderData }
@@ -670,7 +664,7 @@ app.post('/api/submit-ref', async (req, res) => {
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
 
-    // Send email after response to ensure isolation
+    // Send email after response
     sendOrderNotification(item, refCode, amount);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
@@ -685,16 +679,28 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
       range: 'orders!A:F'
     });
     const rows = response.data.values || [];
+    if (!rows[0] || rows[0].join(',') !== 'ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED') {
+      console.warn(`[${new Date().toISOString()}] Invalid headers in orders!A:F. Expected: ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED, Got: ${rows[0] ? rows[0].join(',') : 'empty'}`);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        range: 'orders!A1:F1',
+        valueInputOption: 'RAW',
+        resource: { values: [['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED']] }
+      });
+      if (rows.length <= 1) {
+        return res.json({ success: true, orders: [] });
+      }
+    }
     const orders = rows.slice(1).map(row => ({
-      item: row[0],
-      refCode: row[1],
-      amount: row[2],
-      timestamp: row[3],
+      item: row[0] || '',
+      refCode: row[1] || '',
+      amount: row[2] || '',
+      timestamp: row[3] || '',
       status: row[4] || 'pending',
       downloaded: row[5] === 'TRUE'
     }));
     res.json({ success: true, orders });
-    console.log(`[${new Date().toISOString()}] Orders fetched successfully`);
+    console.log(`[${new Date().toISOString()}] Orders fetched successfully, count: ${orders.length}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch orders' });
@@ -726,14 +732,12 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
         downloadLink = `https://bot-delivery-system.onrender.com/download/${product.fileId}`;
         const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
         rows[orderIndex + 1][5] = 'TRUE';
-        for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
-          await sheets.spreadsheets.values.append({
-            spreadsheetId,
-            range: 'orders!A:F',
-            valueInputOption: 'RAW',
-            resource: { values: rows }
-          });
-        }
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: process.env.SPREADSHEET_ID,
+          range: 'orders!A:F',
+          valueInputOption: 'RAW',
+          resource: { values: rows }
+        });
         console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
       } else {
         console.error(`[${new Date().toISOString()}] Product not found in cache or Sheet1 for item: ${item}`);
@@ -762,25 +766,23 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
 
-    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'orders!A:F'
-      });
-      const rows = response.data.values || [];
-      const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-      if (orderIndex === -1) {
-        console.log(`[${new Date().toISOString()}] Order not found for update: ${item}/${refCode}`);
-        return res.status(404).json({ success: false, error: 'Order not found' });
-      }
-      rows[orderIndex + 1][4] = status;
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: 'orders!A:F',
-        valueInputOption: 'RAW',
-        resource: { values: rows }
-      });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:F'
+    });
+    const rows = response.data.values || [];
+    const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+    if (orderIndex === -1) {
+      console.log(`[${new Date().toISOString()}] Order not found for update: ${item}/${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
     }
+    rows[orderIndex + 1][4] = status;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:F',
+      valueInputOption: 'RAW',
+      resource: { values: rows }
+    });
 
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Order status updated: ${item}/${refCode} - New Status: ${status}`);
@@ -813,29 +815,20 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       resource: { values: emailData }
     });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'emails!A:C',
-      valueInputOption: 'RAW',
-      resource: { values: emailData }
+    const ordersResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'orders!A:F'
     });
-
-    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
-      const ordersResponse = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'orders!A:F'
+    const ordersRows = ordersResponse.data.values || [];
+    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
+    if (orderIndex !== -1) {
+      ordersRows.splice(orderIndex + 1, 1);
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        range: 'orders!A:F',
+        valueInputOption: 'RAW',
+        resource: { values: ordersRows }
       });
-      const ordersRows = ordersResponse.data.values || [];
-      const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-      if (orderIndex !== -1) {
-        ordersRows.splice(orderIndex + 1, 1);
-        await sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: 'orders!A:F',
-          valueInputOption: 'RAW',
-          resource: { values: ordersRows }
-        });
-      }
     }
 
     res.json({ success: true, downloadLink });
