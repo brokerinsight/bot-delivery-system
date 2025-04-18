@@ -20,12 +20,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // CORS configuration
 app.use(cors({
-  origin: 'https://bot-delivery-system.onrender.com',
+  origin: [
+    'https://bot-delivery-system.onrender.com',
+    'https://botblitz.store',
+    'https://www.botblitz.store'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
 }));
-
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
