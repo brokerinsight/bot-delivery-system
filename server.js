@@ -177,7 +177,9 @@ async function loadData() {
       console.error(`[${new Date().toISOString()}] Invalid headers in settings tab. Expected: ["KEY", "VALUE"], Got: ${settingsRows[0]}`);
       throw new Error('Invalid headers in settings tab');
     }
-    const settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
+    const
+
+ settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
     const settings = {
       supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
@@ -653,19 +655,22 @@ app.post('/api/submit-ref', async (req, res) => {
 
     const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
 
-    // Write only to SPREADSHEET_ID to avoid sync issues
+    // Save order to SPREADSHEET_ID first
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'orders!A:F',
       valueInputOption: 'RAW',
       resource: { values: orderData }
     });
+    console.log(`[${new Date().toISOString()}] Order saved for item: ${item}, refCode: ${refCode}`);
 
+    // Respond immediately to ensure client gets success
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Ref code submitted for item: ${item}`);
 
-    // Send email after response
-    sendOrderNotification(item, refCode, amount);
+    // Send email independently without awaiting
+    Promise.resolve(sendOrderNotification(item, refCode, amount)).catch(err => {
+      console.error(`[${new Date().toISOString()}] Async email error (order still saved):`, err.message);
+    });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to submit ref code' });
