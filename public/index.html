@@ -152,7 +152,7 @@
     #details-modal .modal-main::-webkit-scrollbar {
       width: 8px;
     }
-    #details-modal .modal-main::-webkit-scrollbar-track ION {
+    #details-modal .modal-main::-webkit-scrollbar-track {
       background: #e5e7eb;
       border-radius: 4px;
     }
@@ -1023,22 +1023,35 @@
                   }
                 }
               } else if (data.status === 'no payment') {
-                statusMessage.innerHTML = `Payment not received. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here to contact support if you paid.</a>`;
+                clearInterval(countdown);
+                statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
                 setTimeout(() => {
                   modal.classList.add('hidden');
                   clearPaymentCookie(product.item);
                 }, 3000);
               } else if (data.status === 'partial payment') {
-                statusMessage.innerHTML = `You did not pay the full amount. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                clearInterval(countdown);
+                statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
                 setTimeout(() => {
                   modal.classList.add('hidden');
                   clearPaymentCookie(product.item);
+                  window.location.href = WHATSAPP_REDIRECT;
                 }, 3000);
+              } else {
+                statusMessage.textContent = 'Unknown status received. Please wait...';
               }
             }
           } catch (error) {
             console.error('Error checking order status:', error.message);
-            statusMessage.textContent = 'Error checking payment status. Please wait...';
+            statusMessage.innerHTML = `Error checking payment status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+            if (showRetry && retryCount < maxRetries) {
+              retryBtn.classList.remove('hidden');
+              retryBtn.onclick = () => {
+                retryCount++;
+                modal.classList.add('hidden');
+                showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+              };
+            }
           }
         }
         timeLeft--;
