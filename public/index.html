@@ -67,51 +67,6 @@
     #mobile-menu.open {
       transform: translateX(0);
     }
-    #cookie-popup-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 999;
-    }
-    #cookie-popup {
-      background: linear-gradient(145deg, #ffffff, #f0f4f8);
-      padding: 2rem;
-      border-radius: 16px;
-      text-align: center;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
-      animation: popupFadeIn 0.5s ease-out forwards;
-      max-width: 90%;
-      width: 500px;
-    }
-    #cookie-popup p {
-      color: #444;
-      font-size: 1rem;
-      margin-bottom: 20px;
-    }
-    #cookie-popup button {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      display: block;
-      margin: 20px auto 0;
-      background: linear-gradient(90deg, #28a745, #34d058);
-      color: white;
-    }
-    #cookie-popup button:hover {
-      background: linear-gradient(90deg, #218838, #2cb94e);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-    }
     .popup {
       position: fixed;
       top: 0;
@@ -595,13 +550,6 @@
     </div>
   </footer>
 
-  <div id="cookie-popup-container" class="hidden">
-    <div id="cookie-popup" class="popup-content">
-      <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
-      <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
-    </div>
-  </div>
-
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="modal-content flex flex-col md:flex-row relative">
       <button id="details-close" class="close-btn">
@@ -841,7 +789,6 @@
         const searchTerm = search.toLowerCase();
         filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
       }
-      // Reverse the filtered products to show newest first (since Excel appends new products at the bottom)
       filteredProducts = filteredProducts.reverse();
       if (!filteredProducts.length) {
         grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
@@ -1450,14 +1397,25 @@
       const now = Date.now();
 
       if (!cookieAccepted || (lastShown && now - lastShown > threeDays)) {
-        document.getElementById('cookie-popup-container').classList.remove('hidden');
-      }
+        const popup = document.createElement("div");
+        popup.className = "popup";
+        popup.innerHTML = `
+          <div class="popup-content">
+            <h3>Cookie Consent</h3>
+            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
+              We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.
+            </p>
+            <button class="browser-popup-button cancel">Accept Cookies</button>
+          </div>`;
+        document.body.appendChild(popup);
 
-      document.getElementById('cookie-accept').onclick = () => {
-        localStorage.setItem('cookiesAccepted', 'true');
-        localStorage.setItem('cookiePopupLastShown', now.toString());
-        document.getElementById('cookie-popup-container').classList.add('hidden');
-      };
+        popup.querySelector(".cancel").addEventListener("click", () => {
+          console.log('Cookie Accept button clicked');
+          localStorage.setItem('cookiesAccepted', 'true');
+          localStorage.setItem('cookiePopupLastShown', now.toString());
+          popup.remove();
+        });
+      }
     }
 
     function isInAppBrowser() {
@@ -1552,5 +1510,5 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329efa1e841bd50',t:'MTc0NTAzOTg1MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
