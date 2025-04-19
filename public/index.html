@@ -47,7 +47,7 @@
     }
     .search-container input:focus {
       border-color: #16a34a;
-      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.Errors);
       outline: none;
     }
     .search-container svg {
@@ -78,8 +78,6 @@
       padding: 1.75rem;
       max-width: 90%;
       width: 420px;
-      max-height: 80vh;
-      overflow-y: auto;
       z-index: 100;
       border: 1px solid #e5e7eb;
       animation: popupFadeIn 0.5s ease-out forwards;
@@ -488,21 +486,13 @@
         background: linear-gradient(90deg, #15803d, #16a34a);
       }
       #cookie-popup {
-        width: 90%;
-        padding: 1.25rem;
-        max-height: 50vh;
-        font-size: 0.9rem;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-      }
-      #cookie-popup p {
-        font-size: 0.85rem;
-        margin-bottom: 1rem;
-      }
-      #cookie-popup button {
-        padding: 0.5rem 1rem;
-        font-size: 0.9rem;
+        width: 90%;
+        padding: 1.25rem;
+        max-height: 50vh;
+        overflow-y: auto;
       }
     }
     @media (max-width: 640px) {
@@ -589,7 +579,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
       </div>
     </div>
   </main>
@@ -847,6 +837,7 @@
         const searchTerm = search.toLowerCase();
         filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
       }
+      // Reverse the filtered products to show newest first (since Excel appends new products at the bottom)
       filteredProducts = filteredProducts.reverse();
       if (!filteredProducts.length) {
         grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
@@ -1557,5 +1548,4 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
-</body>
-</html>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93299f53dbbfb050',t:'MTc0NTAzNjU2Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height
