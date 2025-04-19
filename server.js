@@ -610,7 +610,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
     const { item } = req.body;
     const productIndex = cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
-      console.log(`[${new Date().toISOString()}] Bot not found: ${item}`);
+      console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
       return res.status(404).json({ success: false, error: 'Bot not found' });
     }
 
@@ -620,8 +620,50 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error deleting file from Google Drive:`, error.message);
+      // Continue with deletion even if Google Drive deletion fails to ensure data consistency
     }
 
+    // Delete from SPREADSHEET_ID Sheet1
+    let response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.SPREADSHEET_ID,
+      range: 'Sheet1!A:J'
+    });
+    let rows = response.data.values || [];
+    const sheetIndex = rows.slice(1).findIndex(row => row[0] === item);
+    if (sheetIndex !== -1) {
+      rows.splice(sheetIndex + 1, 1); // +1 to account for header row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        range: 'Sheet1!A:J',
+        valueInputOption: 'RAW',
+        resource: { values: rows }
+      });
+      console.log(`[${new Date().toISOString()}] Deleted bot row from SPREADSHEET_ID Sheet1: ${item}`);
+    } else {
+      console.warn(`[${new Date().toISOString()}] Bot not found in SPREADSHEET_ID Sheet1: ${item}`);
+    }
+
+    // Delete from PRODUCTS_SHEET_ID Sheet1
+    response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+      range: 'Sheet1!A:J'
+    });
+    rows = response.data.values || [];
+    const productSheetIndex = rows.slice(1).findIndex(row => row[0] === item);
+    if (productSheetIndex !== -1) {
+      rows.splice(productSheetIndex + 1, 1); // +1 to account for header row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+        range: 'Sheet1!A:J',
+        valueInputOption: 'RAW',
+        resource: { values: rows }
+      });
+      console.log(`[${new Date().toISOString()}] Deleted bot row from PRODUCTS_SHEET_ID Sheet1: ${item}`);
+    } else {
+      console.warn(`[${new Date().toISOString()}] Bot not found in PRODUCTS_SHEET_ID Sheet1: ${item}`);
+    }
+
+    // Update cache
     cachedData.products.splice(productIndex, 1);
     await saveData();
     res.json({ success: true });
