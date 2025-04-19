@@ -69,9 +69,9 @@
     }
     #cookie-popup {
       position: fixed;
-      bottom: 20px;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
@@ -487,7 +487,6 @@
         background: linear-gradient(90deg, #15803d, #16a34a);
       }
       #cookie-popup {
-        bottom: 10px;
         width: 90%;
         padding: 1rem;
         max-height: 50vh;
@@ -586,7 +585,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
       </div>
     </div>
   </main>
@@ -1259,6 +1258,9 @@
 
         xhr.onload = () => {
           if (xhr.status === 200) {
+            // File name is determined by the server's Content-Disposition header
+            // If not provided, falls back to fileNameBase (product.name)
+            // No timestamps or modifications are added
             const contentDisposition = xhr.getResponseHeader('Content-Disposition');
             let fileName = fileNameBase;
             if (contentDisposition) {
