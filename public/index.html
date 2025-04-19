@@ -602,6 +602,50 @@
     </div>
   </div>
 
+  <script>
+    // Define handleCookiePopup before calling it
+    function handleCookiePopup() {
+      const cookiePopup = document.getElementById('cookie-popup-container');
+      const acceptButton = document.getElementById('cookie-accept');
+      
+      // Check if cookies have already been accepted
+      const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+      const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+      const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+      const now = Date.now();
+
+      // If cookies are accepted and the 3-day period hasn't passed, keep the popup hidden
+      if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none'; // Ensure it's hidden
+        return;
+      }
+
+      // If we reach here, show the popup
+      cookiePopup.classList.remove('hidden');
+      cookiePopup.style.display = 'flex'; // Ensure it's visible
+      document.body.classList.add('popup-active');
+
+      // Remove any existing event listeners to avoid duplicates
+      acceptButton.removeEventListener('click', handleAcceptClick);
+      
+      // Define the click handler
+      function handleAcceptClick() {
+        localStorage.setItem('cookiesAccepted', 'true');
+        localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none';
+        document.body.classList.remove('popup-active');
+      }
+
+      // Add the event listener
+      acceptButton.addEventListener('click', handleAcceptClick);
+    }
+
+    // Call handleCookiePopup immediately after the popup container is parsed
+    handleCookiePopup();
+  </script>
+
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="modal-content flex flex-col md:flex-row relative">
       <button id="details-close" class="close-btn">
@@ -1443,34 +1487,6 @@
       }, 10 * 1000);
     }
 
-    function handleCookiePopup() {
-      const cookiePopup = document.getElementById('cookie-popup-container');
-      const cookieAccepted = localStorage.getItem('cookiesAccepted') === 'true';
-      const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
-      const threeDays = 3 * 24 * 60 * 60 * 1000;
-      const now = Date.now();
-
-      // Check if cookies are already accepted and if the popup should be shown again
-      if (cookieAccepted && lastShown && (now - lastShown) < threeDays) {
-        cookiePopup.classList.add('hidden');
-        return;
-      }
-
-      // If cookies are not accepted or the 3-day period has passed, show the popup
-      cookiePopup.classList.remove('hidden');
-
-      // Add event listener to the accept button
-      const acceptButton = document.getElementById('cookie-accept');
-      acceptButton.addEventListener('click', () => {
-        // Set cookiesAccepted to true and update the last shown time
-        localStorage.setItem('cookiesAccepted', 'true');
-        localStorage.setItem('cookiePopupLastShown', now.toString());
-        // Ensure the popup is hidden
-        cookiePopup.classList.add('hidden');
-        cookiePopup.style.display = 'none'; // Additional safeguard
-      }, { once: true }); // Ensure the event listener is only triggered once
-    }
-
     function isInAppBrowser() {
       const ua = navigator.userAgent.toLowerCase();
       console.log("User Agent:", navigator.userAgent);
@@ -1526,46 +1542,6 @@
       }
     }
 
-function handleCookiePopup() {
-  const cookiePopup = document.getElementById('cookie-popup-container');
-  const acceptButton = document.getElementById('cookie-accept');
-  
-  // Check if cookies have already been accepted
-  const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
-  const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
-  const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-  const now = Date.now();
-
-  // If cookies are accepted and the 3-day period hasn't passed, ensure the popup is hidden
-  if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
-    cookiePopup.classList.add('hidden');
-    cookiePopup.style.display = 'none'; // Explicitly set display to none to ensure it's hidden
-    return;
-  }
-
-  // If we reach here, show the popup
-  cookiePopup.classList.remove('hidden');
-  cookiePopup.style.display = 'flex'; // Ensure it's visible
-  document.body.classList.add('popup-active');
-
-  // Remove any existing event listeners to avoid duplicates
-  acceptButton.removeEventListener('click', handleAcceptClick);
-  
-  // Define the click handler
-  function handleAcceptClick() {
-    // Update localStorage to mark cookies as accepted
-    localStorage.setItem('cookiesAccepted', 'true');
-    localStorage.setItem('cookiePopupLastShown', Date.now().toString());
-    
-    // Hide the popup and update the body class
-    cookiePopup.classList.add('hidden');
-    cookiePopup.style.display = 'none';
-    document.body.classList.remove('popup-active');
-  }
-
-  // Add the event listener
-  acceptButton.addEventListener('click', handleAcceptClick);
-}
     async function proceedWithInit() {
       const success = await fetchData();
       if (success) {
@@ -1575,7 +1551,6 @@ function handleCookiePopup() {
         showUrgentMessage();
         checkPaymentCookie();
         startPolling();
-        handleCookiePopup();
         await fetchModalContent();
       }
 
@@ -1603,12 +1578,9 @@ function handleCookiePopup() {
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329efa1e841bd50',t:'MTc0NTAzOTg1MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              xhr.send();
-      });
-    }
-
-    window.onload = init;
-  </script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+</script>
 </body>
 </html>
