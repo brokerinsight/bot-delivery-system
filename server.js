@@ -613,11 +613,46 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
     const productIndex = cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
       console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
-      return res.status(404).json({ success: false, error: 'Bot not found' });
+      return res.status(404).json({ success: false, error: 'Bot not found in cache' });
     }
     const fileId = cachedData.products[productIndex].fileId;
 
-    // Step 2: Delete the file from Google Drive
+    // Step 2: Fetch Sheet1 from both spreadsheets to verify the bot exists
+    const spreadsheetIds = [
+      { id: process.env.SPREADSHEET_ID, name: 'SPREADSHEET_ID' },
+      { id: process.env.PRODUCTS_SHEET_ID, name: 'PRODUCTS_SHEET_ID' }
+    ];
+
+    const sheetData = [];
+    for (const { id, name } of spreadsheetIds) {
+      // Get the sheetId for Sheet1 dynamically
+      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: id });
+      const sheet = spreadsheet.data.sheets.find(s => s.properties.title === 'Sheet1');
+      if (!sheet) {
+        console.error(`[${new Date().toISOString()}] Sheet1 not found in spreadsheet ${name} (${id})`);
+        return res.status(500).json({ success: false, error: `Sheet1 not found in spreadsheet ${name}` });
+      }
+      const sheetId = sheet.properties.sheetId;
+
+      // Fetch Sheet1 data
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: id,
+        range: 'Sheet1!A:J'
+      });
+      const rows = response.data.values || [];
+      const rowIndex = rows.slice(1).findIndex(row => row[0] === item);
+      sheetData.push({ spreadsheetId: id, name, sheetId, rows, rowIndex });
+    }
+
+    // Step 3: Verify the bot exists in both sheets
+    for (const { name, rowIndex } of sheetData) {
+      if (rowIndex === -1) {
+        console.warn(`[${new Date().toISOString()}] Bot not found in ${name} Sheet1: ${item}`);
+        return res.status(404).json({ success: false, error: `Bot not found in ${name} Sheet1` });
+      }
+    }
+
+    // Step 4: Delete the file from Google Drive
     try {
       await drive.files.delete({ fileId });
       console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
@@ -626,74 +661,40 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       // Continue with deletion even if Google Drive deletion fails to ensure data consistency
     }
 
-    // Step 3: Delete the row from SPREADSHEET_ID Sheet1
-    let response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J'
-    });
-    let rows = response.data.values || [];
-    const sheetRowIndex = rows.slice(1).findIndex(row => row[0] === item);
-    if (sheetRowIndex !== -1) {
-      const rowToDelete = sheetRowIndex + 1; // +1 to account for header row (0-based index)
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        resource: {
-          requests: [
-            {
-              deleteDimension: {
-                range: {
-                  sheetId: 0, // Sheet1 typically has sheetId 0, adjust if different
-                  dimension: 'ROWS',
-                  startIndex: rowToDelete,
-                  endIndex: rowToDelete + 1
+    // Step 5: Delete the bot from both sheets
+    for (const { spreadsheetId, name, sheetId, rowIndex } of sheetData) {
+      const rowToDelete = rowIndex + 1; // +1 to account for header row (0-based index)
+      try {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId,
+          resource: {
+            requests: [
+              {
+                deleteDimension: {
+                  range: {
+                    sheetId,
+                    dimension: 'ROWS',
+                    startIndex: rowToDelete,
+                    endIndex: rowToDelete + 1
+                  }
                 }
               }
-            }
-          ]
-        }
-      });
-      console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from SPREADSHEET_ID Sheet1: ${item}`);
-    } else {
-      console.warn(`[${new Date().toISOString()}] Bot not found in SPREADSHEET_ID Sheet1: ${item}`);
+            ]
+          }
+        });
+        console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from ${name} Sheet1: ${item}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Failed to delete bot row from ${name} Sheet1: ${error.message}`);
+        return res.status(500).json({ success: false, error: `Failed to delete bot from ${name} Sheet1` });
+      }
     }
 
-    // Step 4: Delete the row from PRODUCTS_SHEET_ID Sheet1
-    response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'Sheet1!A:J'
-    });
-    rows = response.data.values || [];
-    const productSheetRowIndex = rows.slice(1).findIndex(row => row[0] === item);
-    if (productSheetRowIndex !== -1) {
-      const rowToDelete = productSheetRowIndex + 1; // +1 to account for header row (0-based index)
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-        resource: {
-          requests: [
-            {
-              deleteDimension: {
-                range: {
-                  sheetId: 0, // Sheet1 typically has sheetId 0, adjust if different
-                  dimension: 'ROWS',
-                  startIndex: rowToDelete,
-                  endIndex: rowToDelete + 1
-                }
-              }
-            }
-          ]
-        }
-      });
-      console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from PRODUCTS_SHEET_ID Sheet1: ${item}`);
-    } else {
-      console.warn(`[${new Date().toISOString()}] Bot not found in PRODUCTS_SHEET_ID Sheet1: ${item}`);
-    }
-
-    // Step 5: Update the cache after successful deletion from sheets
+    // Step 6: Update the cache after successful deletion from both sheets
     cachedData.products.splice(productIndex, 1);
 
-    // Step 6: Send response only after all steps are complete
+    // Step 7: Send response only after all steps are complete
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
+    console.log(`[${new Date().toISOString()}] Bot deleted successfully from both sheets: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to delete bot' });
