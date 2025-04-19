@@ -69,15 +69,17 @@
     }
     #cookie-popup {
       position: fixed;
-      top: 50%;
+      bottom: 20px;
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translateX(-50%);
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
       padding: 1.75rem;
       max-width: 90%;
       width: 420px;
+      max-height: 80vh;
+      overflow-y: auto;
       z-index: 100;
       border: 1px solid #e5e7eb;
       animation: popupFadeIn 0.5s ease-out forwards;
@@ -485,8 +487,19 @@
         background: linear-gradient(90deg, #15803d, #16a34a);
       }
       #cookie-popup {
+        bottom: 10px;
         width: 90%;
-        padding: 1.25rem;
+        padding: 1rem;
+        max-height: 60vh;
+        font-size: 0.9rem;
+      }
+      #cookie-popup p {
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+      }
+      #cookie-popup button {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
       }
     }
     @media (max-width: 640px) {
