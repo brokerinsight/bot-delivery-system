@@ -83,6 +83,7 @@
       z-index: 100;
       border: 1px solid #e5e7eb;
       animation: popupFadeIn 0.5s ease-out forwards;
+      text-align: center;
     }
     #cookie-popup p {
       color: #374151;
@@ -488,9 +489,12 @@
       }
       #cookie-popup {
         width: 90%;
-        padding: 1rem;
+        padding: 1.25rem;
         max-height: 50vh;
         font-size: 0.9rem;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
       }
       #cookie-popup p {
         font-size: 0.85rem;
@@ -1258,9 +1262,6 @@
 
         xhr.onload = () => {
           if (xhr.status === 200) {
-            // File name is determined by the server's Content-Disposition header
-            // If not provided, falls back to fileNameBase (product.name)
-            // No timestamps or modifications are added
             const contentDisposition = xhr.getResponseHeader('Content-Disposition');
             let fileName = fileNameBase;
             if (contentDisposition) {
