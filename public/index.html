@@ -75,17 +75,33 @@
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-      padding: 1.75rem;
+      padding: 1.5rem;
       width: 90%;
-      max-width: 420px;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
       z-index: 100;
       border: 1px solid #e5e7eb;
       animation: popupFadeIn 0.5s ease-out forwards;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
     }
     #cookie-popup p {
       color: #374151;
-      font-size: 0.95rem;
-      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+    #cookie-popup a {
+      color: #16a34a;
+      text-decoration: underline;
+      transition: color 0.3s ease;
+    }
+    #cookie-popup a:hover {
+      color: #15803d;
     }
     #cookie-popup button {
       background: linear-gradient(90deg, #16a34a, #22c55e);
@@ -95,6 +111,7 @@
       font-weight: 500;
       transition: all 0.3s ease;
       width: 100%;
+      max-width: 200px;
     }
     #cookie-popup button:hover {
       background: linear-gradient(90deg, #15803d, #16a34a);
@@ -487,8 +504,9 @@
       }
       #cookie-popup {
         width: 95%;
-        max-width: 350px;
-        padding: 1.25rem;
+        max-width: 320px;
+        padding: wards: 1rem;
+        font-size: 0.9rem;
       }
     }
     @media (max-width: 640px) {
@@ -575,7 +593,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
       </div>
     </div>
   </main>
@@ -898,6 +916,7 @@
             confirmPaymentBtn.dataset.kesPrice = kesPrice;
             const submitRefCodeBtn = document.getElementById('submit-ref-code');
             submitRefCodeBtn.dataset.item = item;
+ counterfeitPaymentBtn.dataset.kesPrice = kesPrice;
             submitRefCodeBtn.dataset.kesPrice = kesPrice;
           };
 
