@@ -608,6 +608,8 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
 app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
+
+    // Find the product in cache to get the fileId
     const productIndex = cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
       console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
@@ -615,6 +617,8 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
     }
 
     const fileId = cachedData.products[productIndex].fileId;
+
+    // Step 1: Delete the file from Google Drive
     try {
       await drive.files.delete({ fileId });
       console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
@@ -623,7 +627,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       // Continue with deletion even if Google Drive deletion fails to ensure data consistency
     }
 
-    // Delete from SPREADSHEET_ID Sheet1
+    // Step 2: Delete from SPREADSHEET_ID Sheet1
     let response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J'
@@ -643,7 +647,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       console.warn(`[${new Date().toISOString()}] Bot not found in SPREADSHEET_ID Sheet1: ${item}`);
     }
 
-    // Delete from PRODUCTS_SHEET_ID Sheet1
+    // Step 3: Delete from PRODUCTS_SHEET_ID Sheet1
     response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'Sheet1!A:J'
@@ -663,9 +667,13 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       console.warn(`[${new Date().toISOString()}] Bot not found in PRODUCTS_SHEET_ID Sheet1: ${item}`);
     }
 
-    // Update cache
+    // Step 4: Update cache only after successful deletion from sheets
     cachedData.products.splice(productIndex, 1);
+
+    // Step 5: Save the updated cache to ensure consistency
     await saveData();
+
+    // Step 6: Send response only after all steps are complete
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
