@@ -1526,6 +1526,46 @@
       }
     }
 
+function handleCookiePopup() {
+  const cookiePopup = document.getElementById('cookie-popup-container');
+  const acceptButton = document.getElementById('cookie-accept');
+  
+  // Check if cookies have already been accepted
+  const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+  const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+  const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+  const now = Date.now();
+
+  // If cookies are accepted and the 3-day period hasn't passed, ensure the popup is hidden
+  if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+    cookiePopup.classList.add('hidden');
+    cookiePopup.style.display = 'none'; // Explicitly set display to none to ensure it's hidden
+    return;
+  }
+
+  // If we reach here, show the popup
+  cookiePopup.classList.remove('hidden');
+  cookiePopup.style.display = 'flex'; // Ensure it's visible
+  document.body.classList.add('popup-active');
+
+  // Remove any existing event listeners to avoid duplicates
+  acceptButton.removeEventListener('click', handleAcceptClick);
+  
+  // Define the click handler
+  function handleAcceptClick() {
+    // Update localStorage to mark cookies as accepted
+    localStorage.setItem('cookiesAccepted', 'true');
+    localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+    
+    // Hide the popup and update the body class
+    cookiePopup.classList.add('hidden');
+    cookiePopup.style.display = 'none';
+    document.body.classList.remove('popup-active');
+  }
+
+  // Add the event listener
+  acceptButton.addEventListener('click', handleAcceptClick);
+}
     async function proceedWithInit() {
       const success = await fetchData();
       if (success) {
