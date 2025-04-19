@@ -56,7 +56,8 @@ app.get('/sitemap.xml', async (req, res) => {
     const staticPages = cachedData.staticPages || [];
 
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
 
     // Homepage
     sitemap += `
@@ -80,20 +81,35 @@ app.get('/sitemap.xml', async (req, res) => {
       }
     }
 
-    // Product pages
+    // Product pages (mapped by item + description + embed)
     for (const product of products) {
-      if (product.item && !product.isArchived) {
+      if (!product.isArchived && product.item) {
         sitemap += `
           <url>
             <loc>https://botblitz.store/store?id=${product.item}</loc>
             <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
             <changefreq>weekly</changefreq>
             <priority>0.8</priority>
-          </url>\n`;
+            <!-- Bot Name: ${sanitizeXml(product.name || '')} -->
+            <!-- Description: ${sanitizeXml(product.desc || '')} -->`;
+
+        // Include embedded YouTube video if available
+        if (product.embed && product.embed.includes('youtube.com')) {
+          sitemap += `
+            <video:video>
+              <video:thumbnail_loc>${product.img}</video:thumbnail_loc>
+              <video:title>${sanitizeXml(product.name || '')}</video:title>
+              <video:description>${sanitizeXml(product.desc || '')}</video:description>
+              <video:content_loc>${sanitizeXml(product.embed)}</video:content_loc>
+            </video:video>`;
+        }
+
+        sitemap += `\n</url>\n`;
       }
     }
 
     sitemap += `</urlset>`;
+
     res.header('Content-Type', 'application/xml');
     res.send(sitemap);
   } catch (error) {
@@ -101,6 +117,16 @@ app.get('/sitemap.xml', async (req, res) => {
     res.status(500).send('Failed to generate sitemap.');
   }
 });
+
+// Helper to sanitize XML fields
+function sanitizeXml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
 //sitemap end
 app.use(express.static(publicPath));
 
