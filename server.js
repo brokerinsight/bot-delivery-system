@@ -49,6 +49,59 @@ app.use(cookieParser());
 
 // Serve static files from 'public' directory
 const publicPath = path.join(__dirname, 'public');
+//sitemap start
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const products = cachedData.products || [];
+    const staticPages = cachedData.staticPages || [];
+
+    let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+    // Homepage
+    sitemap += `
+      <url>
+        <loc>https://botblitz.store/</loc>
+        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+      </url>\n`;
+
+    // Static pages
+    for (const page of staticPages) {
+      if (page.slug && !page.slug.includes('modal')) {
+        sitemap += `
+          <url>
+            <loc>https://botblitz.store${page.slug}</loc>
+            <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+            <changefreq>monthly</changefreq>
+            <priority>0.6</priority>
+          </url>\n`;
+      }
+    }
+
+    // Product pages
+    for (const product of products) {
+      if (product.item && !product.isArchived) {
+        sitemap += `
+          <url>
+            <loc>https://botblitz.store/store?id=${product.item}</loc>
+            <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+            <changefreq>weekly</changefreq>
+            <priority>0.8</priority>
+          </url>\n`;
+      }
+    }
+
+    sitemap += `</urlset>`;
+    res.header('Content-Type', 'application/xml');
+    res.send(sitemap);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ Failed to generate sitemap:`, error.message);
+    res.status(500).send('Failed to generate sitemap.');
+  }
+});
+//sitemap end
 app.use(express.static(publicPath));
 
 // Log static file middleware setup
@@ -1100,56 +1153,6 @@ async function initialize() {
 initialize().catch(error => {
   console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
   process.exit(1);
-});
-app.get('/sitemap.xml', async (req, res) => {
-  try {
-    // Fetch product and page data from Google Sheets or cache
-    const products = await fetchProducts(); // Get from Google Sheets or cached data
-    const staticPages = await fetchStaticPages(); // Optional
-
-    let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-
-    // Homepage
-    sitemap += `
-      <url>
-        <loc>https://botblitz.store/</loc>
-        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0</priority>
-      </url>\n`;
-
-    // Static pages
-    const staticRoutes = ['/about', '/privacy', '/cookie-policy'];
-    for (const route of staticRoutes) {
-      sitemap += `
-        <url>
-          <loc>https://botblitz.store${route}</loc>
-          <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-          <changefreq>monthly</changefreq>
-          <priority>0.6</priority>
-        </url>\n`;
-    }
-
-    // Product pages
-    for (const product of products) {
-      sitemap += `
-        <url>
-          <loc>https://botblitz.store/store?id=${product.item}</loc>
-          <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-          <changefreq>weekly</changefreq>
-          <priority>0.8</priority>
-        </url>\n`;
-    }
-
-    sitemap += `</urlset>`;
-
-    res.header('Content-Type', 'application/xml');
-    res.send(sitemap);
-  } catch (error) {
-    console.error('Sitemap generation failed:', error);
-    res.status(500).send('Error generating sitemap');
-  }
 });
 
 const PORT = process.env.PORT || 10000;
