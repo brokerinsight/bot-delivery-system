@@ -47,7 +47,7 @@
     }
     .search-container input:focus {
       border-color: #16a34a;
-      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.Errors);
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
       outline: none;
     }
     .search-container svg {
@@ -69,9 +69,9 @@
     }
     #cookie-popup {
       position: fixed;
-      bottom: 1.5rem;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%) scale(0.9);
+      transform: translate(-50%, -50%);
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
@@ -485,9 +485,9 @@
         background: linear-gradient(90deg, #15803d, #16a34a);
       }
       #cookie-popup {
-        bottom: 1rem;
         width: 90%;
         padding: 1.25rem;
+        max-width: 340px;
       }
     }
     @media (max-width: 640px) {
@@ -832,7 +832,6 @@
         const searchTerm = search.toLowerCase();
         filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
       }
-      // Reverse the filtered products to show newest first (since Excel appends new products at the bottom)
       filteredProducts = filteredProducts.reverse();
       if (!filteredProducts.length) {
         grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
@@ -1249,7 +1248,7 @@
         xhr.onload = () => {
           if (xhr.status === 200) {
             const contentDisposition = xhr.getResponseHeader('Content-Disposition');
-            let fileName = `${fileNameBase}_${Date.now()}`;
+            let fileName = fileNameBase;
             if (contentDisposition) {
               const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
               if (fileNameMatch && fileNameMatch[1]) {
@@ -1483,65 +1482,63 @@
 
     function handleInAppBrowser() {
       if (isInAppBrowser()) {
-        const popup = document.createElement("div");
-        popup.className = "popup";
+        const popup = document.createElement('div');
+        popup.className = 'popup';
         popup.innerHTML = `
           <div class="popup-content">
-            <h3>Open in Browser</h3>
-            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
-              For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
-            </p>
-            <button class="browser-popup-button cancel">Okay</button>
-          </div>`;
+            <h3 class="text-xl font-bold">Open in Browser</h3>
+            <p class="text-gray-600 mb-4">For the best experience, please open this page in your default browser.</p>
+            <button class="browser-popup-button cancel">Cancel</button>
+          </div>
+        `;
         document.body.appendChild(popup);
+        document.body.classList.add('popup-active');
 
-        popup.querySelector(".cancel").addEventListener("click", () => {
-          console.log('Okay button clicked');
+        popup.querySelector('.cancel').onclick = () => {
           popup.remove();
+          document.body.classList.remove('popup-active');
           allowInAppBrowser = true;
-          proceedWithInit();
-        });
-      } else {
-        proceedWithInit();
+        };
       }
     }
 
-    async function proceedWithInit() {
+    async function initialize() {
       const success = await fetchData();
       if (success) {
         renderNavLinks();
-        renderProducts();
+        await renderProducts();
         updateFooter();
         showUrgentMessage();
-        checkPaymentCookie();
-        startPolling();
         handleCookiePopup();
-        await fetchModalContent();
+        await checkPaymentCookie();
+        startPolling();
+        handleInAppBrowser();
+      }
+
+      const searchBar = document.getElementById('search-bar');
+      const mobileSearchBar = document.getElementById('mobile-search-bar');
+      if (searchBar) {
+        searchBar.addEventListener('input', debounce(() => {
+          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+          renderProducts(category, searchBar.value);
+        }, 300));
+      }
+      if (mobileSearchBar) {
+        mobileSearchBar.addEventListener('input', debounce(() => {
+          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+          renderProducts(category, mobileSearchBar.value);
+        }, 300));
       }
 
       document.getElementById('mobile-menu-button').onclick = () => {
         document.getElementById('mobile-menu').classList.add('open');
       };
-
       document.getElementById('mobile-menu-close').onclick = () => {
         document.getElementById('mobile-menu').classList.remove('open');
       };
-
-      const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
-      searchBars.forEach(searchBar => {
-        searchBar.addEventListener('input', debounce(() => {
-          const search = searchBar.value;
-          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
-          renderProducts(category, search);
-        }, 300));
-      });
     }
 
-    async function init() {
-      handleInAppBrowser();
-    }
-
-    document.addEventListener('DOMContentLoaded', init);
+    window.onload = initialize;
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
