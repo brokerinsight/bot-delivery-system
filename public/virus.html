@@ -204,6 +204,19 @@
     #toggle-password:hover {
       color: #15803d;
     }
+    /* Close button for modals */
+    .close-modal {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      font-size: 1.5rem;
+      color: #6b7280;
+      cursor: pointer;
+      transition: color 0.3s ease;
+    }
+    .close-modal:hover {
+      color: #ef4444;
+    }
     /* Responsive adjustments */
     @media (max-width: 640px) {
       .section {
@@ -445,7 +458,8 @@
 
   <!-- Edit Bot Modal -->
   <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 max-w-lg w-full">
+    <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
+      <button class="close-modal" onclick="closeEditModal()">×</button>
       <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
       <form id="edit-form">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -471,7 +485,7 @@
           </div>
           <div>
             <label for="edit-item" class="block text-sm font-medium text-gray-700">Item Number</label>
-            <input type="text" id="edit-item" required readonly class="mt-1 w-full p-2 border rounded-md bg-gray-100">
+            <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md">
           </div>
           <div class="sm:col-span-2">
             <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
@@ -796,28 +810,59 @@
           if (confirm('Are you sure you want to delete this bot?')) {
             showButtonFeedback(btn, 'Deleting...', 'Delete');
             const item = btn.dataset.item;
-            data.products = data.products.filter(p => p.item !== item);
-            await saveData();
-            renderBots();
+            try {
+              const response = await fetch('/api/delete-bot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item }),
+                credentials: 'include'
+              });
+              const result = await response.json();
+              if (result.success) {
+                data.products = data.products.filter(p => p.item !== item);
+                renderBots();
+                alert('Bot deleted successfully!');
+              } else {
+                throw new Error(result.error || 'Failed to delete bot');
+              }
+            } catch (error) {
+              console.error('Error deleting bot:', error);
+              alert('Failed to delete bot. Please try again.');
+            }
           }
         });
       });
+    }
+
+    // Function to close the Edit Bot modal
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.add('hidden');
+      document.body.classList.remove('modal-active');
     }
 
     document.getElementById('edit-form').addEventListener('submit', async e => {
       e.preventDefault();
       const btn = e.submitter;
       showButtonFeedback(btn, 'Saving...', 'Save Changes');
-      const item = document.getElementById('edit-item').value;
-      const product = data.products.find(p => p.item === item);
-      product.name = document.getElementById('edit-name').value.trim();
-      product.price = parseFloat(document.getElementById('edit-price').value);
-      product.desc = document.getElementById('edit-desc').value.trim();
-      product.embed = document.getElementById('edit-embed').value.trim();
-      product.category = document.getElementById('edit-category').value;
-      product.img = document.getElementById('edit-img').value.trim();
-      product.isNew = document.getElementById('edit-isNew').checked;
-      product.isArchived = document.getElementById('edit-isArchived').checked;
+      const originalItem = document.getElementById('edit-item').dataset.originalItem || document.getElementById('edit-item').value;
+      const item = document.getElementById('edit-item').value.trim();
+      const productIndex = data.products.findIndex(p => p.item === originalItem);
+      if (productIndex === -1) {
+        alert('Bot not found. Please try again.');
+        return;
+      }
+      data.products[productIndex] = {
+        ...data.products[productIndex],
+        item,
+        name: document.getElementById('edit-name').value.trim(),
+        price: parseFloat(document.getElementById('edit-price').value),
+        desc: document.getElementById('edit-desc').value.trim(),
+        embed: document.getElementById('edit-embed').value.trim(),
+        category: document.getElementById('edit-category').value,
+        img: document.getElementById('edit-img').value.trim(),
+        isNew: document.getElementById('edit-isNew').checked,
+        isArchived: document.getElementById('edit-isArchived').checked
+      };
       await saveData();
       renderBots();
       document.getElementById('edit-modal').classList.add('hidden');
@@ -825,8 +870,7 @@
     });
 
     document.getElementById('edit-cancel').addEventListener('click', () => {
-      document.getElementById('edit-modal').classList.add('hidden');
-      document.body.classList.remove('modal-active');
+      closeEditModal();
     });
 
     // Categories
@@ -881,14 +925,16 @@
     // Settings - Urgent Message Fix
     const urgentToggle = document.getElementById('urgent-toggle');
     const urgentMessage = document.getElementById('urgent-message');
-    
+
     // Ensure urgent message textarea is correctly initialized and toggled
     function initializeUrgentMessage() {
       if (!urgentToggle || !urgentMessage) {
         console.error('Urgent message elements not found in DOM');
         return;
       }
-      urgentMessage.disabled = !urgentToggle.checked;
+      urgentMessage.disabled = !data.settings.urgentMessage?.enabled;
+      urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+      urgentMessage.value = data.settings.urgentMessage?.text || '';
     }
 
     urgentToggle.addEventListener('change', () => {
@@ -1016,12 +1062,13 @@
 
       document.querySelectorAll('.edit-page').forEach(btn => {
         btn.addEventListener('click', () => {
-          showButtonFeedback(btn, 'Editing...', 'Edit');
           const slug = btn.dataset.slug;
           const page = data.staticPages.find(p => p.slug === slug);
           document.getElementById('page-title').value = page.title;
           document.getElementById('page-slug').value = page.slug;
           document.getElementById('page-content').value = page.content;
+          document.getElementById('add-page').textContent = 'Save Changes';
+          document.getElementById('add-page').dataset.editSlug = slug;
           data.staticPages = data.staticPages.filter(p => p.slug !== slug);
         });
       });
@@ -1038,6 +1085,52 @@
         });
       });
     }
+
+    document.getElementById('add-page').addEventListener('click', async function() {
+      const btn = this;
+      const pageTitle = document.getElementById('page-title').value.trim();
+      const pageSlug = document.getElementById('page-slug').value.trim();
+      const pageContent = document.getElementById('page-content').value.trim();
+
+      if (!pageTitle || !pageSlug || !pageContent) {
+        alert('Please fill in all fields.');
+        return;
+      }
+
+      if (btn.dataset.editSlug) {
+        // Editing an existing page
+        showButtonFeedback(btn, 'Saving...', 'Save Changes');
+        data.staticPages.push({
+          title: pageTitle,
+          slug: pageSlug,
+          content: pageContent
+        });
+        await saveData();
+        renderPages();
+        alert('Page updated successfully!');
+        btn.textContent = 'Add Page';
+        delete btn.dataset.editSlug;
+      } else {
+        // Adding a new page
+        showButtonFeedback(btn, 'Adding...', 'Add Page');
+        if (data.staticPages.some(page => page.slug === pageSlug)) {
+          alert('A page with this slug already exists. Please use a different slug.');
+          return;
+        }
+        data.staticPages.push({
+          title: pageTitle,
+          slug: pageSlug,
+          content: pageContent
+        });
+        await saveData();
+        renderPages();
+        alert('Page added successfully!');
+      }
+
+      document.getElementById('page-title').value = '';
+      document.getElementById('page-slug').value = '';
+      document.getElementById('page-content').value = '';
+    });
 
     // Initialize
     async function initialize() {
@@ -1072,5 +1165,5 @@
   </script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
