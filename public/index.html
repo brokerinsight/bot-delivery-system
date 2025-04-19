@@ -67,56 +67,50 @@
     #mobile-menu.open {
       transform: translateX(0);
     }
-    #cookie-popup {
+    #cookie-popup-container {
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: linear-gradient(145deg, #ffffff, #f0f4f8);
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-      padding: 1.5rem;
-      width: 90%;
-      max-width: 400px;
-      max-height: 80vh;
-      overflow-y: auto;
-      z-index: 100;
-      border: 1px solid #e5e7eb;
-      animation: popupFadeIn 0.5s ease-out forwards;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
       display: flex;
-      flex-direction: column;
       justify-content: center;
       align-items: center;
+      z-index: 999;
+    }
+    #cookie-popup {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      padding: 2rem;
+      border-radius: 16px;
       text-align: center;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+      animation: popupFadeIn 0.5s ease-out forwards;
+      max-width: 90%;
+      width: 500px;
     }
     #cookie-popup p {
-      color: #374151;
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
-      line-height: 1.5;
-    }
-    #cookie-popup a {
-      color: #16a34a;
-      text-decoration: underline;
-      transition: color 0.3s ease;
-    }
-    #cookie-popup a:hover {
-      color: #15803d;
+      color: #444;
+      font-size: 1rem;
+      margin-bottom: 20px;
     }
     #cookie-popup button {
-      background: linear-gradient(90deg, #16a34a, #22c55e);
-      color: white;
-      padding: 0.75rem 1.5rem;
+      padding: 12px 24px;
+      border: none;
       border-radius: 10px;
-      font-weight: 500;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
       transition: all 0.3s ease;
-      width: 100%;
-      max-width: 200px;
+      display: block;
+      margin: 20px auto 0;
+      background: linear-gradient(90deg, #28a745, #34d058);
+      color: white;
     }
     #cookie-popup button:hover {
-      background: linear-gradient(90deg, #15803d, #16a34a);
+      background: linear-gradient(90deg, #218838, #2cb94e);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
     }
     .popup {
       position: fixed;
@@ -502,12 +496,6 @@
       .create-account-btn:hover {
         background: linear-gradient(90deg, #15803d, #16a34a);
       }
-      #cookie-popup {
-        width: 95%;
-        max-width: 320px;
-        padding: wards: 1rem;
-        font-size: 0.9rem;
-      }
     }
     @media (max-width: 640px) {
       footer {
@@ -593,7 +581,7 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
       </div>
     </div>
   </main>
@@ -607,9 +595,11 @@
     </div>
   </footer>
 
-  <div id="cookie-popup" class="hidden">
-    <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
-    <button id="cookie-accept" class="w-full">Accept Cookies</button>
+  <div id="cookie-popup-container" class="hidden">
+    <div id="cookie-popup" class="popup-content">
+      <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
+      <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
+    </div>
   </div>
 
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -916,7 +906,6 @@
             confirmPaymentBtn.dataset.kesPrice = kesPrice;
             const submitRefCodeBtn = document.getElementById('submit-ref-code');
             submitRefCodeBtn.dataset.item = item;
- counterfeitPaymentBtn.dataset.kesPrice = kesPrice;
             submitRefCodeBtn.dataset.kesPrice = kesPrice;
           };
 
@@ -1461,13 +1450,13 @@
       const now = Date.now();
 
       if (!cookieAccepted || (lastShown && now - lastShown > threeDays)) {
-        document.getElementById('cookie-popup').classList.remove('hidden');
+        document.getElementById('cookie-popup-container').classList.remove('hidden');
       }
 
       document.getElementById('cookie-accept').onclick = () => {
         localStorage.setItem('cookiesAccepted', 'true');
         localStorage.setItem('cookiePopupLastShown', now.toString());
-        document.getElementById('cookie-popup').classList.add('hidden');
+        document.getElementById('cookie-popup-container').classList.add('hidden');
       };
     }
 
@@ -1563,5 +1552,5 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329efa1e841bd50',t:'MTc0NTAzOTg1MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
