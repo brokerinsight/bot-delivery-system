@@ -609,16 +609,15 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
 
-    // Find the product in cache to get the fileId
+    // Step 1: Find the product in cache to get the fileId and cache index
     const productIndex = cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
       console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
       return res.status(404).json({ success: false, error: 'Bot not found' });
     }
-
     const fileId = cachedData.products[productIndex].fileId;
 
-    // Step 1: Delete the file from Google Drive
+    // Step 2: Delete the file from Google Drive
     try {
       await drive.files.delete({ fileId });
       console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
@@ -627,51 +626,70 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       // Continue with deletion even if Google Drive deletion fails to ensure data consistency
     }
 
-    // Step 2: Delete from SPREADSHEET_ID Sheet1
+    // Step 3: Delete the row from SPREADSHEET_ID Sheet1
     let response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: 'Sheet1!A:J'
     });
     let rows = response.data.values || [];
-    const sheetIndex = rows.slice(1).findIndex(row => row[0] === item);
-    if (sheetIndex !== -1) {
-      rows.splice(sheetIndex + 1, 1); // +1 to account for header row
-      await sheets.spreadsheets.values.update({
+    const sheetRowIndex = rows.slice(1).findIndex(row => row[0] === item);
+    if (sheetRowIndex !== -1) {
+      const rowToDelete = sheetRowIndex + 1; // +1 to account for header row (0-based index)
+      await sheets.spreadsheets.batchUpdate({
         spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'Sheet1!A:J',
-        valueInputOption: 'RAW',
-        resource: { values: rows }
+        resource: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: 0, // Sheet1 typically has sheetId 0, adjust if different
+                  dimension: 'ROWS',
+                  startIndex: rowToDelete,
+                  endIndex: rowToDelete + 1
+                }
+              }
+            }
+          ]
+        }
       });
-      console.log(`[${new Date().toISOString()}] Deleted bot row from SPREADSHEET_ID Sheet1: ${item}`);
+      console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from SPREADSHEET_ID Sheet1: ${item}`);
     } else {
       console.warn(`[${new Date().toISOString()}] Bot not found in SPREADSHEET_ID Sheet1: ${item}`);
     }
 
-    // Step 3: Delete from PRODUCTS_SHEET_ID Sheet1
+    // Step 4: Delete the row from PRODUCTS_SHEET_ID Sheet1
     response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.PRODUCTS_SHEET_ID,
       range: 'Sheet1!A:J'
     });
     rows = response.data.values || [];
-    const productSheetIndex = rows.slice(1).findIndex(row => row[0] === item);
-    if (productSheetIndex !== -1) {
-      rows.splice(productSheetIndex + 1, 1); // +1 to account for header row
-      await sheets.spreadsheets.values.update({
+    const productSheetRowIndex = rows.slice(1).findIndex(row => row[0] === item);
+    if (productSheetRowIndex !== -1) {
+      const rowToDelete = productSheetRowIndex + 1; // +1 to account for header row (0-based index)
+      await sheets.spreadsheets.batchUpdate({
         spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-        range: 'Sheet1!A:J',
-        valueInputOption: 'RAW',
-        resource: { values: rows }
+        resource: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: 0, // Sheet1 typically has sheetId 0, adjust if different
+                  dimension: 'ROWS',
+                  startIndex: rowToDelete,
+                  endIndex: rowToDelete + 1
+                }
+              }
+            }
+          ]
+        }
       });
-      console.log(`[${new Date().toISOString()}] Deleted bot row from PRODUCTS_SHEET_ID Sheet1: ${item}`);
+      console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from PRODUCTS_SHEET_ID Sheet1: ${item}`);
     } else {
       console.warn(`[${new Date().toISOString()}] Bot not found in PRODUCTS_SHEET_ID Sheet1: ${item}`);
     }
 
-    // Step 4: Update cache only after successful deletion from sheets
+    // Step 5: Update the cache after successful deletion from sheets
     cachedData.products.splice(productIndex, 1);
-
-    // Step 5: Save the updated cache to ensure consistency
-    await saveData();
 
     // Step 6: Send response only after all steps are complete
     res.json({ success: true });
