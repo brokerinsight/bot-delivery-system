@@ -124,7 +124,7 @@
       transition: all 0.3s ease;
     }
     #category-list li:hover {
-      transform: translateY(-2px);
+      transform:Save Changes
       box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
     /* Orders table styling */
@@ -578,7 +578,7 @@
     function renderOrders() {
       const orderList = document.getElementById('order-list');
       orderList.innerHTML = '';
-      orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Sort by latest first
+      orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       orders.forEach(order => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -616,7 +616,7 @@
             });
             const result = await response.json();
             if (result.success) {
-              await fetchOrders(); // Refresh orders to reflect updated status
+              await fetchOrders();
               alert(`Order status updated to "${status}"!`);
             } else {
               throw new Error(result.error || 'Failed to update order status');
@@ -710,7 +710,7 @@
       }
     });
 
-    // Add bot with progress bar (unchanged to preserve functionality)
+    // Add bot with progress bar
     document.getElementById('product-form').addEventListener('submit', async e => {
       e.preventDefault();
       const formData = new FormData();
@@ -789,14 +789,19 @@
         btn.addEventListener('click', () => {
           const item = btn.dataset.item;
           const product = data.products.find(p => p.item === item);
+          if (!product) {
+            alert('Bot not found. Please refresh and try again.');
+            return;
+          }
           document.getElementById('edit-item').value = product.item;
+          document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
           document.getElementById('edit-name').value = product.name;
           document.getElementById('edit-price').value = product.price;
           document.getElementById('edit-desc').value = product.desc;
-          document.getElementById('edit-embed').value = product.embed;
+          document.getElementById('edit-embed').value = product.embed || '';
           document.getElementById('edit-img').value = product.img;
           document.getElementById('edit-isNew').checked = product.isNew;
-          document.getElementById('edit-isArchived').checked = product.isArchived;
+          document.getElementById('edit-isArchived').checked = product.isArchived || false;
           const categorySelect = document.getElementById('edit-category');
           categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
           categorySelect.value = product.category;
@@ -807,28 +812,30 @@
 
       document.querySelectorAll('.delete-bot').forEach(btn => {
         btn.addEventListener('click', async () => {
-          if (confirm('Are you sure you want to delete this bot?')) {
-            showButtonFeedback(btn, 'Deleting...', 'Delete');
-            const item = btn.dataset.item;
-            try {
-              const response = await fetch('/api/delete-bot', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item }),
-                credentials: 'include'
-              });
-              const result = await response.json();
-              if (result.success) {
-                data.products = data.products.filter(p => p.item !== item);
-                renderBots();
-                alert('Bot deleted successfully!');
-              } else {
-                throw new Error(result.error || 'Failed to delete bot');
-              }
-            } catch (error) {
-              console.error('Error deleting bot:', error);
-              alert('Failed to delete bot. Please try again.');
+          const confirmation = confirm('Are you sure you want to delete this bot?');
+          if (!confirmation) return;
+          
+          showButtonFeedback(btn, 'Deleting...', 'Delete');
+          const item = btn.dataset.item;
+          try {
+            const response = await fetch('/api/delete-bot', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ item }),
+              credentials: 'include'
+            });
+            const result = await response.json();
+            if (result.success) {
+              data.products = data.products.filter(p => p.item !== item);
+              await saveData();
+              renderBots();
+              alert('Bot deleted successfully!');
+            } else {
+              throw new Error(result.error || 'Failed to delete bot');
             }
+          } catch (error) {
+            console.error('Error deleting bot:', error);
+            alert('Failed to delete bot. Please try again.');
           }
         });
       });
@@ -838,22 +845,33 @@
     function closeEditModal() {
       document.getElementById('edit-modal').classList.add('hidden');
       document.body.classList.remove('modal-active');
+      document.getElementById('edit-form').reset();
     }
 
     document.getElementById('edit-form').addEventListener('submit', async e => {
       e.preventDefault();
       const btn = e.submitter;
       showButtonFeedback(btn, 'Saving...', 'Save Changes');
-      const originalItem = document.getElementById('edit-item').dataset.originalItem || document.getElementById('edit-item').value;
-      const item = document.getElementById('edit-item').value.trim();
+
+      const originalItem = document.getElementById('edit-item').dataset.originalItem;
+      const newItem = document.getElementById('edit-item').value.trim();
+
+      // Check if new item number already exists (excluding the current bot being edited)
+      if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
+        alert('This item number already exists. Please use a unique item number.');
+        return;
+      }
+
       const productIndex = data.products.findIndex(p => p.item === originalItem);
       if (productIndex === -1) {
         alert('Bot not found. Please try again.');
         return;
       }
+
+      // Update the bot data
       data.products[productIndex] = {
         ...data.products[productIndex],
-        item,
+        item: newItem,
         name: document.getElementById('edit-name').value.trim(),
         price: parseFloat(document.getElementById('edit-price').value),
         desc: document.getElementById('edit-desc').value.trim(),
@@ -863,10 +881,15 @@
         isNew: document.getElementById('edit-isNew').checked,
         isArchived: document.getElementById('edit-isArchived').checked
       };
-      await saveData();
-      renderBots();
-      document.getElementById('edit-modal').classList.add('hidden');
-      document.body.classList.remove('modal-active');
+
+      const success = await saveData();
+      if (success) {
+        renderBots();
+        closeEditModal();
+        alert('Bot updated successfully!');
+      } else {
+        alert('Failed to update bot. Please try again.');
+      }
     });
 
     document.getElementById('edit-cancel').addEventListener('click', () => {
@@ -919,6 +942,9 @@
         await saveData();
         renderCategories();
         document.getElementById('new-category').value = '';
+        alert('Category added successfully!');
+      } else {
+        alert('Category already exists or is invalid.');
       }
     });
 
@@ -926,7 +952,6 @@
     const urgentToggle = document.getElementById('urgent-toggle');
     const urgentMessage = document.getElementById('urgent-message');
 
-    // Ensure urgent message textarea is correctly initialized and toggled
     function initializeUrgentMessage() {
       if (!urgentToggle || !urgentMessage) {
         console.error('Urgent message elements not found in DOM');
@@ -1064,12 +1089,16 @@
         btn.addEventListener('click', () => {
           const slug = btn.dataset.slug;
           const page = data.staticPages.find(p => p.slug === slug);
+          if (!page) {
+            alert('Page not found. Please refresh and try again.');
+            return;
+          }
           document.getElementById('page-title').value = page.title;
           document.getElementById('page-slug').value = page.slug;
           document.getElementById('page-content').value = page.content;
           document.getElementById('add-page').textContent = 'Save Changes';
           document.getElementById('add-page').dataset.editSlug = slug;
-          data.staticPages = data.staticPages.filter(p => p.slug !== slug);
+          document.getElementById('page-slug').dataset.originalSlug = slug; // Store original slug for comparison
         });
       });
 
@@ -1081,6 +1110,7 @@
             data.staticPages = data.staticPages.filter(p => p.slug !== slug);
             await saveData();
             renderPages();
+            alert('Page deleted successfully!');
           }
         });
       });
@@ -1097,34 +1127,52 @@
         return;
       }
 
-      if (btn.dataset.editSlug) {
-        // Editing an existing page
-        showButtonFeedback(btn, 'Saving...', 'Save Changes');
-        data.staticPages.push({
-          title: pageTitle,
-          slug: pageSlug,
-          content: pageContent
-        });
-        await saveData();
-        renderPages();
-        alert('Page updated successfully!');
-        btn.textContent = 'Add Page';
-        delete btn.dataset.editSlug;
-      } else {
-        // Adding a new page
-        showButtonFeedback(btn, 'Adding...', 'Add Page');
+      const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
+
+      // Check for duplicate slug if adding a new page or if the slug has changed while editing
+      if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
         if (data.staticPages.some(page => page.slug === pageSlug)) {
           alert('A page with this slug already exists. Please use a different slug.');
           return;
         }
+      }
+
+      if (btn.dataset.editSlug) {
+        // Editing an existing page
+        showButtonFeedback(btn, 'Saving...', 'Save Changes');
+        data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug); // Remove the old page
         data.staticPages.push({
           title: pageTitle,
           slug: pageSlug,
           content: pageContent
         });
-        await saveData();
-        renderPages();
-        alert('Page added successfully!');
+        const success = await saveData();
+        if (success) {
+          renderPages();
+          alert('Page updated successfully!');
+          btn.textContent = 'Add Page';
+          delete btn.dataset.editSlug;
+          delete document.getElementById('page-slug').dataset.originalSlug;
+        } else {
+          alert('Failed to update page. Please try again.');
+          return;
+        }
+      } else {
+        // Adding a new page
+        showButtonFeedback(btn, 'Adding...', 'Add Page');
+        data.staticPages.push({
+          title: pageTitle,
+          slug: pageSlug,
+          content: pageContent
+        });
+        const success = await saveData();
+        if (success) {
+          renderPages();
+          alert('Page added successfully!');
+        } else {
+          alert('Failed to add page. Please try again.');
+          return;
+        }
       }
 
       document.getElementById('page-title').value = '';
@@ -1152,12 +1200,12 @@
         document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
         document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
         document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
-        initializeUrgentMessage(); // Initialize urgent message state
+        initializeUrgentMessage();
         document.getElementById('fallback-rate').value = data.settings.fallbackRate || '';
         Object.keys(data.settings.socials || {}).forEach(key => {
           document.getElementById(key).value = data.settings.socials[key] || '';
         });
-        startOrdersPolling(); // Start polling for orders
+        startOrdersPolling();
       }
     }
 
@@ -1165,5 +1213,7 @@
   </script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328b0f2484553bc',t:'MTc0NTAyNjc5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
 </html>
