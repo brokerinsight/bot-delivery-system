@@ -584,17 +584,22 @@ async function selfCheck() {
     console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
   }
 
+  //email start
+  if (!global.__TEST_EMAIL_SENT__) {
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: process.env.EMAIL_USER,
-      subject: 'Test Email from Deriv Bot Store Server',
-      text: 'Server is up and running!'
+      subject: '✅ BotBlitz Server Status',
+      text: 'BotBlitz server is running, and email system is working correctly.'
     });
-    console.log(`[${new Date().toISOString()}] Test email sent successfully`);
+    global.__TEST_EMAIL_SENT__ = true;
+    console.log(`[${new Date().toISOString()}] ✅ Test email sent successfully`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send test email:`, error.message);
+    console.error(`[${new Date().toISOString()}] ❌ Failed to send test email:`, error.message);
   }
+}
+//email ending 
 
   const indexPath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(indexPath)) {
