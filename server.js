@@ -650,7 +650,21 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     cachedData = req.body;
-    await saveData();
+
+    // ✅ Sync updated categories to Google Sheets
+    if (Array.isArray(cachedData.categories)) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+        range: 'categories!A:A',
+        valueInputOption: 'RAW',
+        resource: {
+          values: [['CATEGORY'], ...cachedData.categories.map(cat => [cat])]
+        }
+      });
+      console.log(`[${new Date().toISOString()}] Synced categories to Google Sheets.`);
+    }
+
+    await saveData(); // ✅ This is your actual method
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
   } catch (error) {
