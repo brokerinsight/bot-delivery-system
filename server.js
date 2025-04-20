@@ -651,20 +651,52 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     cachedData = req.body;
 
-    // ✅ Sync updated categories to Google Sheets
+    // ✅ Dynamically delete removed categories from the sheet (row-by-row)
     if (Array.isArray(cachedData.categories)) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-        range: 'categories!A:A',
-        valueInputOption: 'RAW',
-        resource: {
-          values: [['CATEGORY'], ...cachedData.categories.map(cat => [cat])]
+      try {
+        const sheet = await sheets.spreadsheets.values.get({
+          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+          range: 'categories!A2:A', // Skip header
+        });
+
+        const rows = sheet.data.values || [];
+        const existingCategories = rows.map(row => row[0]); // current categories in sheet
+        const newCategories = cachedData.categories; // updated categories from admin panel
+
+        const deletedCategories = existingCategories.filter(oldCat => !newCategories.includes(oldCat));
+
+        for (const category of deletedCategories) {
+          const rowIndex = existingCategories.findIndex(c => c === category);
+          if (rowIndex !== -1) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+              range: `categories!A${rowIndex + 2}`, // +2 = header + 0-based index
+              valueInputOption: 'RAW',
+              resource: { values: [['']] } // clear the row
+            });
+            console.log(`[${new Date().toISOString()}] 🗑️ Deleted category "${category}" from sheet`);
+          }
         }
-      });
-      console.log(`[${new Date().toISOString()}] Synced categories to Google Sheets.`);
+
+        // ✅ Then overwrite sheet with cleaned category list
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
+          range: 'categories!A:A',
+          valueInputOption: 'RAW',
+          resource: {
+            values: [['CATEGORY'], ...newCategories.map(cat => [cat])]
+          }
+        });
+
+        console.log(`[${new Date().toISOString()}] ✅ Synced updated categories to Google Sheets.`);
+      } catch (catError) {
+        console.error(`[${new Date().toISOString()}] ❌ Failed to sync categories:`, catError.message);
+      }
     }
 
-    await saveData(); // ✅ This is your actual method
+    // ✅ Save entire data structure to Google Sheets
+    await saveData();
+
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
   } catch (error) {
@@ -672,7 +704,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
-
+//end of this route
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
