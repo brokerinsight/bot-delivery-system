@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const sanitizeHtml = require('sanitize-html');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 dotenv.config();
 const app = express();
@@ -173,6 +174,7 @@ app.post('/api/initiate-payment', async (req, res) => {
         }
       }
     );
+    req.session.payment = { product_id, amount, status: 'pending' };
     res.json({ success: true, payment_url: response.data.payment_url });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error initiating payment:`, error.message);
@@ -214,15 +216,26 @@ app.post('/api/payment-callback', async (req, res) => {
       return res.status(200).json({ success: true });
     }
 
-    // Store temporary download token (simplified; consider Redis for production)
-    await supabase.from('temporary_downloads').insert([
-      { product_id: product.id, download_url: signedUrl.signedUrl, expires_at: new Date(Date.now() + 60 * 1000) }
-    ]);
-
+    // Store download URL in session (client must poll /api/check-payment)
+    req.session.payment = { product_id: product.id, download_url: signedUrl.signedUrl, status: 'success' };
     res.status(200).json({ success: true });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error in payment callback:`, error.message);
     res.status(200).json({ success: true });
+  }
+});
+
+// Check payment status (for PayHero)
+app.get('/api/check-payment', async (req, res) => {
+  try {
+    if (!req.session.payment || req.session.payment.status !== 'success') {
+      return res.status(400).json({ success: false, error: 'No successful payment found' });
+    }
+    res.json({ success: true, download_url: req.session.payment.download_url });
+    delete req.session.payment; // Clear session after retrieval
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error checking payment:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to check payment' });
   }
 });
 
@@ -346,7 +359,7 @@ app.get('/api/order-status/:product_id/:ref_code', async (req, res) => {
 
       await supabase
         .from('orders')
-        .update({ status: 'downloaded' })
+        .delete()
         .eq('product_id', product_id)
         .eq('ref_code', ref_code);
       res.json({ success: true, status: order.status, downloadLink: signedUrl.signedUrl });
@@ -368,8 +381,8 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
     const botPath = `bots/${file_id}_${name}.zip`;
 
     const [thumbnailRes, botRes] = await Promise.all([
-      supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail, { contentType: 'image/jpeg' }),
-      supabase.storage.from('bots').upload(botPath, bot_file, { contentType: 'application/zip' })
+      supabase.storage.from('thumbnails').upload(thumbnailPath, Buffer.from(thumbnail, 'base64'), { contentType: 'image/jpeg' }),
+      supabase.storage.from('bots').upload(botPath, Buffer.from(bot_file, 'base64'), { contentType: 'application/zip' })
     ]);
     if (thumbnailRes.error || botRes.error) throw new Error('File upload failed');
 
@@ -519,6 +532,10 @@ app.get('/product/:slug', async (req, res) => {
       .single();
     if (!product) return res.status(404).send('Product not found');
 
+    const { data: signedThumbnail } = await supabase.storage
+      .from('thumbnails')
+      .createSignedUrl(product.thumbnail_url, 3600); // 1-hour signed URL for thumbnail
+
     res.send(`
       <!DOCTYPE html>
       <html lang="en">
@@ -541,7 +558,7 @@ app.get('/product/:slug', async (req, res) => {
         </nav>
         <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h1 class="text-3xl font-bold text-gray-900 mb-8">${product.name}</h1>
-          <img src="${product.thumbnail_url}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-4">
+          <img src="${signedThumbnail.signedUrl}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-4">
           <div class="prose mb-4">${sanitizeHtml(product.description)}</div>
           ${product.embed_link ? `<div class="embed-container mb-4"><iframe src="${product.embed_link}" frameborder="0" allowfullscreen class="rounded-lg"></iframe></div>` : ''}
           <p class="text-green-600 font-bold mb-4">KES ${product.price_kes}</p>
