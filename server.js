@@ -7,6 +7,7 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const sanitizeHtml = require('sanitize-html');
+const bcrypt = require('bcrypt');
 
 dotenv.config();
 const app = express();
@@ -59,6 +60,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Authentication middleware
+function isAuthenticated(req, res, next) {
+  if (req.session.isAuthenticated) return next();
+  res.status(401).json({ success: false, error: 'Unauthorized' });
+}
+
 // Sitemap endpoint
 app.get('/sitemap.xml', async (req, res) => {
   try {
@@ -68,7 +75,6 @@ app.get('/sitemap.xml', async (req, res) => {
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-    // Homepage
     sitemap += `
       <url>
         <loc>https://botblitz.store/</loc>
@@ -77,7 +83,6 @@ app.get('/sitemap.xml', async (req, res) => {
         <priority>1.0</priority>
       </url>\n`;
 
-    // Static pages
     for (const page of staticPages || []) {
       sitemap += `
         <url>
@@ -88,7 +93,6 @@ app.get('/sitemap.xml', async (req, res) => {
         </url>\n`;
     }
 
-    // Product pages
     for (const product of products || []) {
       sitemap += `
         <url>
@@ -140,6 +144,11 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/initiate-payment', async (req, res) => {
   const { product_id, amount } = req.body;
   try {
+    const { data: settings } = await supabase.from('settings').select('payment_method').single();
+    if (settings.payment_method !== 'payhero') {
+      return res.status(400).json({ success: false, error: 'PayHero payments are disabled' });
+    }
+
     const { data: product } = await supabase
       .from('products')
       .select('id, price_kes, name, slug')
@@ -177,7 +186,13 @@ app.post('/api/payment-callback', async (req, res) => {
     const { status, user_reference, amount } = req.body;
     if (status !== 'success') {
       console.log(`[${new Date().toISOString()}] Payment failed for ref ${user_reference}: ${status}`);
-      return res.status(200).json({ success: true }); // Acknowledge webhook
+      return res.status(200).json({ success: true });
+    }
+
+    const { data: settings } = await supabase.from('settings').select('payment_method').single();
+    if (settings.payment_method !== 'payhero') {
+      console.log(`[${new Date().toISOString()}] PayHero payment ignored (manual mode)`);
+      return res.status(200).json({ success: true });
     }
 
     const { data: product } = await supabase
@@ -193,48 +208,56 @@ app.post('/api/payment-callback', async (req, res) => {
 
     const { data: signedUrl } = await supabase.storage
       .from('bots')
-      .createSignedUrl(product.file_url, 60); // 1-minute signed URL
+      .createSignedUrl(product.file_url, 60);
     if (!signedUrl) {
       console.error(`[${new Date().toISOString()}] Failed to generate signed URL for ${product.file_url}`);
       return res.status(200).json({ success: true });
     }
 
-    // Notify frontend via session or temporary storage (simplified)
-    console.log(`[${new Date().toISOString()}] Payment successful for ref ${user_reference}, download: ${signedUrl.signedUrl}`);
+    // Store temporary download token (simplified; consider Redis for production)
+    await supabase.from('temporary_downloads').insert([
+      { product_id: product.id, download_url: signedUrl.signedUrl, expires_at: new Date(Date.now() + 60 * 1000) }
+    ]);
+
     res.status(200).json({ success: true });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error in payment callback:`, error.message);
-    res.status(200).json({ success: true }); // Acknowledge webhook
+    res.status(200).json({ success: true });
   }
 });
 
 // Submit manual payment ref code
 app.post('/api/submit-ref', async (req, res) => {
-  const { item, refCode, amount, timestamp } = req.body;
+  const { product_id, ref_code, amount, timestamp, customer_email } = req.body;
   try {
+    const { data: settings } = await supabase.from('settings').select('payment_method').single();
+    if (settings.payment_method !== 'manual') {
+      return res.status(400).json({ success: false, error: 'Manual payments are disabled' });
+    }
+
     const { data: product } = await supabase
       .from('products')
       .select('*')
-      .eq('id', item)
+      .eq('id', product_id)
       .eq('is_active', true)
       .single();
     if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+    if (product.price_kes !== amount) return res.status(400).json({ success: false, error: 'Invalid amount' });
 
     const { data: existingOrder } = await supabase
       .from('orders')
       .select('*')
-      .eq('item_id', item)
-      .eq('ref_code', refCode)
+      .eq('product_id', product_id)
+      .eq('ref_code', ref_code)
       .single();
     if (existingOrder) return res.status(400).json({ success: false, error: 'Ref code already submitted' });
 
     const { error } = await supabase.from('orders').insert([
-      { item_id: item, ref_code: refCode, amount, timestamp, status: 'pending', downloaded: false }
+      { product_id, ref_code, status: 'pending', amount_kes: amount, customer_email, created_at: timestamp }
     ]);
     if (error) throw error;
 
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Order saved: ${item}/${refCode}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to submit ref code' });
@@ -254,7 +277,7 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
 
 // Update order status (admin)
 app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
-  const { item, refCode, status } = req.body;
+  const { product_id, ref_code, status } = req.body;
   try {
     if (!['confirmed', 'no payment', 'partial payment'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });
@@ -262,8 +285,8 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
     const { error } = await supabase
       .from('orders')
       .update({ status })
-      .eq('item_id', item)
-      .eq('ref_code', refCode);
+      .eq('product_id', product_id)
+      .eq('ref_code', ref_code);
     if (error) throw error;
     res.json({ success: true });
   } catch (error) {
@@ -274,12 +297,12 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
 
 // Confirm order (admin)
 app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
-  const { item, refCode } = req.body;
+  const { product_id, ref_code } = req.body;
   try {
     const { data: product } = await supabase
       .from('products')
       .select('file_url')
-      .eq('id', item)
+      .eq('id', product_id)
       .single();
     if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
@@ -288,7 +311,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       .createSignedUrl(product.file_url, 60);
     if (!signedUrl) throw new Error('Failed to generate signed URL');
 
-    await supabase.from('orders').delete().eq('item_id', item).eq('ref_code', refCode);
+    await supabase.from('orders').delete().eq('product_id', product_id).eq('ref_code', ref_code);
     res.json({ success: true, downloadLink: signedUrl.signedUrl });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
@@ -297,22 +320,22 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 });
 
 // Check order status
-app.get('/api/order-status/:item/:refCode', async (req, res) => {
-  const { item, refCode } = req.params;
+app.get('/api/order-status/:product_id/:ref_code', async (req, res) => {
+  const { product_id, ref_code } = req.params;
   try {
     const { data: order } = await supabase
       .from('orders')
       .select('*')
-      .eq('item_id', item)
-      .eq('ref_code', refCode)
+      .eq('product_id', product_id)
+      .eq('ref_code', ref_code)
       .single();
     if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
-    if (order.status === 'confirmed' && !order.downloaded) {
+    if (order.status === 'confirmed') {
       const { data: product } = await supabase
         .from('products')
         .select('file_url')
-        .eq('id', item)
+        .eq('id', product_id)
         .single();
       if (!product) return res.status(500).json({ success: false, error: 'Product not found' });
 
@@ -323,12 +346,10 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
 
       await supabase
         .from('orders')
-        .update({ downloaded: true })
-        .eq('item_id', item)
-        .eq('ref_code', refCode);
+        .update({ status: 'downloaded' })
+        .eq('product_id', product_id)
+        .eq('ref_code', ref_code);
       res.json({ success: true, status: order.status, downloadLink: signedUrl.signedUrl });
-    } else if (order.downloaded) {
-      res.status(403).json({ success: false, error: 'Ref code already used' });
     } else {
       res.status(400).json({ success: false, error: `Order is ${order.status}` });
     }
@@ -342,12 +363,15 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
 app.post('/api/add-bot', isAuthenticated, async (req, res) => {
   const { name, price, description, embed_link, category_id, thumbnail, bot_file } = req.body;
   try {
-    const { data: thumbnailUrl } = await supabase.storage
-      .from('thumbnails')
-      .upload(`thumbnails/${Date.now()}_${name}.jpg`, thumbnail, { contentType: 'image/jpeg' });
-    const { data: botUrl } = await supabase.storage
-      .from('bots')
-      .upload(`bots/${Date.now()}_${name}.zip`, bot_file, { contentType: 'application/zip' });
+    const file_id = crypto.randomUUID();
+    const thumbnailPath = `thumbnails/${file_id}_${name}.jpg`;
+    const botPath = `bots/${file_id}_${name}.zip`;
+
+    const [thumbnailRes, botRes] = await Promise.all([
+      supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail, { contentType: 'image/jpeg' }),
+      supabase.storage.from('bots').upload(botPath, bot_file, { contentType: 'application/zip' })
+    ]);
+    if (thumbnailRes.error || botRes.error) throw new Error('File upload failed');
 
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const excerpt = description.slice(0, 247) + '...';
@@ -360,8 +384,9 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
         description,
         embed_link,
         category_id,
-        thumbnail_url: thumbnailUrl.path,
-        file_url: botUrl.path,
+        thumbnail_url: thumbnailPath,
+        file_url: botPath,
+        file_id,
         slug,
         excerpt,
         meta_description,
@@ -403,12 +428,22 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
 // Admin login
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  const { data: settings } = await supabase.from('settings').select('admin_email, admin_password').single();
-  if (email === settings.admin_email && password === settings.admin_password) {
+  try {
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('email, password_hash')
+      .eq('email', email)
+      .single();
+    if (!admin) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+
+    const isValid = await bcrypt.compare(password, admin.password_hash);
+    if (!isValid) return res.status(401).json({ success: false, error: 'Invalid credentials' });
+
     req.session.isAuthenticated = true;
     res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error logging in:`, error.message);
+    res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
 
@@ -538,7 +573,7 @@ async function deleteOldOrders() {
     await supabase
       .from('orders')
       .delete()
-      .lt('timestamp', threeDaysAgo.toISOString());
+      .lt('created_at', threeDaysAgo.toISOString());
     console.log(`[${new Date().toISOString()}] Deleted orders older than 3 days`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting old orders:`, error.message);
