@@ -1,63 +1,72 @@
 const express = require('express');
-const { google } = require('googleapis');
-const nodemailer = require('nodemailer');
-const cookieParser = require('cookie-parser');
-const multer = require('multer');
-const marked = require('marked');
-const sanitizeHtml = require('sanitize-html');
-const session = require('express-session');
+const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const axios = require('axios');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const path = require('path');
-const fs = require('fs');
-const stream = require('stream');
-const fetch = require('node-fetch');
+const sanitizeHtml = require('sanitize-html');
 
 dotenv.config();
-
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Allowed domains for CORS and download links
-const ALLOWED_ORIGINS = [
-  'https://bot-delivery-system.onrender.com',
-  'https://botblitz.store',
-  'https://www.botblitz.store'
-];
-
-// Helper to get the base URL based on request origin
-function getBaseUrl(req) {
-  const origin = req.get('origin') || req.get('referer');
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    return origin;
-  }
-  // Default to botblitz.store for external or non-matching origins
-  return 'https://botblitz.store';
-}
 
 // CORS configuration
+const ALLOWED_ORIGINS = ['https://botblitz.store', 'https://www.botblitz.store'];
 app.use(cors({
-  origin: ALLOWED_ORIGINS,
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve static files from 'public' directory
-const publicPath = path.join(__dirname, 'public');
-//sitemap start
+// Session middleware
+app.use(session({
+  store: new session.MemoryStore(),
+  name: 'sid',
+  secret: process.env.SESSION_SECRET || 'secure-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_DATABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Sitemap endpoint
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    const products = cachedData.products || [];
-    const staticPages = cachedData.staticPages || [];
+    const { data: products } = await supabase.from('products').select('slug, updated_at').eq('is_active', true);
+    const { data: staticPages } = await supabase.from('static_pages').select('slug, updated_at');
 
     let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-      xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
+    sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
     // Homepage
     sitemap += `
@@ -69,1162 +78,478 @@ app.get('/sitemap.xml', async (req, res) => {
       </url>\n`;
 
     // Static pages
-    for (const page of staticPages) {
-      if (page.slug && !page.slug.includes('modal')) {
-        sitemap += `
-          <url>
-            <loc>https://botblitz.store${page.slug}</loc>
-            <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-            <changefreq>monthly</changefreq>
-            <priority>0.6</priority>
-          </url>\n`;
-      }
+    for (const page of staticPages || []) {
+      sitemap += `
+        <url>
+          <loc>https://botblitz.store${page.slug}</loc>
+          <lastmod>${new Date(page.updated_at).toISOString().split('T')[0]}</lastmod>
+          <changefreq>monthly</changefreq>
+          <priority>0.6</priority>
+        </url>\n`;
     }
 
-    // Product pages (mapped by item + description + embed)
-    for (const product of products) {
-      if (!product.isArchived && product.item) {
-        sitemap += `
-          <url>
-            <loc>https://botblitz.store/store?id=${product.item}</loc>
-            <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-            <changefreq>weekly</changefreq>
-            <priority>0.8</priority>
-            <!-- Bot Name: ${sanitizeXml(product.name || '')} -->
-            <!-- Description: ${sanitizeXml(product.desc || '')} -->`;
-
-        // Include embedded YouTube video if available
-        if (product.embed && product.embed.includes('youtube.com')) {
-          sitemap += `
-            <video:video>
-              <video:thumbnail_loc>${product.img}</video:thumbnail_loc>
-              <video:title>${sanitizeXml(product.name || '')}</video:title>
-              <video:description>${sanitizeXml(product.desc || '')}</video:description>
-              <video:content_loc>${sanitizeXml(product.embed)}</video:content_loc>
-            </video:video>`;
-        }
-
-        sitemap += `\n</url>\n`;
-      }
+    // Product pages
+    for (const product of products || []) {
+      sitemap += `
+        <url>
+          <loc>https://botblitz.store/product/${product.slug}</loc>
+          <lastmod>${new Date(product.updated_at).toISOString().split('T')[0]}</lastmod>
+          <changefreq>weekly</changefreq>
+          <priority>0.8</priority>
+        </url>\n`;
     }
 
     sitemap += `</urlset>`;
-
     res.header('Content-Type', 'application/xml');
     res.send(sitemap);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] ❌ Failed to generate sitemap:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error generating sitemap:`, error.message);
     res.status(500).send('Failed to generate sitemap.');
   }
 });
 
-// Helper to sanitize XML fields
-function sanitizeXml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-//sitemap end
-app.use(express.static(publicPath));
-
-// Log static file middleware setup
-console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
-
-// Session middleware with MemoryStore
-app.use(session({
-  store: new session.MemoryStore(),
-  name: 'sid',
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: 'auto',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
-
-// Log session details for debugging
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
-  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
-  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
-  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
-  next();
-});
-
-// Google API setup
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-});
-const sheets = google.sheets({ version: 'v4', auth });
-const drive = google.drive({ version: 'v3', auth });
-
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// Cache for data
-let cachedData = {
-  products: [],
-  categories: [],
-  settings: {
-    supportEmail: 'kaylie254.business@gmail.com',
-    copyrightText: '© 2025 Deriv Bot Store',
-    logoUrl: '',
-    socials: {},
-    urgentMessage: { enabled: false, text: '' },
-    fallbackRate: 130,
-    mpesaTill: '4933614'
-  },
-  staticPages: []
-};
-
-// Fallback content for modals
-const fallbackPaymentModal = {
-  title: 'Payment Modal',
-  slug: '/payment-modal',
-  content: `
-    <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-  `
-};
-
-const fallbackRefCodeModal = {
-  title: 'Ref Code Modal',
-  slug: '/ref-code-modal',
-  content: `
-    <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
-    <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
-    <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
-    <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-  `
-};
-
-// Helper function to fetch item details
-async function getItemDetails(itemNumber) {
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
-    });
-    const row = response.data.values.find(row => row[0] == itemNumber);
-    if (!row) {
-      throw new Error(`Item ${itemNumber} not found in Sheet1`);
-    }
-    return {
-      fileId: row[1],
-      price: parseFloat(row[2]),
-      name: row[3],
-      desc: row[4] || '',
-      img: row[5] || 'https://via.placeholder.com/300',
-      category: row[6] || 'General',
-      embed: row[7] || '',
-      isNew: row[8] === 'TRUE',
-      isArchived: row[9] === 'TRUE'
-    };
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error fetching item details for ${itemNumber}:`, error.message);
-    throw error;
-  }
-}
-
-// Load data from Google Sheets
-async function loadData() {
-  try {
-    const productRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J'
-    });
-    const products = productRes.data.values?.slice(1).map(row => ({
-      item: row[0],
-      fileId: row[1],
-      price: parseFloat(row[2]),
-      name: row[3],
-      desc: row[4] || '',
-      img: row[5] || 'https://via.placeholder.com/300',
-      category: row[6] || 'General',
-      embed: row[7] || '',
-      isNew: row[8] === 'TRUE',
-      isArchived: row[9] === 'TRUE'
-    })) || [];
-
-    const settingsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B'
-    });
-    const settingsRows = settingsRes.data.values || [];
-    if (!settingsRows[0] || settingsRows[0][0] !== 'KEY' || settingsRows[0][1] !== 'VALUE') {
-      console.error(`[${new Date().toISOString()}] Invalid headers in settings tab. Expected: ["KEY", "VALUE"], Got: ${settingsRows[0]}`);
-      throw new Error('Invalid headers in settings tab');
-    }
-    const settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
-    const settings = {
-      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
-      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
-      logoUrl: settingsData.logoUrl || '',
-      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
-      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
-      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
-      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsData.adminPassword || 'securepassword123',
-      mpesaTill: settingsData.mpesaTill || '4933614'
-    };
-
-    const categoriesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A'
-    });
-    const categories = [...new Set(categoriesRes.data.values?.slice(1).flat() || ['General'])];
-    console.log(`[${new Date().toISOString()}] Loaded categories (after deduplication):`, categories);
-
-    const pagesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C'
-    });
-    let staticPages = pagesRes.data.values?.slice(1).map(row => ({
-      title: row[0],
-      slug: row[1],
-      content: row[2]
-    })) || [];
-
-    if (!staticPages.find(page => page.slug === '/payment-modal')) {
-      console.log(`[${new Date().toISOString()}] Adding fallback for /payment-modal`);
-      staticPages.push(fallbackPaymentModal);
-    }
-    if (!staticPages.find(page => page.slug === '/ref-code-modal')) {
-      console.log(`[${new Date().toISOString()}] Adding fallback for /ref-code-modal`);
-      staticPages.push(fallbackRefCodeModal);
-    }
-
-    cachedData = { products, categories, settings, staticPages };
-    console.log(`[${new Date().toISOString()}] Data loaded successfully from Google Sheets`);
-    console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
-    throw error;
-  }
-}
-
-// Refresh cache periodically
-async function refreshCache() {
-  try {
-    await loadData();
-    console.log(`[${new Date().toISOString()}] Cache refreshed successfully`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error refreshing cache:`, error.message);
-  }
-}
-
-// Stream file to Google Drive
-async function streamUploadToDrive(file, filename) {
-  try {
-    const fileMetadata = {
-      name: filename,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
-    };
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(file.buffer);
-    const media = {
-      mimeType: file.mimetype,
-      body: bufferStream
-    };
-    const driveRes = await drive.files.create({
-      resource: fileMetadata,
-      media,
-      fields: 'id'
-    });
-    console.log(`[${new Date().toISOString()}] File uploaded to Google Drive, ID: ${driveRes.data.id}`);
-    return driveRes.data;
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error uploading file to Google Drive:`, error.message);
-    throw error;
-  }
-}
-
-// Save data to Google Sheets
-async function saveData() {
-  try {
-    const productValues = [
-      ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-      ...cachedData.products.map(p => [
-        p.item,
-        p.fileId,
-        p.price,
-        p.name,
-        p.desc,
-        p.img,
-        p.category,
-        p.embed,
-        p.isNew ? 'TRUE' : 'FALSE',
-        p.isArchived ? 'TRUE' : 'FALSE'
-      ])
-    ];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
-      valueInputOption: 'RAW',
-      resource: { values: productValues }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'Sheet1!A:J',
-      valueInputOption: 'RAW',
-      resource: { values: productValues }
-    });
-
-    const settingsForSheet = [
-      ['KEY', 'VALUE'],
-      ...Object.entries(cachedData.settings).map(([key, value]) => {
-        if (typeof value === 'object' && value !== null) {
-          return [key, JSON.stringify(value)];
-        }
-        return [key, value];
-      })
-    ];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B',
-      valueInputOption: 'RAW',
-      resource: { values: settingsForSheet }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A',
-      valueInputOption: 'RAW',
-      resource: { values: [['CATEGORY'], ...[...new Set(cachedData.categories)].map(c => [c])] }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [['TITLE', 'SLUG', 'CONTENT'], ...cachedData.staticPages.map(p => [p.title, p.slug, p.content])]
-      }
-    });
-
-    console.log(`[${new Date().toISOString()}] Data saved successfully to Google Sheets`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
-    throw error;
-  }
-}
-
-// Delete orders older than 3 days
-async function deleteOldOrders() {
-  try {
-    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'orders!A:F'
-      });
-      const rows = response.data.values || [];
-      if (rows.length <= 1) {
-        console.log(`[${new Date().toISOString()}] No orders to delete in spreadsheet ${spreadsheetId}`);
-        continue;
-      }
-
-      const currentTime = new Date();
-      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
-      const filteredRows = [rows[0]];
-
-      for (let i = 1; i < rows.length; i++) {
-        const timestampStr = rows[i][3];
-        let orderDate;
-        try {
-          orderDate = new Date(timestampStr);
-          if (isNaN(orderDate.getTime())) {
-            console.warn(`[${new Date().toISOString()}] Invalid timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
-            filteredRows.push(rows[i]);
-            continue;
-          }
-        } catch (error) {
-          console.warn(`[${new Date().toISOString()}] Error parsing timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
-          filteredRows.push(rows[i]);
-            continue;
-        }
-
-        const ageInMs = currentTime - orderDate;
-        if (ageInMs <= threeDaysInMs) {
-          filteredRows.push(rows[i]);
-        } else {
-          console.log(`[${new Date().toISOString()}] Deleting order at row ${i + 1} in spreadsheet ${spreadsheetId}, timestamp: ${timestampStr}`);
-        }
-      }
-
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: 'orders!A:F',
-        valueInputOption: 'RAW',
-        resource: { values: filteredRows }
-      });
-      console.log(`[${new Date().toISOString()}] Old orders deleted successfully in spreadsheet ${spreadsheetId}`);
-    }
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error deleting old orders:`, error.message);
-  }
-}
-
-// Middleware to check admin session
-function isAuthenticated(req, res, next) {
-  if (req.session.isAuthenticated) {
-    return next();
-  }
-  console.log(`[${new Date().toISOString()}] Unauthorized access attempt to ${req.url}`);
-  res.status(401).json({ success: false, error: 'Unauthorized' });
-}
-
-// Ensure Google Sheet tabs exist with correct headers
-async function ensureSheetTabs(spreadsheetId) {
-  const tabsToEnsure = {
-    'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-    'settings': ['KEY', 'VALUE'],
-    'categories': ['CATEGORY'],
-    'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
-    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED'],
-    'emails': ['EMAIL', 'SUBJECT', 'BODY']
-  };
-
-  try {
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-    const existingSheets = spreadsheet.data.sheets.map(sheet => sheet.properties.title);
-
-    for (const [sheetName, headers] of Object.entries(tabsToEnsure)) {
-      if (!existingSheets.includes(sheetName)) {
-        console.log(`[${new Date().toISOString()}] Creating missing sheet ${sheetName} in spreadsheet ${spreadsheetId}`);
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          resource: {
-            requests: [{
-              addSheet: {
-                properties: { title: sheetName }
-              }
-            }]
-          }
-        });
-
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: `${sheetName}!1:1`,
-          valueInputOption: 'RAW',
-          resource: { values: [headers] }
-        });
-        console.log(`[${new Date().toISOString()}] Added headers to ${sheetName} in spreadsheet ${spreadsheetId}: ${headers}`);
-      } else {
-        const res = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!1:1`
-        });
-        const actualHeaders = res.data.values?.[0] || [];
-        if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
-          console.log(`[${new Date().toISOString()}] Fixing headers for ${sheetName} in spreadsheet ${spreadsheetId}. Expected: ${headers}, Got: ${actualHeaders}`);
-          await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: `${sheetName}!1:1`,
-            valueInputOption: 'RAW',
-            resource: { values: [headers] }
-          });
-          console.log(`[${new Date().toISOString()}] Headers fixed for ${sheetName} in spreadsheet ${spreadsheetId}`);
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error ensuring sheet tabs for spreadsheet ${spreadsheetId}:`, error.message);
-    throw error;
-  }
-}
-
-// Self-check on startup
-async function selfCheck() {
-  console.log(`[${new Date().toISOString()}] Starting server self-check...`);
-
-  try {
-    await sheets.spreadsheets.get({ spreadsheetId: process.env.SPREADSHEET_ID });
-    console.log(`[${new Date().toISOString()}] Successfully connected to SPREADSHEET_ID`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to SPREADSHEET_ID:`, error.message);
-  }
-
-  try {
-    await sheets.spreadsheets.get({ spreadsheetId: process.env.PRODUCTS_SHEET_ID });
-    console.log(`[${new Date().toISOString()}] Successfully connected to PRODUCTS_SHEET_ID`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
-  }
-
-  await ensureSheetTabs(process.env.SPREADSHEET_ID);
-  await ensureSheetTabs(process.env.PRODUCTS_SHEET_ID);
-
-  try {
-    const folder = await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
-    if (folder.data.mimeType !== 'application/vnd.google-apps.folder') {
-      throw new Error(`GOOGLE_DRIVE_FOLDER_ID (${process.env.GOOGLE_DRIVE_FOLDER_ID}) is not a folder`);
-    }
-    console.log(`[${new Date().toISOString()}] Successfully connected to Google Drive folder`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
-  }
-
-  //email start
-  if (!global.__TEST_EMAIL_SENT__) {
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: '✅ BotBlitz Server Status',
-      text: 'BotBlitz server is running, and email system is working correctly.'
-    });
-    global.__TEST_EMAIL_SENT__ = true;
-    console.log(`[${new Date().toISOString()}] ✅ Test email sent successfully`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ❌ Failed to send test email:`, error.message);
-  }
-}
-//email ending 
-
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  if (fs.existsSync(indexPath)) {
-    console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
-  } else {
-    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
-  }
-
-  async function pingRoutes() {
-    const routesToTest = [
-      '/api/data',
-      '/api/check-session',
-      '/api/orders',
-      '/api/page/cookie-policy',
-      '/api/order-status/test/test',
-      '/'
-    ];
-    for (const route of routesToTest) {
-      try {
-        const response = await fetch(`http://localhost:${PORT}${route}`, { method: 'GET' });
-        console.log(`[${new Date().toISOString()}] Ping ${route}: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        console.error(`[${new Date().toISOString()}] Failed to ping route ${route}:`, error.message);
-      }
-    }
-  }
-  await pingRoutes();
-
-  console.log(`[${new Date().toISOString()}] Self-check completed`);
-}
-
-// Session check endpoint
+// Session check
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
 });
 
-// API Routes
+// Fetch all data
 app.get('/api/data', async (req, res) => {
   try {
-    res.json(cachedData);
-    console.log(`[${new Date().toISOString()}] Served /api/data successfully`);
+    const [productsRes, categoriesRes, settingsRes, staticPagesRes, socialLinksRes] = await Promise.all([
+      supabase.from('products').select('*').eq('is_active', true),
+      supabase.from('categories').select('*'),
+      supabase.from('settings').select('*').limit(1).single(),
+      supabase.from('static_pages').select('*'),
+      supabase.from('social_links').select('*')
+    ]);
+    res.json({
+      products: productsRes.data || [],
+      categories: categoriesRes.data || [],
+      settings: settingsRes.data || {},
+      staticPages: staticPagesRes.data || [],
+      socialLinks: socialLinksRes.data || []
+    });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error fetching data:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch data' });
   }
 });
 
-app.post('/api/save-data', isAuthenticated, async (req, res) => {
+// Initiate PayHero payment
+app.post('/api/initiate-payment', async (req, res) => {
+  const { product_id, amount } = req.body;
   try {
-    cachedData = req.body;
+    const { data: product } = await supabase
+      .from('products')
+      .select('id, price_kes, name, slug')
+      .eq('id', product_id)
+      .eq('is_active', true)
+      .single();
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
+    if (product.price_kes !== amount) return res.status(400).json({ success: false, error: 'Invalid amount' });
 
-    // ✅ Dynamically delete removed categories from the sheet (row-by-row)
-    if (Array.isArray(cachedData.categories)) {
-      try {
-        const sheet = await sheets.spreadsheets.values.get({
-          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-          range: 'categories!A2:A', // Skip header
-        });
-
-        const rows = sheet.data.values || [];
-        const existingCategories = rows.map(row => row[0]); // current categories in sheet
-        const newCategories = cachedData.categories; // updated categories from admin panel
-
-        const deletedCategories = existingCategories.filter(oldCat => !newCategories.includes(oldCat));
-
-        for (const category of deletedCategories) {
-          const rowIndex = existingCategories.findIndex(c => c === category);
-          if (rowIndex !== -1) {
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-              range: `categories!A${rowIndex + 2}`, // +2 = header + 0-based index
-              valueInputOption: 'RAW',
-              resource: { values: [['']] } // clear the row
-            });
-            console.log(`[${new Date().toISOString()}] 🗑️ Deleted category "${category}" from sheet`);
-          }
+    const response = await axios.post(
+      'https://api.payhero.co.ke/payments',
+      {
+        channel_id: 2328,
+        amount,
+        reference: product_id,
+        callback_url: 'https://botblitz.store/api/payment-callback'
+      },
+      {
+        headers: {
+          Authorization: process.env.PAYHERO_BASIC_AUTH_TOKEN,
+          'Content-Type': 'application/json'
         }
-
-        // ✅ Then overwrite sheet with cleaned category list
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-          range: 'categories!A:A',
-          valueInputOption: 'RAW',
-          resource: {
-            values: [['CATEGORY'], ...newCategories.map(cat => [cat])]
-          }
-        });
-
-        console.log(`[${new Date().toISOString()}] ✅ Synced updated categories to Google Sheets.`);
-      } catch (catError) {
-        console.error(`[${new Date().toISOString()}] ❌ Failed to sync categories:`, catError.message);
       }
-    }
-
-    // ✅ Save entire data structure to Google Sheets
-    await saveData();
-
-    res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
+    );
+    res.json({ success: true, payment_url: response.data.payment_url });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to save data' });
-  }
-});
-//end of this route
-app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
-  try {
-    const { item, name, price, desc, embed, category, img, isNew } = req.body;
-    const file = req.file;
-    if (!file) throw new Error('No file uploaded');
-
-    const driveData = await streamUploadToDrive(file, `${item}_${name}.${file.originalname.split('.').pop()}`);
-    const product = {
-      item,
-      fileId: driveData.id,
-      price: parseFloat(price),
-      name,
-      desc,
-      img,
-      category,
-      embed,
-      isNew: isNew === 'true',
-      isArchived: false
-    };
-
-    cachedData.products.push(product);
-    await saveData();
-    res.json({ success: true, product });
-    console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to add bot' });
+    console.error(`[${new Date().toISOString()}] Error initiating payment:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to initiate payment' });
   }
 });
 
-app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
+// PayHero callback
+app.post('/api/payment-callback', async (req, res) => {
   try {
-    const { item } = req.body;
-
-    // Step 1: Find the product in cache to get the fileId and cache index
-    const productIndex = cachedData.products.findIndex(p => p.item === item);
-    if (productIndex === -1) {
-      console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
-      return res.status(404).json({ success: false, error: 'Bot not found in cache' });
-    }
-    const fileId = cachedData.products[productIndex].fileId;
-
-    // Step 2: Fetch Sheet1 from both spreadsheets to verify the bot exists
-    const spreadsheetIds = [
-      { id: process.env.SPREADSHEET_ID, name: 'SPREADSHEET_ID' },
-      { id: process.env.PRODUCTS_SHEET_ID, name: 'PRODUCTS_SHEET_ID' }
-    ];
-
-    const sheetData = [];
-    for (const { id, name } of spreadsheetIds) {
-      // Get the sheetId for Sheet1 dynamically
-      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: id });
-      const sheet = spreadsheet.data.sheets.find(s => s.properties.title === 'Sheet1');
-      if (!sheet) {
-        console.error(`[${new Date().toISOString()}] Sheet1 not found in spreadsheet ${name} (${id})`);
-        return res.status(500).json({ success: false, error: `Sheet1 not found in spreadsheet ${name}` });
-      }
-      const sheetId = sheet.properties.sheetId;
-
-      // Fetch Sheet1 data
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: id,
-        range: 'Sheet1!A:J'
-      });
-      const rows = response.data.values || [];
-      const rowIndex = rows.slice(1).findIndex(row => row[0] === item);
-      sheetData.push({ spreadsheetId: id, name, sheetId, rows, rowIndex });
+    const { status, user_reference, amount } = req.body;
+    if (status !== 'success') {
+      console.log(`[${new Date().toISOString()}] Payment failed for ref ${user_reference}: ${status}`);
+      return res.status(200).json({ success: true }); // Acknowledge webhook
     }
 
-    // Step 3: Verify the bot exists in both sheets
-    for (const { name, rowIndex } of sheetData) {
-      if (rowIndex === -1) {
-        console.warn(`[${new Date().toISOString()}] Bot not found in ${name} Sheet1: ${item}`);
-        return res.status(404).json({ success: false, error: `Bot not found in ${name} Sheet1` });
-      }
-    }
-
-    // Step 4: Delete the file from Google Drive
-    try {
-      await drive.files.delete({ fileId });
-      console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error deleting file from Google Drive:`, error.message);
-      // Continue with deletion even if Google Drive deletion fails to ensure data consistency
-    }
-
-    // Step 5: Delete the bot from both sheets
-    for (const { spreadsheetId, name, sheetId, rowIndex } of sheetData) {
-      const rowToDelete = rowIndex + 1; // +1 to account for header row (0-based index)
-      try {
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          resource: {
-            requests: [
-              {
-                deleteDimension: {
-                  range: {
-                    sheetId,
-                    dimension: 'ROWS',
-                    startIndex: rowToDelete,
-                    endIndex: rowToDelete + 1
-                  }
-                }
-              }
-            ]
-          }
-        });
-        console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from ${name} Sheet1: ${item}`);
-      } catch (error) {
-        console.error(`[${new Date().toISOString()}] Failed to delete bot row from ${name} Sheet1: ${error.message}`);
-        return res.status(500).json({ success: false, error: `Failed to delete bot from ${name} Sheet1` });
-      }
-    }
-
-    // Step 6: Update the cache after successful deletion from both sheets
-    cachedData.products.splice(productIndex, 1);
-
-    // Step 7: Send response only after all steps are complete
-    res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Bot deleted successfully from both sheets: ${item}`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to delete bot' });
-  }
-});
-
-// Standalone function to send notification email
-async function sendOrderNotification(item, refCode, amount) {
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: `New Order - KES-${parseFloat(amount).toFixed(2)}`,
-      text: `M-PESA Ref: ${refCode}\nItem Number: ${item}`
-    });
-    console.log(`[${new Date().toISOString()}] Order notification email sent for ref code ${refCode}`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send order notification email for ref code ${refCode}:`, error.message);
-  }
-}
-
-app.post('/api/submit-ref', async (req, res) => {
-  try {
-    const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
+    const { data: product } = await supabase
+      .from('products')
+      .select('id, file_url, name')
+      .eq('id', user_reference)
+      .eq('is_active', true)
+      .single();
     if (!product) {
-      console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
-      return res.status(404).json({ success: false, error: 'Product not found' });
+      console.error(`[${new Date().toISOString()}] Product not found for ref ${user_reference}`);
+      return res.status(200).json({ success: true });
     }
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const existingOrder = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
-    if (existingOrder) {
-      console.log(`[${new Date().toISOString()}] Ref code already submitted: ${refCode} for item: ${item}`);
-      return res.status(400).json({ success: false, error: 'Ref code already submitted' });
+    const { data: signedUrl } = await supabase.storage
+      .from('bots')
+      .createSignedUrl(product.file_url, 60); // 1-minute signed URL
+    if (!signedUrl) {
+      console.error(`[${new Date().toISOString()}] Failed to generate signed URL for ${product.file_url}`);
+      return res.status(200).json({ success: true });
     }
 
-    const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
+    // Notify frontend via session or temporary storage (simplified)
+    console.log(`[${new Date().toISOString()}] Payment successful for ref ${user_reference}, download: ${signedUrl.signedUrl}`);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in payment callback:`, error.message);
+    res.status(200).json({ success: true }); // Acknowledge webhook
+  }
+});
 
-    // Save order to SPREADSHEET_ID first
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F',
-      valueInputOption: 'RAW',
-      resource: { values: orderData }
-    });
-    console.log(`[${new Date().toISOString()}] Order saved for item: ${item}, refCode: ${refCode}`);
+// Submit manual payment ref code
+app.post('/api/submit-ref', async (req, res) => {
+  const { item, refCode, amount, timestamp } = req.body;
+  try {
+    const { data: product } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', item)
+      .eq('is_active', true)
+      .single();
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    // Respond immediately to ensure client gets success
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item_id', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (existingOrder) return res.status(400).json({ success: false, error: 'Ref code already submitted' });
+
+    const { error } = await supabase.from('orders').insert([
+      { item_id: item, ref_code: refCode, amount, timestamp, status: 'pending', downloaded: false }
+    ]);
+    if (error) throw error;
+
     res.json({ success: true });
-
-    // Send email independently without awaiting
-    Promise.resolve(sendOrderNotification(item, refCode, amount)).catch(err => {
-      console.error(`[${new Date().toISOString()}] Async email error (order still saved):`, err.message);
-    });
+    console.log(`[${new Date().toISOString()}] Order saved: ${item}/${refCode}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to submit ref code' });
   }
 });
 
+// Fetch orders (admin)
 app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    if (!rows[0] || rows[0].join(',') !== 'ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED') {
-      console.warn(`[${new Date().toISOString()}] Invalid headers in orders!A:F. Expected: ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED, Got: ${rows[0] ? rows[0].join(',') : 'empty'}`);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'orders!A1:F1',
-        valueInputOption: 'RAW',
-        resource: { values: [['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED']] }
-      });
-      if (rows.length <= 1) {
-        return res.json({ success: true, orders: [] });
-      }
-    }
-    const orders = rows.slice(1).map(row => ({
-      item: row[0] || '',
-      refCode: row[1] || '',
-      amount: row[2] || '',
-      timestamp: row[3] || '',
-      status: row[4] || 'pending',
-      downloaded: row[5] === 'TRUE'
-    }));
-    res.json({ success: true, orders });
-    console.log(`[${new Date().toISOString()}] Orders fetched successfully, count: ${orders.length}`);
+    const { data: orders } = await supabase.from('orders').select('*');
+    res.json({ success: true, orders: orders || [] });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch orders' });
   }
 });
 
-app.get('/api/order-status/:item/:refCode', async (req, res) => {
-  const { item, refCode } = req.params;
-  console.log(`[${new Date().toISOString()}] Order status request for ${item}/${refCode}`);
-
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const order = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
-    if (!order) {
-      console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
-      return res.status(404).json({ success: false, error: 'Order not found. Please check the ref code or contact support.' });
-    }
-    const status = order[4] || 'pending';
-    const downloaded = order[5] === 'TRUE';
-    let downloadLink = null;
-
-    if (status === 'confirmed' && !downloaded) {
-      const product = cachedData.products.find(p => p.item === item) || await getItemDetails(item);
-      if (product) {
-        downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
-        const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-        rows[orderIndex + 1][5] = 'TRUE';
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: process.env.SPREADSHEET_ID,
-          range: 'orders!A:F',
-          valueInputOption: 'RAW',
-          resource: { values: rows }
-        });
-        console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
-      } else {
-        console.error(`[${new Date().toISOString()}] Product not found in cache or Sheet1 for item: ${item}`);
-        return res.status(500).json({ success: false, error: 'Product not found. Please contact support.' });
-      }
-    } else if (downloaded) {
-      console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
-      return res.status(403).json({ success: false, error: 'Ref code already used for download. Contact support if you need assistance.' });
-    } else {
-      console.log(`[${new Date().toISOString()}] Order not confirmed: ${item}/${refCode}, status: ${status}`);
-      return res.status(400).json({ success: false, error: `Order is ${status}. Please wait for confirmation or contact support.` });
-    }
-
-    res.json({ success: true, status, downloadLink });
-    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to check order status. Please contact support.' });
-  }
-});
-
+// Update order status (admin)
 app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
+  const { item, refCode, status } = req.body;
   try {
-    const { item, refCode, status } = req.body;
     if (!['confirmed', 'no payment', 'partial payment'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-    if (orderIndex === -1) {
-      console.log(`[${new Date().toISOString()}] Order not found for update: ${item}/${refCode}`);
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-    rows[orderIndex + 1][4] = status;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F',
-      valueInputOption: 'RAW',
-      resource: { values: rows }
-    });
-
+    const { error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('item_id', item)
+      .eq('ref_code', refCode);
+    if (error) throw error;
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Order status updated: ${item}/${refCode} - New Status: ${status}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error updating order status:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to update order status' });
   }
 });
 
+// Confirm order (admin)
 app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
+  const { item, refCode } = req.body;
   try {
-    const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) {
-      console.log(`[${new Date().toISOString()}] Product not found for order confirmation: ${item}`);
-      return res.status(404).json({ success: false, error: 'Product not found' });
-    }
+    const { data: product } = await supabase
+      .from('products')
+      .select('file_url')
+      .eq('id', item)
+      .single();
+    if (!product) return res.status(404).json({ success: false, error: 'Product not found' });
 
-    const downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
-    const email = cachedData.settings.supportEmail;
-    const subject = `Your Deriv Bot Purchase - ${item}`;
-    const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
+    const { data: signedUrl } = await supabase.storage
+      .from('bots')
+      .createSignedUrl(product.file_url, 60);
+    if (!signedUrl) throw new Error('Failed to generate signed URL');
 
-    const emailData = [[email, subject, body]];
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'emails!A:C',
-      valueInputOption: 'RAW',
-      resource: { values: emailData }
-    });
-
-    const ordersResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const ordersRows = ordersResponse.data.values || [];
-    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-    if (orderIndex !== -1) {
-      ordersRows.splice(orderIndex + 1, 1);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'orders!A:F',
-        valueInputOption: 'RAW',
-        resource: { values: ordersRows }
-      });
-    }
-
-    res.json({ success: true, downloadLink });
-    console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
+    await supabase.from('orders').delete().eq('item_id', item).eq('ref_code', refCode);
+    res.json({ success: true, downloadLink: signedUrl.signedUrl });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
 
-app.post('/deliver-bot', async (req, res) => {
+// Check order status
+app.get('/api/order-status/:item/:refCode', async (req, res) => {
+  const { item, refCode } = req.params;
   try {
-    const { item, price, payment_method } = req.body;
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item_id', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
 
-    if (!item || !price || !payment_method) {
-      return res.status(400).json({ success: false, error: 'Missing required parameters: item, price, payment_method' });
+    if (order.status === 'confirmed' && !order.downloaded) {
+      const { data: product } = await supabase
+        .from('products')
+        .select('file_url')
+        .eq('id', item)
+        .single();
+      if (!product) return res.status(500).json({ success: false, error: 'Product not found' });
+
+      const { data: signedUrl } = await supabase.storage
+        .from('bots')
+        .createSignedUrl(product.file_url, 60);
+      if (!signedUrl) throw new Error('Failed to generate signed URL');
+
+      await supabase
+        .from('orders')
+        .update({ downloaded: true })
+        .eq('item_id', item)
+        .eq('ref_code', refCode);
+      res.json({ success: true, status: order.status, downloadLink: signedUrl.signedUrl });
+    } else if (order.downloaded) {
+      res.status(403).json({ success: false, error: 'Ref code already used' });
+    } else {
+      res.status(400).json({ success: false, error: `Order is ${order.status}` });
     }
-
-    const itemDetails = await getItemDetails(item);
-    if (price !== itemDetails.price) {
-      console.log(`[${new Date().toISOString()}] Price tampering detected for item ${item}: received ${price}, expected ${itemDetails.price}`);
-      return res.status(400).json({ success: false, error: 'Invalid price. Contact support.' });
-    }
-
-    const downloadLink = `${getBaseUrl(req)}/download/${itemDetails.fileId}`;
-    res.json({ success: true, downloadLink });
-    console.log(`[${new Date().toISOString()}] Generated download link for item ${item}: ${downloadLink}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error delivering file for item ${req.body.item}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to generate download link. Contact support.' });
+    console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to check order status' });
   }
 });
 
-app.get('/download/:fileId', async (req, res) => {
-  const fileId = req.params.fileId;
-
-  // Set dynamic CORS headers for download route
-  const origin = req.get('origin') || req.get('referer');
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://botblitz.store');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
-
-  const product = cachedData.products.find(p => p.fileId === fileId);
-  if (!product) {
-    console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
-    return res.status(403).json({ success: false, error: 'Invalid file ID. Contact support.' });
-  }
-
-  console.log(`[${new Date().toISOString()}] Download request for fileId: ${fileId}`);
+// Add bot (admin)
+app.post('/api/add-bot', isAuthenticated, async (req, res) => {
+  const { name, price, description, embed_link, category_id, thumbnail, bot_file } = req.body;
   try {
-    const fileMetadata = await drive.files.get({ fileId, fields: 'name, mimeType' });
-    const fileName = fileMetadata.data.name || `file-${fileId}`;
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Type', fileMetadata.data.mimeType || 'application/octet-stream');
-    const file = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
-    file.data.pipe(res);
-    console.log(`[${new Date().toISOString()}] File download started: ${fileId} (${fileName})`);
-    file.data.on('end', () => {
-      console.log(`[${new Date().toISOString()}] File download completed: ${fileId}`);
-    });
-    file.data.on('error', (error) => {
-      console.error(`[${new Date().toISOString()}] Stream error during download of ${fileId}:`, error.message);
-      if (!res.headersSent) {
-        res.status(500).json({ success: false, error: 'Failed to stream file' });
+    const { data: thumbnailUrl } = await supabase.storage
+      .from('thumbnails')
+      .upload(`thumbnails/${Date.now()}_${name}.jpg`, thumbnail, { contentType: 'image/jpeg' });
+    const { data: botUrl } = await supabase.storage
+      .from('bots')
+      .upload(`bots/${Date.now()}_${name}.zip`, bot_file, { contentType: 'application/zip' });
+
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const excerpt = description.slice(0, 247) + '...';
+    const meta_description = excerpt.slice(0, 140);
+
+    const { data: product } = await supabase.from('products').insert([
+      {
+        name,
+        price_kes: parseFloat(price),
+        description,
+        embed_link,
+        category_id,
+        thumbnail_url: thumbnailUrl.path,
+        file_url: botUrl.path,
+        slug,
+        excerpt,
+        meta_description,
+        is_active: true
       }
-    });
+    ]).select().single();
+
+    res.json({ success: true, product });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: 'Failed to download file. Contact support.' });
-    }
+    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
 
+// Delete bot (admin)
+app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
+  const { id } = req.body;
+  try {
+    const { data: product } = await supabase
+      .from('products')
+      .select('thumbnail_url, file_url')
+      .eq('id', id)
+      .single();
+    if (!product) return res.status(404).json({ success: false, error: 'Bot not found' });
+
+    await Promise.all([
+      supabase.storage.from('thumbnails').remove([product.thumbnail_url]),
+      supabase.storage.from('bots').remove([product.file_url]),
+      supabase.from('products').delete().eq('id', id)
+    ]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete bot' });
+  }
+});
+
+// Admin login
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
+  const { data: settings } = await supabase.from('settings').select('admin_email, admin_password').single();
+  if (email === settings.admin_email && password === settings.admin_password) {
     req.session.isAuthenticated = true;
-    console.log(`[${new Date().toISOString()}] User logged in successfully, session:`, req.session);
     res.json({ success: true });
   } else {
-    console.log(`[${new Date().toISOString()}] Failed login attempt with email: ${email}`);
     res.status(401).json({ success: false, error: 'Invalid credentials' });
   }
 });
 
+// Static page
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
-  let page = cachedData.staticPages.find(p => p.slug === slug);
-  if (!page) {
-    if (slug === '/payment-modal') page = fallbackPaymentModal;
-    if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
-  }
-  if (!page) {
-    console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
-    return res.status(404).json({ success: false, error: 'Page not found' });
-  }
-  res.json({ success: true, page });
-  console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
-});
-
-app.get(['/', '/index.html'], (req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  if (fs.existsSync(indexPath)) {
-    console.log(`[${new Date().toISOString()}] Serving index.html for request: ${req.url}`);
-    res.sendFile(indexPath);
-  } else {
-    console.error(`[${new Date().toISOString()}] index.html not found at: ${indexPath}`);
-    res.status(404).send(`
-      <h1>404 - File Not Found</h1>
-      <p>The requested file (index.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'index.html' and that the server is deployed correctly on Render.</p>
-    `);
+  try {
+    const { data: page } = await supabase
+      .from('static_pages')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+    if (!page) return res.status(404).json({ success: false, error: 'Page not found' });
+    res.json({ success: true, page });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error fetching page:`, error.message);
+    res.status(404).json({ success: false, error: 'Page not found' });
   }
 });
 
-app.get('/virus.html', (req, res) => {
-  const virusPath = path.join(__dirname, 'public', 'virus.html');
-  if (fs.existsSync(virusPath)) {
-    console.log(`[${new Date().toISOString()}] Serving virus.html for request: ${req.url}`);
-    res.sendFile(virusPath);
-  } else {
-    console.error(`[${new Date().toISOString()}] virus.html not found at: ${virusPath}`);
-    res.status(404).send(`
-      <h1>404 - File Not Found</h1>
-      <p>The requested file (virus.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly on Render.</p>
-    `);
-  }
-});
-
+// Dynamic static page rendering
 app.get('/:slug', async (req, res) => {
-  const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
-  if (!page) {
-    console.log(`[${new Date().toISOString()}] Static page not found: /${req.params.slug}`);
-    return res.status(404).send('Page not found');
-  }
-  const htmlContent = sanitizeHtml(marked(page.content));
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${page.title} - Deriv Bot Store</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-    </head>
-    <body class="bg-gray-100">
-      <nav class="bg-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between h-16">
-            <div class="flex items-center">
-              <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+  try {
+    const { data: page } = await supabase
+      .from('static_pages')
+      .select('*')
+      .eq('slug', `/${req.params.slug}`)
+      .single();
+    if (!page) return res.status(404).send('Page not found');
+
+    const htmlContent = sanitizeHtml(page.content);
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="${page.meta_description || 'BotBlitz Store - Legal and policy information'}">
+        <title>${page.title} - BotBlitz Store</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-gray-100">
+        <nav class="bg-white shadow-md">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+              <div class="flex items-center">
+                <a href="/" class="text-xl font-bold text-gray-800">BotBlitz Store</a>
+              </div>
             </div>
           </div>
-        </div>
-      </nav>
-      <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
-        <div class="prose">${htmlContent}</div>
-      </main>
-    </body>
-    </html>
-  `);
+        </nav>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+          <div class="prose">${htmlContent}</div>
+        </main>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error rendering static page:`, error.message);
+    res.status(404).send('Page not found');
+  }
 });
+
+// Product page rendering
+app.get('/product/:slug', async (req, res) => {
+  try {
+    const { data: product } = await supabase
+      .from('products')
+      .select('*')
+      .eq('slug', req.params.slug)
+      .eq('is_active', true)
+      .single();
+    if (!product) return res.status(404).send('Product not found');
+
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="${product.meta_description}">
+        <title>${product.name} - BotBlitz Store</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-gray-100">
+        <nav class="bg-white shadow-md">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+              <div class="flex items-center">
+                <a href="/" class="text-xl font-bold text-gray-800">BotBlitz Store</a>
+              </div>
+            </div>
+          </div>
+        </nav>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h1 class="text-3xl font-bold text-gray-900 mb-8">${product.name}</h1>
+          <img src="${product.thumbnail_url}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-4">
+          <div class="prose mb-4">${sanitizeHtml(product.description)}</div>
+          ${product.embed_link ? `<div class="embed-container mb-4"><iframe src="${product.embed_link}" frameborder="0" allowfullscreen class="rounded-lg"></iframe></div>` : ''}
+          <p class="text-green-600 font-bold mb-4">KES ${product.price_kes}</p>
+          <a href="/" class="text-blue-600 underline">Back to Home</a>
+        </main>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error rendering product page:`, error.message);
+    res.status(404).send('Product not found');
+  }
+});
+
+// Serve index.html
+app.get(['/', '/index.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve admin.html
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Delete old orders (3 days)
+async function deleteOldOrders() {
+  try {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await supabase
+      .from('orders')
+      .delete()
+      .lt('timestamp', threeDaysAgo.toISOString());
+    console.log(`[${new Date().toISOString()}] Deleted orders older than 3 days`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting old orders:`, error.message);
+  }
+}
 
 // Initialize server
 async function initialize() {
-  await selfCheck();
-  await loadData();
   await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
-  setInterval(refreshCache, 15 * 60 * 1000);
+  console.log(`[${new Date().toISOString()}] Server initialized`);
 }
 
 initialize().catch(error => {
