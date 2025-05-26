@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel - Deriv Bot Store</title>
+  <meta name="description" content="BotBlitz Store Admin: Manage bots, orders, and settings for your trading bot marketplace.">
+  <meta name="robots" content="noindex, nofollow"> <!-- Admin panel not for SEO -->
+  <title>Admin Panel - BotBlitz Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
   <style>
     /* Prevent background scrolling when modals are active */
     body.modal-active {
       overflow: hidden;
     }
     /* Modal blur effect */
-    body:has(#login-modal:not(.hidden)) > *:not(#login-modal),
     body:has(#edit-modal:not(.hidden)) > *:not(#edit-modal) {
       filter: blur(5px);
     }
@@ -43,12 +46,12 @@
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     }
     /* Form inputs and labels */
-    input, textarea, select {
+    input, select {
       transition: all 0.3s ease;
       border-color: #d1d5db;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
-    input:focus, textarea:focus, select:focus {
+    input:focus, select:focus {
       border-color: #16a34a;
       box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
       outline: none;
@@ -93,8 +96,8 @@
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
     }
-    /* Upload progress bar styling */
-    #upload-progress {
+    /* Upload progress bar */
+    .upload-progress {
       width: 100%;
       height: 10px;
       background: #e5e7eb;
@@ -102,33 +105,23 @@
       overflow: hidden;
       margin-top: 12px;
     }
-    #upload-progress-bar {
+    .upload-progress-bar {
       height: 100%;
       background: linear-gradient(90deg, #16a34a, #22c55e);
       width: 0;
       transition: width 0.3s ease;
     }
-    /* Bot list and page list items */
-    #bot-list li, #page-list li {
+    /* List items */
+    #bot-list li, #page-list li, #category-list li {
       background: #f9fafb;
       border-radius: 12px;
       transition: all 0.3s ease;
     }
-    #bot-list li:hover, #page-list li:hover {
+    #bot-list li:hover, #page-list li:hover, #category-list li:hover {
       transform: translateY(-3px);
       box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
     }
-    /* Category list items */
-    #category-list li {
-      background: #f9fafb;
-      border-radius: 8px;
-      transition: all 0.3s ease;
-    }
-    #category-list li:hover {
-      transform:Save Changes
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    }
-    /* Orders table styling */
+    /* Orders table */
     #orders-table {
       width: 100%;
       border-collapse: collapse;
@@ -174,18 +167,18 @@
       box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
     }
     /* Modals */
-    #login-modal, #edit-modal {
+    #edit-modal {
       background: rgba(0, 0, 0, 0.7);
       animation: fadeIn 0.3s ease-out;
     }
-    #login-modal > div, #edit-modal > div {
+    #edit-modal > div {
       background: linear-gradient(145deg, #ffffff, #f0f4f8);
       border-radius: 16px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
       transform: translateY(20px) scale(0.9);
       animation: popupFadeIn 0.5s ease-out forwards;
       max-width: 90%;
-      width: 500px;
+      width: 600px;
     }
     @keyframes fadeIn {
       from { opacity: 0; }
@@ -195,17 +188,7 @@
       from { transform: translateY(20px) scale(0.9); opacity: 0; }
       to { transform: translateY(0) scale(1); opacity: 1; }
     }
-    /* Toggle password button */
-    #toggle-password {
-      top: 2.5rem;
-      font-size: 0.9rem;
-      color: #16a34a;
-      transition: all 0.3s ease;
-    }
-    #toggle-password:hover {
-      color: #15803d;
-    }
-    /* Close button for modals */
+    /* Close button */
     .close-modal {
       position: absolute;
       top: 1rem;
@@ -218,14 +201,53 @@
     .close-modal:hover {
       color: #ef4444;
     }
-    /* Responsive adjustments */
+    /* Quill editor */
+    .ql-container {
+      min-height: 150px;
+      border-radius: 0 0 8px 8px;
+      border: 1px solid #d1d5db;
+    }
+    .ql-toolbar {
+      border-radius: 8px 8px 0 0;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+    }
+    /* Dark mode */
+    [data-theme="dark"] {
+      background: #1f2937;
+      color: #e5e7eb;
+    }
+    [data-theme="dark"] nav {
+      background: linear-gradient(145deg, #1f2937, #374151);
+    }
+    [data-theme="dark"] .section {
+      background: linear-gradient(145deg, #374151, #4b5563);
+    }
+    [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] .ql-container, [data-theme="dark"] .ql-toolbar {
+      background: #4b5563;
+      color: #e5e7eb;
+      border-color: #6b7280;
+    }
+    [data-theme="dark"] #orders-table {
+      background: #374151;
+    }
+    [data-theme="dark"] #orders-table th {
+      background: linear-gradient(90deg, #4b5563, #6b7280);
+    }
+    [data-theme="dark"] #orders-table tr:nth-child(even) {
+      background: #4b5563;
+    }
+    [data-theme="dark"] #orders-table tr:hover {
+      background: #6b7280;
+    }
+    [data-theme="dark"] .status-select {
+      background: #4b5563;
+      color: #e5e7eb;
+    }
+    /* Responsive */
     @media (max-width: 640px) {
       .section {
         padding: 1rem;
-      }
-      #orders-table th, #orders-table td {
-        padding: 0.75rem;
-        font-size: 0.85rem;
       }
       #orders-table {
         display: block;
@@ -235,20 +257,20 @@
       #product-form, #edit-form {
         grid-template-columns: 1fr;
       }
-      #login-modal > div, #edit-modal > div {
+      #edit-modal > div {
         width: 90%;
         padding: 1.5rem;
       }
     }
   </style>
 </head>
-<body class="bg-gray-100">
-  <!-- Navigation Bar -->
-  <nav class="bg-white shadow-md sticky top-0 z-20">
+<body class="bg-gray-100" data-theme="light">
+  <!-- Navigation Bar (hidden on login page) -->
+  <nav id="admin-nav" class="bg-white shadow-md sticky top-0 z-20 hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
         <div class="flex items-center">
-          <h1 class="text-xl font-bold text-gray-800">Admin Panel</h1>
+          <h1 class="text-xl font-bold text-gray-800">BotBlitz Store Admin</h1>
           <div class="ml-6 flex space-x-4 sm:space-x-8">
             <a href="#add-bot" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium border-b-2 border-green-500">Add Bot</a>
             <a href="#manage-bots" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Manage Bots</a>
@@ -257,56 +279,97 @@
             <a href="#orders" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Orders</a>
           </div>
         </div>
+        <div class="flex items-center">
+          <button id="theme-toggle" class="text-gray-500 hover:text-gray-900 p-2">
+            <svg id="theme-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+          </button>
+          <button id="logout" class="text-gray-500 hover:text-gray-900 p-2 ml-2">Logout</button>
+        </div>
       </div>
     </div>
   </nav>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <!-- Login Page -->
+  <div id="login-page" class="min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-md">
+      <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">BotBlitz Store Admin Login</h3>
+      <div class="mb-4">
+        <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+        <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
+      </div>
+      <div class="mb-4 relative">
+        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
+        <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500 hover:text-green-600">Show</button>
+      </div>
+      <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
+    </div>
+  </div>
+
+  <!-- Admin Panel (hidden on login) -->
+  <main id="admin-panel" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 hidden">
     <!-- Add Bot Section -->
     <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
-      <form id="product-form">
+      <form id="product-form" enctype="multipart/form-data">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" id="name" required class="mt-1 w-full p-2 border rounded-md">
+          <div class="sm:col-span-2">
+            <label for="name" class="block text-sm font-medium text-gray-700">Name (max 100 characters)</label>
+            <input type="text" id="name" maxlength="100" required class="mt-1 w-full p-2 border rounded-md">
+            <span id="name-counter" class="text-sm text-gray-500">100 characters remaining</span>
           </div>
           <div>
-            <label for="price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+            <label for="price" class="block text-sm font-medium text-gray-700">Price (KES)</label>
             <input type="number" id="price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
-            <textarea id="desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
-            <input type="url" id="embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
           </div>
           <div>
             <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
             <select id="category" required class="mt-1 w-full p-2 border rounded-md"></select>
           </div>
-          <div>
-            <label for="item" class="block text-sm font-medium text-gray-700">Item Number</label>
-            <input type="text" id="item" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
           <div class="sm:col-span-2">
-            <label for="img" class="block text-sm font-medium text-gray-700">Image URL</label>
-            <input type="url" id="img" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="isNew" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Mark as New</span>
-            </label>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="file" class="block text-sm font-medium text-gray-700">Bot File</label>
-            <input type="file" id="file" required class="mt-1 w-full p-2 border rounded-md">
-            <div id="upload-progress" class="hidden">
-              <div id="upload-progress-bar"></div>
+            <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
+            <div class="mt-1">
+              <div id="desc-toolbar">
+                <span class="ql-formats">
+                  <button class="ql-bold"></button>
+                  <button class="ql-italic"></button>
+                  <button class="ql-underline"></button>
+                  <button class="ql-link"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered"></button>
+                  <button class="ql-list" value="bullet"></button>
+                </span>
+                <button id="desc-code-toggle" class="ql-code-block">Code View</button>
+              </div>
+              <div id="desc-editor" class="border rounded-md"></div>
             </div>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
+            <input type="url" id="embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="thumbnail" class="block text-sm font-medium text-gray-700">Thumbnail (1280x720)</label>
+            <input type="file" id="thumbnail" accept="image/*" required class="mt-1 w-full p-2 border rounded-md">
+            <div id="thumbnail-progress" class="upload-progress hidden">
+              <div id="thumbnail-progress-bar" class="upload-progress-bar"></div>
+            </div>
+          </div>
+          <div class="sm:col-span-2">
+            <label for="bot-file" class="block text-sm font-medium text-gray-700">Bot File</label>
+            <input type="file" id="bot-file" required class="mt-1 w-full p-2 border rounded-md">
+            <div id="bot-file-progress" class="upload-progress hidden">
+              <div id="bot-file-progress-bar" class="upload-progress-bar"></div>
+            </div>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="is-active" class="mr-2" checked>
+              <span class="text-sm font-medium text-gray-700">Active</span>
+            </label>
           </div>
         </div>
         <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
@@ -335,7 +398,21 @@
           <input type="checkbox" id="urgent-toggle" class="mr-2">
           <span class="text-sm font-medium text-gray-700">Show Urgent Message (Pop-up on Front End)</span>
         </label>
-        <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
+        <div class="mt-2">
+          <div id="urgent-toolbar">
+            <span class="ql-formats">
+              <button class="ql-bold"></button>
+              <button class="ql-italic"></button>
+              <button class="ql-underline"></button>
+              <button class="ql-link"></button>
+            </span>
+            <span class="ql-formats">
+              <button class="ql-list" value="ordered"></button>
+              <button class="ql-list" value="bullet"></button>
+            </span>
+          </div>
+          <div id="urgent-editor" class="border rounded-md"></div>
+        </div>
         <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
       </div>
       <div class="mb-6">
@@ -349,8 +426,9 @@
         <button id="save-copyright" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Copyright</button>
       </div>
       <div class="mb-6">
-        <label for="logo-url" class="block text-sm font-medium text-gray-700">Logo URL</label>
-        <input type="url" id="logo-url" class="mt-1 w-full p-2 border rounded-md">
+        <label for="logo-file" class="block text-sm font-medium text-gray-700">Logo</label>
+        <input type="file" id="logo-file" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+        <div id="logo-preview" class="mt-2"></div>
         <button id="save-logo" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Logo</button>
       </div>
       <div class="mb-6">
@@ -361,15 +439,56 @@
       <div class="mb-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-2">Social Media Links</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok</label><input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="whatsapp" class="block text-sm font-medium text-gray-700">WhatsApp</label><input type="url" id="whatsapp" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="call" class="block text-sm font-medium text-gray-700">Call</label><input type="tel" id="call" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="instagram" class="block text-sm font-medium text-gray-700">Instagram</label><input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="x" class="block text-sm font-medium text-gray-700">X</label><input type="url" id="x" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="facebook" class="block text-sm font-medium text-gray-700">Facebook</label><input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="youtube" class="block text-sm font-medium text-gray-700">YouTube</label><input type="url" id="youtube" class="mt-1 w-full p-2 border rounded-md"></div>
+          <div>
+            <label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok URL</label>
+            <input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md">
+            <label for="tiktok-logo" class="block text-sm font-medium text-gray-700 mt-2">TikTok Logo</label>
+            <input type="file" id="tiktok-logo" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+            <div id="tiktok-logo-preview" class="mt-2"></div>
+            <button class="delete-social-logo mt-2 text-red-600 hover:text-red-700" data-platform="tiktok">Delete Logo</button>
+          </div>
+          <div>
+            <label for="instagram" class="block text-sm font-medium text-gray-700">Instagram URL</label>
+            <input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md">
+            <label for="instagram-logo" class="block text-sm font-medium text-gray-700 mt-2">Instagram Logo</label>
+            <input type="file" id="instagram-logo" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+            <div id="instagram-logo-preview" class="mt-2"></div>
+            <button class="delete-social-logo mt-2 text-red-600 hover:text-red-700" data-platform="instagram">Delete Logo</button>
+          </div>
+          <div>
+            <label for="x" class="block text-sm font-medium text-gray-700">X URL</label>
+            <input type="url" id="x" class="mt-1 w-full p-2 border rounded-md">
+            <label for="x-logo" class="block text-sm font-medium text-gray-700 mt-2">X Logo</label>
+            <input type="file" id="x-logo" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+            <div id="x-logo-preview" class="mt-2"></div>
+            <button class="delete-social-logo mt-2 text-red-600 hover:text-red-700" data-platform="x">Delete Logo</button>
+          </div>
+          <div>
+            <label for="facebook" class="block text-sm font-medium text-gray-700">Facebook URL</label>
+            <input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md">
+            <label for="facebook-logo" class="block text-sm font-medium text-gray-700 mt-2">Facebook Logo</label>
+            <input type="file" id="facebook-logo" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+            <div id="facebook-logo-preview" class="mt-2"></div>
+            <button class="delete-social-logo mt-2 text-red-600 hover:text-red-700" data-platform="facebook">Delete Logo</button>
+          </div>
+          <div>
+            <label for="youtube" class="block text-sm font-medium text-gray-700">YouTube URL</label>
+            <input type="url" id="youtube" class="mt-1 w-full p-2 border rounded-md">
+            <label for="youtube-logo" class="block text-sm font-medium text-gray-700 mt-2">YouTube Logo</label>
+            <input type="file" id="youtube-logo" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+            <div id="youtube-logo-preview" class="mt-2"></div>
+            <button class="delete-social-logo mt-2 text-red-600 hover:text-red-700" data-platform="youtube">Delete Logo</button>
+          </div>
         </div>
         <button id="save-socials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Socials</button>
+      </div>
+      <div class="mb-6">
+        <label for="payment-method" class="block text-sm font-medium text-gray-700">Payment Method</label>
+        <select id="payment-method" class="mt-1 w-full p-2 border rounded-md">
+          <option value="payhero">PayHero</option>
+          <option value="manual">Manual (MPESA Till)</option>
+        </select>
+        <button id="save-payment-method" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Payment Method</button>
       </div>
       <div class="mb-6">
         <label for="fallback-rate" class="block text-sm font-medium text-gray-700">Fallback Exchange Rate (KES/USD)</label>
@@ -399,9 +518,9 @@
     <!-- Static Pages Section -->
     <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
-      <p class="text-sm text-gray-600 mb-4">To edit the Payment Modal, create a page with slug <code>/payment-modal</code>. For the Ref Code Modal, use <code>/ref-code-modal</code>. Use HTML in the content field.</p>
+      <p class="text-sm text-gray-600 mb-4">Use slugs like <code>/payment-modal</code> or <code>/ref-code-modal</code> for modals. Content supports HTML.</p>
       <div class="mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Add New Page</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Add/Edit Page</h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="page-title" class="block text-sm font-medium text-gray-700">Page Title</label>
@@ -411,9 +530,29 @@
             <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (e.g., /my-page)</label>
             <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
           </div>
+          <div>
+            <label for="page-meta" class="block text-sm font-medium text-gray-700">Meta Description (max 140 characters)</label>
+            <input type="text" id="page-meta" maxlength="140" class="mt-1 w-full p-2 border rounded-md">
+            <span id="meta-counter" class="text-sm text-gray-500">140 characters remaining</span>
+          </div>
           <div class="sm:col-span-2">
-            <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
-            <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
+            <label for="page-content" class="block text-sm font-medium text-gray-700">Content</label>
+            <div class="mt-1">
+              <div id="page-toolbar">
+                <span class="ql-formats">
+                  <button class="ql-bold"></button>
+                  <button class="ql-italic"></button>
+                  <button class="ql-underline"></button>
+                  <button class="ql-link"></button>
+                </span>
+                <span class="ql-formats">
+                  <button class="ql-list" value="ordered"></button>
+                  <button class="ql-list" value="bullet"></button>
+                </span>
+                <button id="page-code-toggle" class="ql-code-block">Code View</button>
+              </div>
+              <div id="page-editor" class="border rounded-md"></div>
+            </div>
           </div>
         </div>
         <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
@@ -427,9 +566,9 @@
       <table id="orders-table">
         <thead>
           <tr>
-            <th>Item</th>
+            <th>Product</th>
             <th>Ref Code</th>
-            <th>Amount</th>
+            <th>Amount (KES)</th>
             <th>Timestamp</th>
             <th>Status</th>
             <th>Actions</th>
@@ -438,81 +577,138 @@
         <tbody id="order-list"></tbody>
       </table>
     </section>
-  </main>
 
-  <!-- Login Modal -->
-  <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg p-6 max-w-sm w-full">
-      <h3 class="text-xl font-bold text-gray-900 mb-4">Admin Login</h3>
-      <div class="mb-4">
-        <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-        <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
+    <!-- Edit Bot Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+      <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
+        <button class="close-modal" onclick="closeEditModal()">×</button>
+        <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
+        <form id="edit-form">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label for="edit-name" class="block text-sm font-medium text-gray-700">Name (max 100 characters)</label>
+              <input type="text" id="edit-name" maxlength="100" required class="mt-1 w-full p-2 border rounded-md">
+              <span id="edit-name-counter" class="text-sm text-gray-500">100 characters remaining</span>
+            </div>
+            <div>
+              <label for="edit-price" class="block text-sm font-medium text-gray-700">Price (KES)</label>
+              <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="edit-category" class="block text-sm font-medium text-gray-700">Category</label>
+              <select id="edit-category" required class="mt-1 w-full p-2 border rounded-md"></select>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
+              <div class="mt-1">
+                <div id="edit-desc-toolbar">
+                  <span class="ql-formats">
+                    <button class="ql-bold"></button>
+                    <button class="ql-italic"></button>
+                    <button class="ql-underline"></button>
+                    <button class="ql-link"></button>
+                  </span>
+                  <span class="ql-formats">
+                    <button class="ql-list" value="ordered"></button>
+                    <button class="ql-list" value="bullet"></button>
+                  </span>
+                  <button id="edit-desc-code-toggle" class="ql-code-block">Code View</button>
+                </div>
+                <div id="edit-desc-editor" class="border rounded-md"></div>
+              </div>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
+              <input type="url" id="edit-embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-thumbnail" class="block text-sm font-medium text-gray-700">Thumbnail (1280x720)</label>
+              <input type="file" id="edit-thumbnail" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+              <div id="edit-thumbnail-preview" class="mt-2"></div>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-bot-file" class="block text-sm font-medium text-gray-700">Bot File</label>
+              <input type="file" id="edit-bot-file" class="mt-1 w-full p-2 border rounded-md">
+              <div id="edit-bot-file-preview" class="mt-2"></div>
+            </div>
+            <div>
+              <label class="flex items-center">
+                <input type="checkbox" id="edit-is-active" class="mr-2">
+                <span class="text-sm font-medium text-gray-700">Active</span>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Save Changes</button>
+          <button type="button" id="edit-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+        </form>
       </div>
-      <div class="mb-4 relative">
-        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
-        <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
-        <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
-      </div>
-      <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
     </div>
-  </div>
-
-  <!-- Edit Bot Modal -->
-  <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
-      <button class="close-modal" onclick="closeEditModal()">×</button>
-      <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
-      <form id="edit-form">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="edit-name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" id="edit-name" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div>
-            <label for="edit-price" class="block text-sm font-medium text-gray-700">Price ($)</label>
-            <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
-            <textarea id="edit-desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
-            <input type="url" id="edit-embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
-          </div>
-          <div>
-            <label for="edit-category" class="block text-sm font-medium text-gray-700">Category</label>
-            <select id="edit-category" required class="mt-1 w-full p-2 border rounded-md"></select>
-          </div>
-          <div>
-            <label for="edit-item" class="block text-sm font-medium text-gray-700">Item Number</label>
-            <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
-            <input type="url" id="edit-img" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="edit-isNew" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Mark as New</span>
-            </label>
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="edit-isArchived" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Archive Bot</span>
-            </label>
-          </div>
-        </div>
-        <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Save Changes</button>
-        <button type="button" id="edit-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-      </form>
-    </div>
-  </div>
 
   <script>
-    // Helper function to show button feedback
+    // Initialize Quill editors
+    const descQuill = new Quill('#desc-editor', {
+      theme: 'snow',
+      modules: { toolbar: '#desc-toolbar' }
+    });
+    const editDescQuill = new Quill('#edit-desc-editor', {
+      theme: 'snow',
+      modules: { toolbar: '#edit-desc-toolbar' }
+    });
+    const urgentQuill = new Quill('#urgent-editor', {
+      theme: 'snow',
+      modules: { toolbar: '#urgent-toolbar' }
+    });
+    const pageQuill = new Quill('#page-editor', {
+      theme: 'snow',
+      modules: { toolbar: '#page-toolbar' }
+    });
+
+    // Code view toggles
+    function setupCodeToggle(quill, toggleBtnId, editorId) {
+      const toggleBtn = document.getElementById(toggleBtnId);
+      const editor = document.querySelector(`#${editorId}`);
+      let isCodeView = false;
+      toggleBtn.addEventListener('click', () => {
+        isCodeView = !isCodeView;
+        if (isCodeView) {
+          editor.style.display = 'none';
+          const textarea = document.createElement('textarea');
+          textarea.id = `${editorId}-code`;
+          textarea.className = 'w-full p-2 border rounded-md';
+          textarea.value = quill.root.innerHTML;
+          editor.parentNode.appendChild(textarea);
+          toggleBtn.textContent = 'Rich Text View';
+        } else {
+          const textarea = document.getElementById(`${editorId}-code`);
+          quill.root.innerHTML = textarea.value;
+          textarea.remove();
+          editor.style.display = 'block';
+          toggleBtn.textContent = 'Code View';
+        }
+      });
+    }
+    setupCodeToggle(descQuill, 'desc-code-toggle', 'desc-editor');
+    setupCodeToggle(editDescQuill, 'edit-desc-code-toggle', 'edit-desc-editor');
+    setupCodeToggle(pageQuill, 'page-code-toggle', 'page-editor');
+
+    // Theme toggle
+    function setTheme(theme) {
+      document.body.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      const icon = document.getElementById('theme-icon');
+      icon.innerHTML = theme === 'dark' ?
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>' :
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+    }
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const savedTheme = localStorage.getItem('theme') || (prefersDark ? 'dark' : 'light');
+    setTheme(savedTheme);
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const currentTheme = document.body.getAttribute('data-theme');
+      setTheme(currentTheme === 'light' ? 'dark' : 'light');
+    });
+
+    // Helper function for button feedback
     function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
       btn.disabled = true;
       btn.textContent = actionText;
@@ -522,145 +718,34 @@
       }, duration);
     }
 
-    let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
-    let orders = [];
-
-    // Fetch data from server
-    async function fetchData() {
-      try {
-        const response = await fetch('/api/data', { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch data');
-        data = await response.json();
-        return true;
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        alert('Failed to load data. Please try again.');
-        return false;
-      }
-    }
-
-    // Save data to server
-    async function saveData() {
-      try {
-        const response = await fetch('/api/save-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          credentials: 'include'
-        });
-        if (!response.ok) throw new Error('Failed to save data');
-        return true;
-      } catch (error) {
-        console.error('Error saving data:', error);
-        alert('Failed to save data. Please try again.');
-        return false;
-      }
-    }
-
-    // Fetch orders
-    async function fetchOrders() {
-      try {
-        const response = await fetch('/api/orders', { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch orders');
-        const result = await response.json();
-        if (result.success) {
-          orders = result.orders;
-          renderOrders();
-        } else {
-          throw new Error(result.error || 'Failed to fetch orders');
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        alert('Failed to load orders. Please try again.');
-      }
-    }
-
-    // Render orders with status dropdown
-    function renderOrders() {
-      const orderList = document.getElementById('order-list');
-      orderList.innerHTML = '';
-      orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      orders.forEach(order => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${order.item}</td>
-          <td>${order.refCode}</td>
-          <td>${order.amount}</td>
-          <td>${new Date(order.timestamp).toLocaleString()}</td>
-          <td>${order.status || 'pending'}</td>
-          <td>
-            <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
-              <option value="" selected disabled>Update Status</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="no payment">No Payment</option>
-              <option value="partial payment">Partial Payment</option>
-            </select>
-          </td>
-        `;
-        orderList.appendChild(row);
-      });
-
-      document.querySelectorAll('.status-select').forEach(select => {
-        select.addEventListener('change', async () => {
-          const item = select.dataset.item;
-          const refCode = select.dataset.refcode;
-          const status = select.value;
-          const originalText = select.value;
-          showButtonFeedback(select, 'Updating...', originalText);
-
-          try {
-            const response = await fetch('/api/update-order-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ item, refCode, status }),
-              credentials: 'include'
-            });
-            const result = await response.json();
-            if (result.success) {
-              await fetchOrders();
-              alert(`Order status updated to "${status}"!`);
-            } else {
-              throw new Error(result.error || 'Failed to update order status');
-            }
-          } catch (error) {
-            console.error('Error updating order status:', error);
-            alert('Failed to update order status. Please try again.');
+    // Image compression
+    async function compressImage(file, maxWidth = 1280, maxHeight = 720, quality = 0.8) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width *= ratio;
+            height *= ratio;
           }
-        });
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => {
+            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          }, 'image/jpeg', quality);
+          URL.revokeObjectURL(img.src);
+        };
+        img.onerror = reject;
       });
     }
 
-    // Start polling for orders every 5 seconds when Orders section is active
-    function startOrdersPolling() {
-      setInterval(async () => {
-        const ordersSection = document.getElementById('orders');
-        const isOrdersActive = !ordersSection.classList.contains('hidden');
-        const isModalOpen = !document.getElementById('login-modal').classList.contains('hidden') || 
-                           !document.getElementById('edit-modal').classList.contains('hidden');
-        if (isOrdersActive && !isModalOpen) {
-          console.log('Polling for new orders...');
-          await fetchOrders();
-        } else {
-          console.log('Polling skipped: Orders section not active or modal is open');
-        }
-      }, 5 * 1000);
-    }
-
-    // Navigation
-    document.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
-        link.classList.add('border-b-2', 'border-green-500');
-        document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-        document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
-        if (link.getAttribute('href') === '#orders') {
-          fetchOrders();
-        }
-      });
-    });
-
-    // Login handling
+    // Check session
     async function checkSession() {
       try {
         const response = await fetch('/api/check-session', { credentials: 'include' });
@@ -672,6 +757,7 @@
       }
     }
 
+    // Login handling
     document.getElementById('toggle-password').addEventListener('click', () => {
       const passwordInput = document.getElementById('login-password');
       const toggleBtn = document.getElementById('toggle-password');
@@ -699,8 +785,9 @@
         });
         const result = await response.json();
         if (result.success) {
-          document.getElementById('login-modal').classList.add('hidden');
-          document.body.classList.remove('modal-active');
+          document.getElementById('login-page').classList.add('hidden');
+          document.getElementById('admin-panel').classList.remove('hidden');
+          document.getElementById('admin-nav').classList.remove('hidden');
           initialize();
         } else {
           alert('Invalid credentials. Please try again.');
@@ -711,24 +798,159 @@
       }
     });
 
-    // Add bot with progress bar
+    // Logout
+    document.getElementById('logout').addEventListener('click', async () => {
+      try {
+        await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+        document.getElementById('admin-panel').classList.add('hidden');
+        document.getElementById('admin-nav').classList.add('hidden');
+        document.getElementById('login-page').classList.remove('hidden');
+        document.getElementById('login-email').value = '';
+        document.getElementById('login-password').value = '';
+      } catch (error) {
+        console.error('Error logging out:', error);
+        alert('Failed to logout. Please try again.');
+      }
+    });
+
+    // Navigation
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+        link.classList.add('border-b-2', 'border-green-500');
+        document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+        document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
+        if (link.getAttribute('href') === '#orders') {
+          fetchOrders();
+        }
+      });
+    });
+
+    // Fetch orders
+    async function fetchOrders() {
+      try {
+        const response = await fetch('/api/orders', { credentials: 'include' });
+        if (!response.ok) throw new Error('Failed to fetch orders');
+        const result = await response.json();
+        if (result.success) {
+          orders = result.orders;
+          renderOrders();
+        } else {
+          throw new Error(result.error || 'Failed to fetch orders');
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        alert('Failed to load orders. Please try again.');
+      }
+    }
+
+    // Render orders
+    let orders = [];
+    function renderOrders() {
+      const orderList = document.getElementById('order-list');
+      orderList.innerHTML = '';
+      orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      orders.forEach(order => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${order.product_name}</td>
+          <td>${order.ref_code}</td>
+          <td>${order.amount_kes}</td>
+          <td>${new Date(order.created_at).toLocaleString()}</td>
+          <td>${order.status}</td>
+          <td>
+            <select class="status-select border rounded-md p-1" data-id="${order.id}">
+              <option value="" selected disabled>Update Status</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="no payment">No Payment</option>
+              <option value="partial payment">Partial Payment</option>
+            </select>
+          </td>
+        `;
+        orderList.appendChild(row);
+      });
+
+      document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', async () => {
+          const id = select.dataset.id;
+          const status = select.value;
+          const originalText = select.value;
+          showButtonFeedback(select, 'Updating...', originalText);
+
+          try {
+            const response = await fetch('/api/update-order-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, status }),
+              credentials: 'include'
+            });
+            const result = await response.json();
+            if (result.success) {
+              await fetchOrders();
+              alert(`Order status updated to "${status}"!`);
+            } else {
+              throw new Error(result.error || 'Failed to update order status');
+            }
+          } catch (error) {
+            console.error('Error updating order status:', error);
+            alert('Failed to update order status. Please try again.');
+          }
+        });
+      });
+    }
+
+    // Orders polling
+    function startOrdersPolling() {
+      setInterval(async () => {
+        const ordersSection = document.getElementById('orders');
+        const isOrdersActive = !ordersSection.classList.contains('hidden');
+        const isModalOpen = !document.getElementById('edit-modal').classList.contains('hidden');
+        if (isOrdersActive && !isModalOpen) {
+          await fetchOrders();
+        }
+      }, 5000);
+    }
+
+    // Add bot
     document.getElementById('product-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const formData = new FormData();
-      formData.append('item', document.getElementById('item').value.trim());
-      formData.append('name', document.getElementById('name').value.trim());
-      formData.append('price', document.getElementById('price').value);
-      formData.append('desc', document.getElementById('desc').value.trim());
-      formData.append('embed', document.getElementById('embed').value.trim());
-      formData.append('category', document.getElementById('category').value);
-      formData.append('img', document.getElementById('img').value.trim());
-      formData.append('isNew', document.getElementById('isNew').checked);
-      formData.append('file', document.getElementById('file').files[0]);
+      const btn = e.submitter;
+      showButtonFeedback(btn, 'Uploading...', 'Add Bot');
 
-      const progressBar = document.getElementById('upload-progress-bar');
-      const progressContainer = document.getElementById('upload-progress');
-      progressContainer.classList.remove('hidden');
-      progressBar.style.width = '0%';
+      const name = document.getElementById('name').value.trim();
+      const price = parseFloat(document.getElementById('price').value);
+      const category = document.getElementById('category').value;
+      const description = descQuill.root.innerHTML;
+      const embed = document.getElementById('embed').value.trim();
+      const thumbnail = document.getElementById('thumbnail').files[0];
+      const botFile = document.getElementById('bot-file').files[0];
+      const isActive = document.getElementById('is-active').checked;
+
+      if (!name || !price || !category || !description || !thumbnail || !botFile) {
+        alert('Please fill in all required fields.');
+        return;
+      }
+
+      const compressedThumbnail = await compressImage(thumbnail);
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('price', price);
+      formData.append('category_id', category);
+      formData.append('description', description);
+      formData.append('embed_link', embed);
+      formData.append('thumbnail', compressedThumbnail);
+      formData.append('bot_file', botFile);
+      formData.append('is_active', isActive);
+
+      const thumbnailProgress = document.getElementById('thumbnail-progress-bar');
+      const botFileProgress = document.getElementById('bot-file-progress-bar');
+      const thumbnailContainer = document.getElementById('thumbnail-progress');
+      const botFileContainer = document.getElementById('bot-file-progress');
+      thumbnailContainer.classList.remove('hidden');
+      botFileContainer.classList.remove('hidden');
+      thumbnailProgress.style.width = '0%';
+      botFileProgress.style.width = '0%';
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/add-bot', true);
@@ -736,22 +958,24 @@
       xhr.upload.onprogress = event => {
         if (event.lengthComputable) {
           const percent = (event.loaded / event.total) * 100;
-          progressBar.style.width = `${percent}%`;
+          thumbnailProgress.style.width = `${percent}%`;
+          botFileProgress.style.width = `${percent}%`;
         }
       };
 
       xhr.onload = async () => {
+        thumbnailContainer.classList.add('hidden');
+        botFileContainer.classList.add('hidden');
         if (xhr.status === 200) {
           const result = JSON.parse(xhr.responseText);
           if (result.success) {
-            data.products.push(result.product);
-            await saveData();
-            renderBots();
             document.getElementById('product-form').reset();
-            progressContainer.classList.add('hidden');
+            descQuill.setContents([]);
+            await fetchData();
+            renderBots();
             alert('Bot added successfully!');
           } else {
-            throw new Error('Failed to add bot');
+            throw new Error(result.error || 'Failed to add bot');
           }
         } else {
           throw new Error('Upload failed');
@@ -759,12 +983,28 @@
       };
 
       xhr.onerror = () => {
-        progressContainer.classList.add('hidden');
+        thumbnailContainer.classList.add('hidden');
+        botFileContainer.classList.add('hidden');
         alert('Error uploading bot. Please try again.');
       };
 
       xhr.send(formData);
     });
+
+    // Fetch data
+    let data = { products: [], categories: [], settings: {}, social_links: [], static_pages: [] };
+    async function fetchData() {
+      try {
+        const response = await fetch('/api/data', { credentials: 'include' });
+        if (!response.ok) throw new Error('Failed to fetch data');
+        data = await response.json();
+        return true;
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        alert('Failed to load data. Please try again.');
+        return false;
+      }
+    }
 
     // Render bots
     function renderBots() {
@@ -776,11 +1016,11 @@
         li.innerHTML = `
           <div>
             <h3 class="text-lg font-medium text-gray-900">${product.name}</h3>
-            <p class="text-sm text-gray-600">Item: ${product.item} | Price: $${product.price}</p>
+            <p class="text-sm text-gray-600">ID: ${product.id} | Price: KES ${product.price_kes} | Active: ${product.is_active ? 'Yes' : 'No'}</p>
           </div>
           <div class="space-x-2">
-            <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-item="${product.item}">Edit</button>
-            <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-item="${product.item}">Delete</button>
+            <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${product.id}">Edit</button>
+            <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${product.id}">Delete</button>
           </div>
         `;
         botList.appendChild(li);
@@ -788,24 +1028,21 @@
 
       document.querySelectorAll('.edit-bot').forEach(btn => {
         btn.addEventListener('click', () => {
-          const item = btn.dataset.item;
-          const product = data.products.find(p => p.item === item);
+          const id = btn.dataset.id;
+          const product = data.products.find(p => p.id === id);
           if (!product) {
             alert('Bot not found. Please refresh and try again.');
             return;
           }
-          document.getElementById('edit-item').value = product.item;
-          document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
           document.getElementById('edit-name').value = product.name;
-          document.getElementById('edit-price').value = product.price;
-          document.getElementById('edit-desc').value = product.desc;
-          document.getElementById('edit-embed').value = product.embed || '';
-          document.getElementById('edit-img').value = product.img;
-          document.getElementById('edit-isNew').checked = product.isNew;
-          document.getElementById('edit-isArchived').checked = product.isArchived || false;
-          const categorySelect = document.getElementById('edit-category');
-          categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-          categorySelect.value = product.category;
+          document.getElementById('edit-price').value = product.price_kes;
+          editDescQuill.root.innerHTML = product.description;
+          document.getElementById('edit-embed').value = product.embed_link || '';
+          document.getElementById('edit-category').value = product.category_id;
+          document.getElementById('edit-is-active').checked = product.is_active;
+          document.getElementById('edit-thumbnail-preview').innerHTML = `<img src="${product.thumbnail_url}" alt="Thumbnail" class="w-32 h-auto rounded-md">`;
+          document.getElementById('edit-bot-file-preview').innerHTML = `<span>Current: ${product.file_url.split('/').pop()}</span>`;
+          document.getElementById('edit-form').dataset.id = id;
           document.getElementById('edit-modal').classList.remove('hidden');
           document.body.classList.add('modal-active');
         });
@@ -813,22 +1050,19 @@
 
       document.querySelectorAll('.delete-bot').forEach(btn => {
         btn.addEventListener('click', async () => {
-          const confirmation = confirm('Are you sure you want to delete this bot?');
-          if (!confirmation) return;
-          
+          if (!confirm('Are you sure you want to delete this bot?')) return;
           showButtonFeedback(btn, 'Deleting...', 'Delete');
-          const item = btn.dataset.item;
+          const id = btn.dataset.id;
           try {
             const response = await fetch('/api/delete-bot', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ item }),
+              body: JSON.stringify({ id }),
               credentials: 'include'
             });
             const result = await response.json();
             if (result.success) {
-              data.products = data.products.filter(p => p.item !== item);
-              await saveData();
+              await fetchData();
               renderBots();
               alert('Bot deleted successfully!');
             } else {
@@ -842,60 +1076,63 @@
       });
     }
 
-    // Function to close the Edit Bot modal
-    function closeEditModal() {
-      document.getElementById('edit-modal').classList.add('hidden');
-      document.body.classList.remove('modal-active');
-      document.getElementById('edit-form').reset();
-    }
-
+    // Edit bot
     document.getElementById('edit-form').addEventListener('submit', async e => {
       e.preventDefault();
       const btn = e.submitter;
       showButtonFeedback(btn, 'Saving...', 'Save Changes');
 
-      const originalItem = document.getElementById('edit-item').dataset.originalItem;
-      const newItem = document.getElementById('edit-item').value.trim();
+      const id = document.getElementById('edit-form').dataset.id;
+      const name = document.getElementById('edit-name').value.trim();
+      const price = parseFloat(document.getElementById('edit-price').value);
+      const category = document.getElementById('edit-category').value;
+      const description = editDescQuill.root.innerHTML;
+      const embed = document.getElementById('edit-embed').value.trim();
+      const thumbnail = document.getElementById('edit-thumbnail').files[0];
+      const botFile = document.getElementById('edit-bot-file').files[0];
+      const isActive = document.getElementById('edit-is-active').checked;
 
-      // Check if new item number already exists (excluding the current bot being edited)
-      if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
-        alert('This item number already exists. Please use a unique item number.');
-        return;
-      }
+      const formData = new FormData();
+      formData.append('id', id);
+      formData.append('name', name);
+      formData.append('price', price);
+      formData.append('category_id', category);
+      formData.append('description', description);
+      formData.append('embed_link', embed);
+      formData.append('is_active', isActive);
+      if (thumbnail) formData.append('thumbnail', await compressImage(thumbnail));
+      if (botFile) formData.append('bot_file', botFile);
 
-      const productIndex = data.products.findIndex(p => p.item === originalItem);
-      if (productIndex === -1) {
-        alert('Bot not found. Please try again.');
-        return;
-      }
-
-      // Update the bot data
-      data.products[productIndex] = {
-        ...data.products[productIndex],
-        item: newItem,
-        name: document.getElementById('edit-name').value.trim(),
-        price: parseFloat(document.getElementById('edit-price').value),
-        desc: document.getElementById('edit-desc').value.trim(),
-        embed: document.getElementById('edit-embed').value.trim(),
-        category: document.getElementById('edit-category').value,
-        img: document.getElementById('edit-img').value.trim(),
-        isNew: document.getElementById('edit-isNew').checked,
-        isArchived: document.getElementById('edit-isArchived').checked
-      };
-
-      const success = await saveData();
-      if (success) {
-        renderBots();
-        closeEditModal();
-        alert('Bot updated successfully!');
-      } else {
+      try {
+        const response = await fetch('/api/update-bot', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          renderBots();
+          closeEditModal();
+          alert('Bot updated successfully!');
+        } else {
+          throw new Error(result.error || 'Failed to update bot');
+        }
+      } catch (error) {
+        console.error('Error updating bot:', error);
         alert('Failed to update bot. Please try again.');
       }
     });
 
-    document.getElementById('edit-cancel').addEventListener('click', () => {
-      closeEditModal();
-    });
+    function closeEditModal() {
+      document.getElementById('edit-modal').classList.add('hidden');
+      document.body.classList.remove('modal-active');
+      document.getElementById('edit-form').reset();
+      editDescQuill.setContents([]);
+      document.getElementById('edit-thumbnail-preview').innerHTML = '';
+      document.getElementById('edit-bot-file-preview').innerHTML = '';
+    }
+    document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
 
     // Categories
     function renderCategories() {
@@ -903,32 +1140,44 @@
       const categorySelect = document.getElementById('category');
       const editCategorySelect = document.getElementById('edit-category');
       categoryList.innerHTML = '';
-      categorySelect.innerHTML = '';
-      editCategorySelect.innerHTML = '';
+      categorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
+      editCategorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
       data.categories.forEach(cat => {
         const li = document.createElement('li');
         li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded-md';
         li.innerHTML = `
-          <span>${cat}</span>
-          <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-category="${cat}">Delete</button>
+          <span>${cat.name}</span>
+          <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-id="${cat.id}">Delete</button>
         `;
         categoryList.appendChild(li);
-        categorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-        editCategorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+        categorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+        editCategorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
       });
 
       document.querySelectorAll('.delete-category').forEach(btn => {
         btn.addEventListener('click', async () => {
-          if (confirm('Are you sure you want to delete this category?')) {
-            showButtonFeedback(btn, 'Deleting...', 'Delete');
-            const category = btn.dataset.category;
-            data.categories = data.categories.filter(c => c !== category);
-            data.products.forEach(p => {
-              if (p.category === category) p.category = 'General';
+          if (!confirm('Are you sure you want to delete this category?')) return;
+          showButtonFeedback(btn, 'Deleting...', 'Delete');
+          const id = btn.dataset.id;
+          try {
+            const response = await fetch('/api/delete-category', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id }),
+              credentials: 'include'
             });
-            await saveData();
-            renderCategories();
-            renderBots();
+            const result = await response.json();
+            if (result.success) {
+              await fetchData();
+              renderCategories();
+              renderBots();
+              alert('Category deleted successfully!');
+            } else {
+              throw new Error(result.error || 'Failed to delete category');
+            }
+          } catch (error) {
+            console.error('Error deleting category:', error);
+            alert('Failed to delete category. Please try again.');
           }
         });
       });
@@ -937,284 +1186,486 @@
     document.getElementById('add-category').addEventListener('click', async () => {
       const btn = document.getElementById('add-category');
       showButtonFeedback(btn, 'Adding...', 'Add Category');
-      const newCategory = document.getElementById('new-category').value.trim();
-      if (newCategory && !data.categories.includes(newCategory)) {
-        data.categories.push(newCategory);
-        await saveData();
-        renderCategories();
-        document.getElementById('new-category').value = '';
-        alert('Category added successfully!');
-      } else {
-        alert('Category already exists or is invalid.');
+      const name = document.getElementById('new-category').value.trim();
+      if (!name) {
+        alert('Category name is required.');
+        return;
+      }
+      try {
+        const response = await fetch('/api/add-category', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          renderCategories();
+          document.getElementById('new-category').value = '';
+          alert('Category added successfully!');
+        } else {
+          throw new Error(result.error || 'Failed to add category');
+        }
+      } catch (error) {
+        console.error('Error adding category:', error);
+        alert('Failed to add category. Please try again.');
       }
     });
 
-    // Settings - Urgent Message Fix
-    const urgentToggle = document.getElementById('urgent-toggle');
-    const urgentMessage = document.getElementById('urgent-message');
-
-    function initializeUrgentMessage() {
-      if (!urgentToggle || !urgentMessage) {
-        console.error('Urgent message elements not found in DOM');
-        return;
-      }
-      urgentMessage.disabled = !data.settings.urgentMessage?.enabled;
-      urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
-      urgentMessage.value = data.settings.urgentMessage?.text || '';
-    }
-
-    urgentToggle.addEventListener('change', () => {
-      if (!urgentMessage) {
-        console.error('Urgent message textarea not found');
-        return;
-      }
-      urgentMessage.disabled = !urgentToggle.checked;
-      if (!urgentMessage.disabled) {
-        urgentMessage.focus();
-      }
+    // Settings
+    document.getElementById('urgent-toggle').addEventListener('change', () => {
+      urgentQuill.enable(document.getElementById('urgent-toggle').checked);
     });
 
     document.getElementById('save-urgent').addEventListener('click', async () => {
       const btn = document.getElementById('save-urgent');
-      if (!urgentToggle || !urgentMessage) {
-        console.error('Urgent message elements not found');
-        alert('Error: Unable to save urgent message. Elements not found.');
-        return;
-      }
       showButtonFeedback(btn, 'Saving...', 'Save Message');
-      data.settings.urgentMessage = {
-        enabled: urgentToggle.checked,
-        text: urgentMessage.value.trim()
-      };
-      const success = await saveData();
-      if (success) {
-        alert('Urgent message saved!');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            urgent_message: {
+              enabled: document.getElementById('urgent-toggle').checked,
+              text: urgentQuill.root.innerHTML
+            }
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('Urgent message saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save urgent message');
+        }
+      } catch (error) {
+        console.error('Error saving urgent message:', error);
+        alert('Failed to save urgent message. Please try again.');
       }
     });
 
     document.getElementById('save-email').addEventListener('click', async () => {
       const btn = document.getElementById('save-email');
       showButtonFeedback(btn, 'Saving...', 'Save Email');
-      data.settings.supportEmail = document.getElementById('support-email').value.trim();
-      await saveData();
-      alert('Support email saved!');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            support_email: document.getElementById('support-email').value.trim()
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('Support email saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save email');
+        }
+      } catch (error) {
+        console.error('Error saving email:', error);
+        alert('Failed to save email. Please try again.');
+      }
     });
 
     document.getElementById('save-copyright').addEventListener('click', async () => {
       const btn = document.getElementById('save-copyright');
       showButtonFeedback(btn, 'Saving...', 'Save Copyright');
-      data.settings.copyrightText = document.getElementById('copyright-text').value.trim();
-      await saveData();
-      alert('Copyright text saved!');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            footer_copyright: document.getElementById('copyright-text').value.trim()
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('Copyright text saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save copyright');
+        }
+      } catch (error) {
+        console.error('Error saving copyright:', error);
+        alert('Failed to save copyright. Please try again.');
+      }
     });
 
     document.getElementById('save-logo').addEventListener('click', async () => {
       const btn = document.getElementById('save-logo');
       showButtonFeedback(btn, 'Saving...', 'Save Logo');
-      data.settings.logoUrl = document.getElementById('logo-url').value.trim();
-      await saveData();
-      alert('Logo URL saved!');
+      const file = document.getElementById('logo-file').files[0];
+      if (!file) {
+        alert('Please select a logo file.');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('logo', await compressImage(file));
+      try {
+        const response = await fetch('/api/update-logo', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          document.getElementById('logo-preview').innerHTML = `<img src="${result.logo_url}" alt="Logo" class="w-32 h-auto rounded-md">`;
+          alert('Logo saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save logo');
+        }
+      } catch (error) {
+        console.error('Error saving logo:', error);
+        alert('Failed to save logo. Please try again.');
+      }
     });
 
     document.getElementById('save-mpesa-till').addEventListener('click', async () => {
       const btn = document.getElementById('save-mpesa-till');
       showButtonFeedback(btn, 'Saving...', 'Save Till Number');
-      data.settings.mpesaTill = document.getElementById('mpesa-till').value.trim();
-      await saveData();
-      alert('MPESA Till Number saved!');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mpesa_till_number: document.getElementById('mpesa-till').value.trim()
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('MPESA Till Number saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save till number');
+        }
+      } catch (error) {
+        console.error('Error saving till number:', error);
+        alert('Failed to save till number. Please try again.');
+      }
     });
 
     document.getElementById('save-socials').addEventListener('click', async () => {
       const btn = document.getElementById('save-socials');
       showButtonFeedback(btn, 'Saving...', 'Save Socials');
-      data.settings.socials = {
-        tiktok: document.getElementById('tiktok').value.trim(),
-        whatsapp: document.getElementById('whatsapp').value.trim(),
-        call: document.getElementById('call').value.trim(),
-        instagram: document.getElementById('instagram').value.trim(),
-        x: document.getElementById('x').value.trim(),
-        facebook: document.getElementById('facebook').value.trim(),
-        youtube: document.getElementById('youtube').value.trim()
+      const socials = {
+        tiktok: { url: document.getElementById('tiktok').value.trim() },
+        instagram: { url: document.getElementById('instagram').value.trim() },
+        x: { url: document.getElementById('x').value.trim() },
+        facebook: { url: document.getElementById('facebook').value.trim() },
+        youtube: { url: document.getElementById('youtube').value.trim() }
       };
-      await saveData();
-      alert('Social media links saved!');
-    });
-
-    document.getElementById('save-fallback-rate').addEventListener('click', async () => {
-      const btn = document.getElementById('save-fallback-rate');
-      showButtonFeedback(btn, 'Saving...', 'Save Rate');
-      data.settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
-      await saveData();
-      alert('Fallback rate saved!');
-    });
-
-    document.getElementById('change-credentials').addEventListener('click', async () => {
-      const btn = document.getElementById('change-credentials');
-      showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-      const newEmail = document.getElementById('new-email').value.trim();
-      const newPassword = document.getElementById('new-password').value.trim();
-      const confirmPassword = document.getElementById('confirm-password').value.trim();
-      if (newPassword !== confirmPassword) {
-        alert('Passwords do not match!');
-        return;
-      }
-      if (newEmail) data.settings.adminEmail = newEmail;
-      if (newPassword) data.settings.adminPassword = newPassword;
-      await saveData();
-      alert('Credentials updated! Please login again.');
-      document.getElementById('login-modal').classList.remove('hidden');
-      document.body.classList.add('modal-active');
-    });
-
-    // Static Pages
-    function renderPages() {
-      const pageList = document.getElementById('page-list');
-      pageList.innerHTML = '';
-      data.staticPages.forEach(page => {
-        const li = document.createElement('li');
-        li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-        li.innerHTML = `
-          <div>
-            <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
-            <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
-          </div>
-          <div class="space-x-2">
-            <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
-            <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
-          </div>
-        `;
-        pageList.appendChild(li);
+      ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+        const file = document.getElementById(`${platform}-logo`).files[0];
+        if (file) socials[platform].logo = file;
       });
 
-      document.querySelectorAll('.edit-page').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const slug = btn.dataset.slug;
-          const page = data.staticPages.find(p => p.slug === slug);
-          if (!page) {
-            alert('Page not found. Please refresh and try again.');
-            return;
-          }
-          document.getElementById('page-title').value = page.title;
-          document.getElementById('page-slug').value = page.slug;
-          document.getElementById('page-content').value = page.content;
-          document.getElementById('add-page').textContent = 'Save Changes';
-          document.getElementById('add-page').dataset.editSlug = slug;
-          document.getElementById('page-slug').dataset.originalSlug = slug; // Store original slug for comparison
-        });
+      const formData = new FormData();
+      Object.keys(socials).forEach(platform => {
+        formData.append(`${platform}_url`, socials[platform].url);
+        if (socials[platform].logo) formData.append(`${platform}_logo`, socials[platform].logo);
       });
 
-      document.querySelectorAll('.delete-page').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (confirm('Are you sure you want to delete this page?')) {
-            showButtonFeedback(btn, 'Deleting...', 'Delete');
-            const slug = btn.dataset.slug;
-            data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-            await saveData();
-            renderPages();
-            alert('Page deleted successfully!');
-          }
-        });
-      });
-    }
+      try {
+const response = await fetch('/api/update-socials', {
+method: 'POST',
+body: formData,
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+const url = data.social_links.find(link => link.platform === platform)?.url;
+const logo_url = data.social_links.find(link => link.platform === platform)?.logo_url;
+document.getElementById(platform).value = url || '';
+document.getElementById(${platform}-logo-preview).innerHTML = logo_url ? <img src="${logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md"> : '';
+});
+alert('Social links saved!');
+} else {
+throw new Error(result.error || 'Failed to save social links');
+}
+} catch (error) {
+console.error('Error saving social links:', error);
+alert('Failed to save social links. Please try again.');
+}
+});
 
-    document.getElementById('add-page').addEventListener('click', async function() {
-      const btn = this;
-      const pageTitle = document.getElementById('page-title').value.trim();
-      const pageSlug = document.getElementById('page-slug').value.trim();
-      const pageContent = document.getElementById('page-content').value.trim();
+document.querySelectorAll('.delete-social-logo').forEach(btn => {
+btn.addEventListener('click', async () => {
+const platform = btn.dataset.platform;
+if (!confirm(Are you sure you want to delete the ${platform} logo?)) return;
+showButtonFeedback(btn, 'Deleting...', 'Delete Logo');
+try {
+const response = await fetch('/api/delete-social-logo', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ platform }),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+document.getElementById(${platform}-logo-preview).innerHTML = '';
+alert(${platform} logo deleted successfully!);
+} else {
+throw new Error(result.error || Failed to delete ${platform} logo);
+}
+} catch (error) {
+console.error(Error deleting ${platform} logo:, error);
+alert(Failed to delete ${platform} logo. Please try again.);
+}
+});
+});
 
-      if (!pageTitle || !pageSlug || !pageContent) {
-        alert('Please fill in all fields.');
-        return;
-      }
+document.getElementById('save-payment-method').addEventListener('click', async () => {
+const btn = document.getElementById('save-payment-method');
+showButtonFeedback(btn, 'Saving...', 'Save Payment Method');
+try {
+const response = await fetch('/api/update-settings', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+payment_method: document.getElementById('payment-method').value
+}),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+alert('Payment method saved!');
+} else {
+throw new Error(result.error || 'Failed to save payment method');
+}
+} catch (error) {
+console.error('Error saving payment method:', error);
+alert('Failed to save payment method. Please try again.');
+}
+});
 
-      const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
+document.getElementById('save-fallback-rate').addEventListener('click', async () => {
+const btn = document.getElementById('save-fallback-rate');
+showButtonFeedback(btn, 'Saving...', 'Save Rate');
+try {
+const response = await fetch('/api/update-settings', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+fallback_exchange_rate: parseFloat(document.getElementById('fallback-rate').value)
+}),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+alert('Fallback rate saved!');
+} else {
+throw new Error(result.error || 'Failed to save fallback rate');
+}
+} catch (error) {
+console.error('Error saving fallback rate:', error);
+alert('Failed to save fallback rate. Please try again.');
+}
+});
 
-      // Check for duplicate slug if adding a new page or if the slug has changed while editing
-      if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
-        if (data.staticPages.some(page => page.slug === pageSlug)) {
-          alert('A page with this slug already exists. Please use a different slug.');
-          return;
-        }
-      }
+document.getElementById('change-credentials').addEventListener('click', async () => {
+const btn = document.getElementById('change-credentials');
+showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+const email = document.getElementById('new-email').value.trim();
+const password = document.getElementById('new-password').value.trim();
+const confirmPassword = document.getElementById('confirm-password').value.trim();
+if (!email || !password || !confirmPassword) {
+alert('Please fill in all fields.');
+return;
+}
+if (password !== confirmPassword) {
+alert('Passwords do not match.');
+return;
+}
+try {
+const response = await fetch('/api/change-credentials', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ email, password }),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+document.getElementById('new-email').value = '';
+document.getElementById('new-password').value = '';
+document.getElementById('confirm-password').value = '';
+alert('Credentials updated successfully!');
+} else {
+throw new Error(result.error || 'Failed to update credentials');
+}
+} catch (error) {
+console.error('Error updating credentials:', error);
+alert('Failed to update credentials. Please try again.');
+}
+});
 
-      if (btn.dataset.editSlug) {
-        // Editing an existing page
-        showButtonFeedback(btn, 'Saving...', 'Save Changes');
-        data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug); // Remove the old page
-        data.staticPages.push({
-          title: pageTitle,
-          slug: pageSlug,
-          content: pageContent
-        });
-        const success = await saveData();
-        if (success) {
-          renderPages();
-          alert('Page updated successfully!');
-          btn.textContent = 'Add Page';
-          delete btn.dataset.editSlug;
-          delete document.getElementById('page-slug').dataset.originalSlug;
-        } else {
-          alert('Failed to update page. Please try again.');
-          return;
-        }
-      } else {
-        // Adding a new page
-        showButtonFeedback(btn, 'Adding...', 'Add Page');
-        data.staticPages.push({
-          title: pageTitle,
-          slug: pageSlug,
-          content: pageContent
-        });
-        const success = await saveData();
-        if (success) {
-          renderPages();
-          alert('Page added successfully!');
-        } else {
-          alert('Failed to add page. Please try again.');
-          return;
-        }
-      }
+// Static Pages
+function renderPages() {
+const pageList = document.getElementById('page-list');
+pageList.innerHTML = '';
+data.static_pages.forEach(page => {
+const li = document.createElement('li');
+li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+li.innerHTML = `
 
-      document.getElementById('page-title').value = '';
-      document.getElementById('page-slug').value = '';
-      document.getElementById('page-content').value = '';
-    });
+${page.title}
+Slug: ${page.slug}
 
-    // Initialize
-    async function initialize() {
-      const isAuthenticated = await checkSession();
-      if (!isAuthenticated) {
-        document.getElementById('login-modal').classList.remove('hidden');
-        document.body.classList.add('modal-active');
-        return;
-      }
+<button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${page.id}">Edit</button> <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${page.id}">Delete</button>
+`; pageList.appendChild(li); });
+document.querySelectorAll('.edit-page').forEach(btn => {
+btn.addEventListener('click', () => {
+const id = btn.dataset.id;
+const page = data.static_pages.find(p => p.id === id);
+if (!page) {
+alert('Page not found. Please refresh and try again.');
+return;
+}
+document.getElementById('page-title').value = page.title;
+document.getElementById('page-slug').value = page.slug;
+document.getElementById('page-meta').value = page.meta_description || '';
+pageQuill.root.innerHTML = page.content;
+document.getElementById('meta-counter').textContent = ${140 - (page.meta_description || '').length} characters remaining;
+document.getElementById('add-page').textContent = 'Update Page';
+document.getElementById('add-page').dataset.id = id;
+});
+});
 
-      const success = await fetchData();
-      if (success) {
-        renderBots();
-        renderCategories();
-        renderPages();
-        document.getElementById('support-email').value = data.settings.supportEmail || '';
-        document.getElementById('copyright-text').value = data.settings.copyrightText || '';
-        document.getElementById('logo-url').value = data.settings.logoUrl || '';
-        document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
-        document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
-        document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
-        initializeUrgentMessage();
-        document.getElementById('fallback-rate').value = data.settings.fallbackRate || '';
-        Object.keys(data.settings.socials || {}).forEach(key => {
-          document.getElementById(key).value = data.settings.socials[key] || '';
-        });
-        startOrdersPolling();
-      }
-    }
+document.querySelectorAll('.delete-page').forEach(btn => {
+btn.addEventListener('click', async () => {
+if (!confirm('Are you sure you want to delete this page?')) return;
+showButtonFeedback(btn, 'Deleting...', 'Delete');
+const id = btn.dataset.id;
+try {
+const response = await fetch('/api/delete-page', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ id }),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+renderPages();
+alert('Page deleted successfully!');
+} else {
+throw new Error(result.error || 'Failed to delete page');
+}
+} catch (error) {
+console.error('Error deleting page:', error);
+alert('Failed to delete page. Please try again.');
+}
+});
+});
+}
 
-    initialize();
-  </script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328b0f2484553bc',t:'MTc0NTAyNjc5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-</body>
-</html>
+document.getElementById('add-page').addEventListener('click', async () => {
+const btn = document.getElementById('add-page');
+const isUpdate = btn.textContent === 'Update Page';
+showButtonFeedback(btn, isUpdate ? 'Updating...' : 'Adding...', isUpdate ? 'Update Page' : 'Add Page');
+const title = document.getElementById('page-title').value.trim();
+const slug = document.getElementById('page-slug').value.trim();
+const metaDescription = document.getElementById('page-meta').value.trim();
+const content = pageQuill.root.innerHTML;
+if (!title || !slug || !content) {
+alert('Please fill in all required fields.');
+return;
+}
+try {
+const endpoint = isUpdate ? '/api/update-page' : '/api/add-page';
+const body = isUpdate
+? { id: btn.dataset.id, title, slug, meta_description: metaDescription, content }
+: { title, slug, meta_description: metaDescription, content };
+const response = await fetch(endpoint, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(body),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+await fetchData();
+renderPages();
+document.getElementById('page-title').value = '';
+document.getElementById('page-slug').value = '';
+document.getElementById('page-meta').value = '';
+pageQuill.setContents([]);
+btn.textContent = 'Add Page';
+delete btn.dataset.id;
+alert(Page ${isUpdate ? 'updated' : 'added'} successfully!);
+} else {
+throw new Error(result.error || Failed to ${isUpdate ? 'update' : 'add'} page);
+}
+} catch (error) {
+console.error(Error ${isUpdate ? 'updating' : 'adding'} page:, error);
+alert(Failed to ${isUpdate ? 'update' : 'add'} page. Please try again.);
+}
+});
+
+// Character counters
+document.getElementById('name').addEventListener('input', () => {
+const counter = document.getElementById('name-counter');
+const remaining = 100 - document.getElementById('name').value.length;
+counter.textContent = ${remaining} characters remaining;
+});
+
+document.getElementById('edit-name').addEventListener('input', () => {
+const counter = document.getElementById('edit-name-counter');
+const remaining = 100 - document.getElementById('edit-name').value.length;
+counter.textContent = ${remaining} characters remaining;
+});
+
+document.getElementById('page-meta').addEventListener('input', () => {
+const counter = document.getElementById('meta-counter');
+const remaining = 140 - document.getElementById('page-meta').value.length;
+counter.textContent = ${remaining} characters remaining;
+});
+
+// Initialize
+async function initialize() {
+const isAuthenticated = await checkSession();
+if (!isAuthenticated) {
+document.getElementById('login-page').classList.remove('hidden');
+document.getElementById('admin-panel').classList.add('hidden');
+document.getElementById('admin-nav').classList.add('hidden');
+return;
+}
+document.getElementById('login-page').classList.add('hidden');
+document.getElementById('admin-panel').classList.remove('hidden');
+document.getElementById('admin-nav').classList.remove('hidden');
+const success = await fetchData();
+if (success) {
+renderBots();
+renderCategories();
+renderPages();
+document.getElementById('support-email').value = data.settings.support_email || '';
+document.getElementById('copyright-text').value = data.settings.footer_copyright || '';
+document.getElementById('mpesa-till').value = data.settings.mpesa_till_number || '';
+document.getElementById('payment-method').value = data.settings.payment_method || 'payhero';
+document.getElementById('fallback-rate').value = data.settings.fallback_exchange_rate || '';
+document.getElementById('urgent-toggle').checked = data.settings.urgent_message?.enabled || false;
+urgentQuill.root.innerHTML = data.settings.urgent_message?.text || '';
+urgentQuill.enable(data.settings.urgent_message?.enabled || false);
+document.getElementById('logo-preview').innerHTML = data.settings.logo_url ? <img src="${data.settings.logo_url}" alt="Logo" class="w-32 h-auto rounded-md"> : '';
+['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+const link = data.social_links.find(l => l.platform === platform);
+document.getElementById(platform).value = link?.url || '';
+document.getElementById(${platform}-logo-preview).innerHTML = link?.logo_url ? <img src="${link.logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md"> : '';
+});
+startOrdersPolling();
+}
+}
+
+initialize();
+</script>
