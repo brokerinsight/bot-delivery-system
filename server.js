@@ -239,6 +239,118 @@ app.get('/api/check-payment', async (req, res) => {
   }
 });
 
+app.post('/api/add-category', isAuthenticated, async (req, res) => {
+  const { name } = req.body;
+  try {
+    const { data: category } = await supabase
+      .from('categories')
+      .insert([{ name }])
+      .select()
+      .single();
+    res.json({ success: true, category });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error adding category:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to add category' });
+  }
+});
+
+app.post('/api/delete-category', isAuthenticated, async (req, res) => {
+  const { id } = req.body;
+  try {
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting category:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete category' });
+  }
+});
+
+app.post('/api/update-settings', isAuthenticated, async (req, res) => {
+  const updates = req.body;
+  try {
+    const { data: currentSettings } = await supabase.from('settings').select('*').single();
+    const updatedSettings = { ...currentSettings, ...updates };
+    const { data } = await supabase
+      .from('settings')
+      .upsert(updatedSettings)
+      .select()
+      .single();
+    res.json({ success: true, settings: data });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating settings:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update settings' });
+  }
+});
+
+app.post('/api/update-bot', isAuthenticated, async (req, res) => {
+  const { id, name, price, category_id, description, embed_link, is_active } = req.body;
+  const thumbnail = req.body.thumbnail; // FormData field
+  const bot_file = req.body.bot_file; // FormData field
+
+  try {
+    const { data: product } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (!product) return res.status(404).json({ success: false, error: 'Bot not found' });
+
+    let thumbnailPath = product.thumbnail_url;
+    let botPath = product.file_url;
+
+    if (thumbnail) {
+      await supabase.storage.from('thumbnails').remove([thumbnailPath]);
+      thumbnailPath = `thumbnails/${product.file_id}_${name}.jpg`;
+      await supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail, { contentType: 'image/jpeg' });
+    }
+
+    if (bot_file) {
+      await supabase.storage.from('bots').remove([botPath]);
+      botPath = `bots/${product.file_id}_${name}.zip`;
+      await supabase.storage.from('bots').upload(botPath, bot_file, { contentType: 'application/zip' });
+    }
+
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const excerpt = description.slice(0, 247) + '...';
+    const meta_description = excerpt.slice(0, 140);
+
+    const { data: updatedProduct } = await supabase
+      .from('products')
+      .update({
+        name,
+        price_kes: parseFloat(price),
+        category_id,
+        description,
+        embed_link,
+        thumbnail_url: thumbnailPath,
+        file_url: botPath,
+        slug,
+        excerpt,
+        meta_description,
+        is_active: is_active === 'true' // FormData sends boolean as string
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    res.json({ success: true, product: updatedProduct });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update bot' });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] Error logging out:`, err.message);
+      return res.status(500).json({ success: false, error: 'Failed to logout' });
+    }
+    res.json({ success: true });
+  });
+});
+
 // Submit manual payment ref code
 app.post('/api/submit-ref', async (req, res) => {
   const { product_id, ref_code, amount, timestamp, customer_email } = req.body;
