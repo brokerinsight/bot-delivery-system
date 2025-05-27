@@ -13,30 +13,30 @@
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
   <script src="https://applet.payherokenya.com/cdn/button_sdk.js?v=3.1"></script>
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-color: #f3f4f6;
+      --bg-color: #f9fafb;
       --text-color: #1f2937;
       --card-bg: #ffffff;
-      --accent-color: #16a34a;
+      --accent-color: #10b981;
       --header-bg: #ffffff;
-      --subnav-bg: #f9fafb;
-      --subnav-text: #374151;
+      --subnav-bg: #f1f5f9;
+      --subnav-text: #4b5563;
     }
     [data-theme="dark"] {
-      --bg-color: #1f2937;
-      --text-color: #e5e7eb;
-      --card-bg: #374151;
-      --accent-color: #22c55e;
-      --header-bg: #111827;
-      --subnav-bg: #2d3748;
-      --subnav-text: #d1d5db;
+      --bg-color: #111827;
+      --text-color: #d1d5db;
+      --card-bg: #1f2937;
+      --accent-color: #34d399;
+      --header-bg: #1f2937;
+      --subnav-bg: #374151;
+      --subnav-text: #9ca3af;
     }
     body {
       background-color: var(--bg-color);
       color: var(--text-color);
-      font-family: 'Inter', sans-serif;
+      font-family: 'Poppins', sans-serif;
       transition: background-color 0.3s, color 0.3s;
     }
     .truncate-2-lines {
@@ -53,8 +53,8 @@
       min-height: 4.5rem;
     }
     #urgent-message {
-      background: linear-gradient(90deg, rgba(255, 215, 0, 0.9), rgba(255, 165, 0, 0.9));
-      border-radius: 0 0 15px 15px;
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+      border-radius: 0 0 12px 12px;
       animation: slideDown 0.5s ease-out;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
@@ -64,18 +64,21 @@
     }
     .search-container {
       position: relative;
+      width: 100%;
     }
     .search-container input {
       padding-left: 2.5rem;
+      padding-right: 1rem;
       transition: all 0.3s ease;
       border: 1px solid #d1d5db;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
       background-color: var(--card-bg);
       color: var(--text-color);
+      border-radius: 8px;
     }
     .search-container input:focus {
       border-color: var(--accent-color);
-      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
       outline: none;
     }
     .search-container svg {
@@ -88,28 +91,36 @@
       color: #6b7280;
     }
     #mobile-menu {
-      display: none; /* Ensure it's hidden by default */
       transform: translateX(-100%);
       transition: transform 0.3s ease-in-out;
       background: var(--card-bg);
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
     }
     #mobile-menu.open {
-      display: block; /* Show when open class is added */
       transform: translateX(0);
+    }
+    #mobile-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 29;
+    }
+    #mobile-backdrop.open {
+      display: block;
     }
     .product-image-container img {
       width: 100%;
-      height: 100%;
+      height: 200px;
       object-fit: cover;
       border-top-left-radius: 12px;
       border-top-right-radius: 12px;
-      aspect-ratio: 16 / 9;
       transition: transform 0.3s ease;
     }
     .product-image-container img:hover {
-      transform: scale(1.05);
+      transform: scale(1.03);
     }
-    #product-grid .bg-white {
+    #product-grid .product-card {
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -117,38 +128,47 @@
       overflow: hidden;
       transition: all 0.3s ease;
       background-color: var(--card-bg);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
-    #product-grid .bg-white:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    #product-grid .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
     }
     .view-details {
-      background: linear-gradient(90deg, var(--accent-color), #22c55e);
+      background: linear-gradient(90deg, var(--accent-color), #34d399);
       transition: all 0.3s ease;
     }
     .view-details:hover {
-      background: linear-gradient(90deg, #15803d, var(--accent-color));
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+      background: linear-gradient(90deg, #059669, var(--accent-color));
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
     }
     .ql-editor {
       color: var(--text-color);
       background-color: var(--card-bg);
     }
     .social-icon {
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       object-fit: contain;
+      transition: transform 0.2s ease;
+    }
+    .social-icon:hover {
+      transform: scale(1.1);
     }
     #sub-nav-links {
       background-color: var(--subnav-bg);
       color: var(--subnav-text);
-      padding: 0.5rem 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     }
     #sub-nav-links a {
       color: var(--subnav-text);
       padding: 0.5rem 1rem;
       text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
     }
     #sub-nav-links a:hover {
       color: var(--accent-color);
@@ -156,16 +176,23 @@
     #legal-dropdown {
       background-color: var(--card-bg);
       color: var(--text-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
     #legal-dropdown a {
       color: var(--text-color);
+      transition: background-color 0.2s ease;
+    }
+    #legal-dropdown a:hover {
+      background-color: rgba(0, 0, 0, 0.05);
     }
     #sort-select {
       background-color: var(--card-bg);
       color: var(--text-color);
       border: 1px solid #d1d5db;
       padding: 0.5rem;
-      border-radius: 0.375rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
     }
     body.popup-active {
       overflow: hidden;
@@ -183,64 +210,72 @@
       z-index: 999;
     }
     .popup-content {
-      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      background: var(--card-bg);
       padding: 2rem;
-      border-radius: 16px;
+      border-radius: 12px;
       text-align: center;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       animation: popupFadeIn 0.5s ease-out forwards;
       max-width: 90%;
-      width: 500px;
+      width: 450px;
     }
     @keyframes popupFadeIn {
-      from { transform: translateY(20px) scale(0.9); opacity: 0; }
+      from { transform: translateY(20px) scale(0.95); opacity: 0; }
       to { transform: translateY(0) scale(1); opacity: 1; }
     }
     .browser-popup-button {
-      padding: 12px 24px;
+      padding: 10px 20px;
       border: none;
-      border-radius: 10px;
-      font-size: 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s ease;
       display: block;
-      margin: 20px auto 0;
+      margin: 15px auto 0;
     }
     .browser-popup-button.cancel {
-      background: linear-gradient(90deg, #28a745, #34d058);
+      background: linear-gradient(90deg, #10b981, #34d399);
       color: white;
     }
     .browser-popup-button.cancel:hover {
-      background: linear-gradient(90deg, #218838, #2cb94e);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+      background: linear-gradient(90deg, #059669, #10b981);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
     }
     .create-account-btn {
-      padding: 0.75rem 1.5rem; /* Base padding for larger screens */
-      font-size: 1rem; /* Base font size for larger screens */
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
     }
     @media (max-width: 640px) {
       #nav-links {
         display: none;
       }
       #mobile-menu {
-        display: none; /* Hidden by default, shown with .open */
+        width: 75%;
+        max-width: 280px;
       }
       #mobile-nav-links {
         flex-direction: column;
         align-items: flex-start;
       }
       #mobile-nav-links a {
-        padding: 0.5rem 0;
+        padding: 0.75rem 0;
         width: 100%;
+        font-size: 0.875rem;
       }
       #sub-nav-links {
         display: none;
       }
+      .social-icon {
+        width: 20px;
+        height: 20px;
+      }
       .create-account-btn {
-        padding: 0.5rem 1rem !important; /* Smaller padding for mobile */
-        font-size: 0.875rem !important; /* Smaller font for mobile */
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
       }
       footer {
         display: none;
@@ -251,6 +286,14 @@
         padding: 1rem;
         border-top: 1px solid #e5e7eb;
         background: var(--card-bg);
+        font-size: 0.75rem;
+      }
+      #product-grid .product-card {
+        margin: 0 auto;
+        max-width: 320px;
+      }
+      .product-image-container img {
+        height: 180px;
       }
     }
     @media (min-width: 641px) {
@@ -262,66 +305,61 @@
 </head>
 <body>
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
-    <p id="urgent-text" class="text-center text-lg font-semibold"></p>
-    <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
+    <p id="urgent-text" class="text-center text-sm font-medium"></p>
+    <button id="urgent-close" class="mt-2 block mx-auto bg-gray-700 text-white px-3 py-1 rounded-full text-sm hover:bg-gray-800 transition-colors">Okay</button>
   </div>
 
-  <nav class="shadow-md sticky top-0 z-20" style="background-color: var(--header-bg);">
+  <nav class="shadow-sm sticky top-0 z-20" style="background-color: var(--header-bg);">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center">
-          <div id="logo-container">
-            <img id="site-logo" src="" alt="BotBlitz Store" class="h-8">
-          </div>
-          <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
-            <a href="/" class="nav-link border-b-2 border-transparent text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
-          </div>
-        </div>
+      <div class="flex justify-between items-center h-16">
         <div class="flex items-center space-x-4">
-          <div id="social-links-header" class="hidden sm:flex space-x-2"></div>
-          <button id="theme-toggle" class="p-2 rounded-full">
-            <svg id="theme-icon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          </button>
-          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors">Create Deriv Account</a>
-          <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
+          <button id="mobile-menu-button" class="sm:hidden text-gray-600 hover:text-gray-900 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+          <div id="logo-container">
+            <img id="site-logo" src="" alt="BotBlitz Store" class="h-9 w-auto">
+          </div>
+          <div id="nav-links" class="hidden sm:flex sm:space-x-6">
+            <a href="/" class="nav-link text-gray-600 hover:text-gray-900 text-sm font-medium py-2 transition-colors">Home</a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3">
+          <div id="social-links-header" class="hidden sm:flex space-x-2"></div>
+          <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <svg id="theme-icon" class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </button>
+          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Create Deriv Account</a>
         </div>
       </div>
     </div>
-    <div id="sub-nav-links" class="flex space-x-4 py-2" style="background-color: var(--subnav-bg); color: var(--subnav-text);">
-      <a href="/" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Home</a>
-      <div class="relative">
-        <button id="legal-menu-button" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Legal</button>
-        <div id="legal-dropdown" class="hidden absolute z-10 mt-2 w-48 rounded-md shadow-lg" style="background-color: var(--card-bg); color: var(--text-color);">
-          <div id="legal-links" class="py-1"></div>
-        </div>
-      </div>
+    <div id="sub-nav-links" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 overflow-x-auto scrollbar-hide">
+      <!-- Categories will be dynamically inserted here -->
     </div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 shadow-lg z-30">
+    <div id="mobile-backdrop" class="sm:hidden"></div>
+    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full z-30">
       <div class="flex justify-between items-center p-4 border-b" style="background-color: var(--card-bg);">
-        <h2 class="text-lg font-bold">Menu</h2>
-        <button id="mobile-menu-close" class="text-gray-500">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Menu</h2>
+        <button id="mobile-menu-close" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
-      <div id="mobile-social-links" class="p-4 flex flex-col space-y-2"></div>
+      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-2"></div>
+      <div id="mobile-social-links" class="p-4 flex flex-col space-y-3 border-t border-gray-200 dark:border-gray-700"></div>
       <div id="mobile-footer" class="mt-auto p-4">
-        <p id="mobile-copyright-text" class="text-gray-600 text-sm"></p>
-        <p class="text-gray-500 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline"></a></p>
+        <p id="mobile-copyright-text" class="text-gray-500 dark:text-gray-400 text-sm"></p>
+        <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline hover:text-gray-700 dark:hover:text-gray-200"></a></p>
       </div>
     </div>
   </nav>
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-    <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4">
       <div class="search-container w-full sm:w-1/2">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -339,47 +377,47 @@
   </div>
 
   <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h2 class="text-3xl font-bold mb-8 text-center">Explore Our Bots</h2>
+    <h2 class="text-3xl font-bold mb-8 text-center text-gray-800 dark:text-gray-100">Explore Our Trading Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-    <div id="loading-message" class="col-span-full text-center text-gray-600 hidden">
+    <div id="loading-message" class="col-span-full text-center text-gray-600 dark:text-gray-400 hidden">
       Loading bots...
     </div>
   </main>
 
   <footer class="shadow-inner mt-12 py-6" style="background-color: var(--header-bg);">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <p id="copyright-text" class="text-gray-600"></p>
+      <p id="copyright-text" class="text-gray-500 dark:text-gray-400 text-sm"></p>
     </div>
   </footer>
 
   <div id="download-progress-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-      <h3 class="text-xl font-bold mb-4">Downloading File</h3>
-      <p id="download-progress-text" class="text-gray-600 mb-4">Starting download...</p>
-      <div id="download-progress-bar" class="w-full h-4 bg-gray-200 rounded-full">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">Downloading File</h3>
+      <p id="download-progress-text" class="text-gray-600 dark:text-gray-300 mb-4">Starting download...</p>
+      <div id="download-progress-bar" class="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full">
         <div id="download-progress-fill" class="h-full bg-green-600 rounded-full" style="width: 0%;"></div>
       </div>
-      <p id="download-error" class="text-red-600 mt-2 hidden"></p>
+      <p id="download-error" class="text-red-500 mt-2 hidden"></p>
     </div>
   </div>
 
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
       <div id="countdown-timer" class="mb-4">
-        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
-        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+        <p class="text-gray-600 dark:text-gray-300">Time remaining: <span id="timer-text">10:00</span></p>
+        <div class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
           <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
         </div>
       </div>
-      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4"></h3>
+      <p class="text-gray-600 dark:text-gray-300 mb-4">Please send the payment via MPESA to:</p>
       <div class="flex items-center space-x-2">
-        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+        <p class="font-semibold text-gray-900 dark:text-gray-100">Till Number: <span id="mpesa-till-number">4933614</span></p>
         <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
       </div>
       <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">I Have Paid</button>
+      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition-colors">Cancel</button>
     </div>
   </div>
 
@@ -410,7 +448,6 @@
           supabase.from('products').select('*').eq('is_active', true),
           supabase.from('categories').select('*'),
           supabase.from('settings').select('*').limit(1).single(),
-          supabase.from('static_pages').select('*'),
           supabase.from('social_links').select('*')
         ]);
         products = productsRes.data || [];
@@ -451,14 +488,14 @@
       const navLinks = document.getElementById('nav-links');
       const mobileNavLinks = document.getElementById('mobile-nav-links');
       const subNavLinks = document.getElementById('sub-nav-links');
-      navLinks.innerHTML = `<a href="/" class="nav-link border-b-2 ${window.location.pathname === '/' ? 'border-green-500' : 'border-transparent'} text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="/" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">Home</a>`;
-      subNavLinks.innerHTML = categories.map(cat => `<a href="/category/${cat.name}" class="text-gray-500 hover:text-gray-900 text-sm font-medium">${cat.name}</a>`).join('');
-      mobileNavLinks.innerHTML += categories.map(cat => `<a href="/category/${cat.name}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat.name}</a>`).join('');
-      mobileNavLinks.innerHTML += `<a href="#" id="mobile-legal-menu-button" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Legal</a>`;
+      navLinks.innerHTML = `<a href="/" class="nav-link text-gray-600 hover:text-gray-900 text-sm font-medium py-2 transition-colors ${window.location.pathname === '/' ? 'text-green-600 font-semibold' : ''}">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="/" class="nav-link text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">Home</a>`;
+      subNavLinks.innerHTML = `<a href="/" class="text-gray-500 hover:text-gray-900 text-sm font-medium">All</a>` + categories.map(cat => `<a href="/category/${cat.name}" class="text-gray-500 hover:text-gray-900 text-sm font-medium">${cat.name}</a>`).join('');
+      mobileNavLinks.innerHTML += categories.map(cat => `<a href="/category/${cat.name}" class="nav-link text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">${cat.name}</a>`).join('');
+      mobileNavLinks.innerHTML += `<a href="#" id="mobile-legal-menu-button" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">Legal</a>`;
       const legalLinks = document.getElementById('legal-links');
-      legalLinks.innerHTML = staticPages.map(page => `<a href="/${page.slug}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">${page.title}</a>`).join('');
-      mobileNavLinks.innerHTML += `<div id="mobile-legal-links" class="hidden flex flex-col pl-4 space-y-2">${staticPages.map(page => `<a href="/${page.slug}" class="text-gray-500 hover:text-gray-900 text-sm">${page.title}</a>`).join('')}</div>`;
+      legalLinks.innerHTML = staticPages.map(page => `<a href="/${page.slug}" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">${page.title}</a>`).join('');
+      mobileNavLinks.innerHTML += `<div id="mobile-legal-links" class="hidden flex flex-col pl-4 space-y-2">${staticPages.map(page => `<a href="/${page.slug}" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm">${page.title}</a>`).join('')}</div>`;
       document.getElementById('legal-menu-button').onclick = () => {
         document.getElementById('legal-dropdown').classList.toggle('hidden');
       };
@@ -470,13 +507,14 @@
     function renderSocialLinks() {
       const headerSocial = document.getElementById('social-links-header');
       const mobileSocial = document.getElementById('mobile-social-links');
-      headerSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"></a>`).join('');
-      mobileSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank" class="flex items-center space-x-2"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"><span>${link.platform}</span></a>`).join('');
+      headerSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank" class="p-1"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"></a>`).join('');
+      mobileSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank" class="flex items-center space-x-2"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"><span class="text-gray-600 dark:text-gray-300 text-sm font-medium">${link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}</span></a>`).join('');
     }
 
     async function renderProducts(category = 'all', search = '', sort = 'newest') {
       const grid = document.getElementById('product-grid');
       grid.innerHTML = '';
+      const supabase = await initSupabase();
       let filteredProducts = products;
       if (category !== 'all') {
         filteredProducts = products.filter(p => p.category_id === categories.find(c => c.name === category)?.id);
@@ -493,49 +531,54 @@
         return new Date(b.created_at) - new Date(a.created_at); // newest
       });
       if (!filteredProducts.length) {
-        grid.innerHTML = '<p class="text-center col-span-full">No products found.</p>';
+        grid.innerHTML = '<p class="text-center col-span-full text-gray-500 dark:text-gray-400">No products found.</p>';
         return;
       }
-      filteredProducts.forEach(product => {
+      for (const product of filteredProducts) {
+        const { data: signedThumbnail } = await supabase.storage.from('thumbnails').createSignedUrl(product.thumbnail_url, 3600);
+        if (!signedThumbnail) continue;
+        product.thumbnail_url = signedThumbnail.signedUrl;
         const card = document.createElement('div');
-        card.className = 'bg-white rounded-lg shadow-md';
+        card.className = 'product-card';
         card.innerHTML = `
           <div class="relative">
             <div class="product-image-container">
-              <img src="${product.thumbnail_url}" alt="${product.name}">
+              <img src="${product.thumbnail_url}" alt="${product.name}" loading="lazy">
             </div>
           </div>
-          <div class="p-6">
-            <h3 class="text-lg font-semibold truncate">${product.name}</h3>
-            <p class="mt-2 text-sm truncate-3-lines">${product.excerpt}</p>
-            <p class="mt-2 text-green-600 font-bold">KES ${product.price_kes}</p>
-            <a href="/product/${product.slug}" class="view-details mt-4 w-full block text-center text-white py-2 rounded-md">View Details</a>
+          <div class="p-5 flex flex-col flex-grow">
+            <h3 class="text-lg font-semibold truncate text-gray-800 dark:text-gray-100">${product.name}</h3>
+            <p class="mt-2 text-sm truncate-3-lines text-gray-600 dark:text-gray-300">${product.excerpt}</p>
+            <p class="mt-3 text-green-600 dark:text-green-400 font-bold">KES ${product.price_kes}</p>
+            <a href="/product/${product.slug}" class="view-details mt-4 w-full block text-center text-white py-2 rounded-md text-sm font-medium">View Details</a>
           </div>
         `;
         grid.appendChild(card);
-      });
+      }
     }
 
     async function renderProductPage(slug) {
       const supabase = await initSupabase();
       const { data: product } = await supabase.from('products').select('*').eq('slug', slug).eq('is_active', true).single();
       if (!product) {
-        document.getElementById('main-content').innerHTML = '<p class="text-center">Product not found.</p>';
+        document.getElementById('main-content').innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400">Product not found.</p>';
         return;
       }
+      const { data: signedThumbnail } = await supabase.storage.from('thumbnails').createSignedUrl(product.thumbnail_url, 3600);
+      if (signedThumbnail) product.thumbnail_url = signedThumbnail.signedUrl;
       document.title = `${product.name} - BotBlitz Store`;
       document.querySelector('meta[name="description"]').content = product.meta_description || product.excerpt;
       const main = document.getElementById('main-content');
       main.innerHTML = `
-        <div class="bg-white rounded-lg shadow-md p-6">
-          <img src="${product.thumbnail_url}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-4">
-          <h1 class="text-3xl font-bold mb-4">${product.name}</h1>
-          <div id="product-description" class="prose mb-4"></div>
-          ${product.embed_link ? `<div class="embed-container mb-4"><iframe src="${product.embed_link}" frameborder="0" allowfullscreen class="rounded-lg"></iframe></div>` : ''}
-          <p class="text-green-600 font-bold mb-4">KES ${product.price_kes}</p>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <img src="${product.thumbnail_url}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-6">
+          <h1 class="text-3xl font-bold mb-4 text-gray-800 dark:text-gray-100">${product.name}</h1>
+          <div id="product-description" class="prose dark:prose-invert mb-6"></div>
+          ${product.embed_link ? `<div class="embed-container mb-6"><iframe src="${product.embed_link}" frameborder="0" allowfullscreen class="rounded-lg w-full aspect-video"></iframe></div>` : ''}
+          <p class="text-green-600 dark:text-green-400 font-bold mb-4 text-lg">KES ${product.price_kes}</p>
           <div id="payhero-button-${product.id}"></div>
           <div id="manual-payment-${product.id}" class="hidden">
-            <button class="pay-now bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">Pay KES ${product.price_kes}</button>
+            <button class="pay-now bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors w-full text-sm font-medium">Pay KES ${product.price_kes}</button>
           </div>
         </div>
       `;
@@ -549,13 +592,18 @@
           amount: product.price_kes,
           reference: product.id,
           buttonName: `Pay KES ${product.price_kes}`,
-          buttonColor: '#16a34a',
+          buttonColor: '#10b981',
           callbackUrl: `${BASE_URL}/api/payment-callback`
         });
         window.addEventListener('message', async (event) => {
           if (event.data.paymentSuccess && event.data.user_reference === product.id) {
             alert('Payment successful\nThe file should start downloading...');
-            await downloadFile(product.file_url, product.name);
+            const { data: signedUrl } = await supabase.storage.from('bots').createSignedUrl(product.file_url, 60);
+            if (signedUrl) {
+              await downloadFile(signedUrl.signedUrl, `${product.name}.zip`);
+            } else {
+              alert('Failed to generate download link. Please contact support.');
+            }
           }
         });
       } else {
@@ -583,12 +631,14 @@
         link.click();
         URL.revokeObjectURL(link.href);
         progressText.textContent = 'Download complete!';
+        progressFill.style.width = '100%';
         setTimeout(() => modal.classList.add('hidden'), 1000);
         return true;
       } catch (error) {
         progressText.textContent = 'Download failed.';
         errorText.textContent = error.message;
         errorText.classList.remove('hidden');
+        progressFill.style.width = '0%';
         setTimeout(() => modal.classList.add('hidden'), 3000);
         return false;
       }
@@ -597,7 +647,7 @@
     async function showPaymentModal(product) {
       const modal = document.getElementById('payment-modal');
       document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
-      document.getElementById('mpesa-till-number').textContent = settings.mpesa_till || '4933614';
+      document.getElementById('mpesa-till-number').textContent = settings.mpesa_till_number || '4933614';
       document.getElementById('payment-amount').textContent = `Amount: ${product.price_kes} KES`;
       modal.classList.remove('hidden');
       document.body.classList.add('popup-active');
@@ -661,7 +711,6 @@
 
     function isInAppBrowser() {
       const ua = navigator.userAgent.toLowerCase();
-      console.log("User Agent:", navigator.userAgent);
       const inAppPatterns = [
         'tiktok', 'bytedancewebview',
         'twitter', 'twitterandroid', 'twitterios',
@@ -685,7 +734,6 @@
       const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
       const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
       const result = (isAppBrowser || isWebView) && !isRegularBrowser;
-      console.log('Is In-App Browser:', result);
       return result;
     }
 
@@ -695,8 +743,8 @@
         popup.className = "popup";
         popup.innerHTML = `
           <div class="popup-content">
-            <h3>Open in Browser</h3>
-            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Open in Browser</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">
               For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
             </p>
             <button class="browser-popup-button cancel">Okay</button>
@@ -704,7 +752,6 @@
         document.body.appendChild(popup);
 
         popup.querySelector(".cancel").addEventListener("click", () => {
-          console.log('Okay button clicked');
           popup.remove();
           allowInAppBrowser = true;
           proceedWithInit();
@@ -720,10 +767,10 @@
       renderNavLinks();
       renderSocialLinks();
       document.getElementById('site-logo').src = settings.logo_url || '/default-logo.png';
-      document.getElementById('copyright-text').textContent = settings.footer_copyright;
-      document.getElementById('mobile-copyright-text').textContent = settings.footer_copyright;
+      document.getElementById('copyright-text').textContent = settings.footer_copyright || '© 2025 BotBlitz Store. All rights reserved.';
+      document.getElementById('mobile-copyright-text').textContent = settings.footer_copyright || '© 2025 BotBlitz Store. All rights reserved.';
       document.getElementById('mobile-support-email').href = `mailto:${settings.support_email}`;
-      document.getElementById('mobile-support-email').textContent = settings.support_email;
+      document.getElementById('mobile-support-email').textContent = settings.support_email || 'support@botblitz.store';
       if (settings.urgent_message) {
         document.getElementById('urgent-text').textContent = settings.urgent_message;
         document.getElementById('urgent-message').classList.remove('hidden');
@@ -731,14 +778,24 @@
       document.getElementById('urgent-close').onclick = () => {
         document.getElementById('urgent-message').classList.add('hidden');
       };
-      document.getElementById('mobile-menu-button').onclick = () => {
-        console.log('Mobile menu button clicked'); // Debugging log
-        const mobileMenu = document.getElementById('mobile-menu');
-        mobileMenu.classList.toggle('open');
+      const mobileMenuButton = document.getElementById('mobile-menu-button');
+      const mobileMenuClose = document.getElementById('mobile-menu-close');
+      const mobileMenu = document.getElementById('mobile-menu');
+      const mobileBackdrop = document.getElementById('mobile-backdrop');
+      mobileMenuButton.onclick = () => {
+        mobileMenu.classList.add('open');
+        mobileBackdrop.classList.add('open');
+        document.body.classList.add('popup-active');
       };
-      document.getElementById('mobile-menu-close').onclick = () => {
-        console.log('Mobile menu close button clicked'); // Debugging log
-        document.getElementById('mobile-menu').classList.remove('open');
+      mobileMenuClose.onclick = () => {
+        mobileMenu.classList.remove('open');
+        mobileBackdrop.classList.remove('open');
+        document.body.classList.remove('popup-active');
+      };
+      mobileBackdrop.onclick = () => {
+        mobileMenu.classList.remove('open');
+        mobileBackdrop.classList.remove('open');
+        document.body.classList.remove('popup-active');
       };
       document.getElementById('search-bar').addEventListener('input', () => {
         const category = new URLSearchParams(window.location.search).get('category') || 'all';
