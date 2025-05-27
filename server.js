@@ -801,15 +801,22 @@ app.get('/download/:fileId', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    // Select both key and value to access them in the result
     const { data: adminSettings, error } = await supabase
       .from('settings')
-      .select('value')
-      .in('key', ['adminEmail', 'adminPassword'])
-      .order('key');
+      .select('key, value')
+      .in('key', ['adminEmail', 'adminPassword']);
     if (error) throw error;
 
+    // Debug: Log the raw data from Supabase
+    console.log(`[${new Date().toISOString()}] Admin settings from DB:`, adminSettings);
+
+    // Find adminEmail and adminPasswordHash
     const adminEmail = adminSettings.find(s => s.key === 'adminEmail')?.value;
     const adminPasswordHash = adminSettings.find(s => s.key === 'adminPassword')?.value;
+
+    // Debug: Log the extracted values
+    console.log(`[${new Date().toISOString()}] Admin Email: ${adminEmail}, Password Hash: ${adminPasswordHash}`);
 
     if (
       email === adminEmail &&
@@ -828,7 +835,6 @@ app.post('/api/login', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to login' });
   }
 });
-
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
   let page = cachedData.staticPages.find(p => p.slug === slug);
