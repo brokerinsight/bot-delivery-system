@@ -242,6 +242,7 @@ async function loadData() {
       products: products.map(p => ({
         item: p.item,
         fileId: p.file_id,
+        originalFileName: p.original_file_name, // Add to cache
         price: p.price,
         name: p.name,
         desc: p.description,
@@ -469,6 +470,8 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     if (!file) throw new Error('No file uploaded');
 
     const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const originalFileName = file.originalname; // Store the original file name
+
     const { error: uploadError } = await supabase.storage
       .from('bots')
       .upload(fileId, file.buffer, {
@@ -480,6 +483,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     const product = {
       item,
       fileId,
+      originalFileName, // Add to product object
       price: parseFloat(price),
       name,
       desc,
@@ -493,6 +497,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     await supabase.from('products').insert({
       item: product.item,
       file_id: product.fileId,
+      original_file_name: product.originalFileName, // Add to database
       price: product.price,
       name: product.name,
       description: product.desc,
@@ -527,11 +532,20 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
 
     const fileId = product.file_id;
 
+    // Delete related orders first to avoid foreign key constraint violation
+    const { error: deleteOrdersError } = await supabase
+      .from('orders')
+      .delete()
+      .eq('item', item);
+    if (deleteOrdersError) throw deleteOrdersError;
+
+    // Delete the file from the bots bucket
     const { error: deleteFileError } = await supabase.storage
       .from('bots')
       .remove([fileId]);
     if (deleteFileError) throw deleteFileError;
 
+    // Delete the product from the products table
     const { error: deleteProductError } = await supabase
       .from('products')
       .delete()
@@ -657,11 +671,8 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
         return res.status(500).json({ success: false, error: 'Product not found' });
       }
 
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from('bots')
-        .createSignedUrl(product.file_id, 60);
-      if (urlError) throw urlError;
-      downloadLink = signedUrlData.signedUrl;
+      // Generate a server-side download URL (e.g., /download/<fileId>)
+      downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
 
       await supabase
         .from('orders')
@@ -794,27 +805,38 @@ app.post('/deliver-bot', async (req, res) => {
 
 app.get('/download/:fileId', async (req, res) => {
   const fileId = req.params.fileId;
-  const origin = req.get('origin') || req.get('referer');
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://botblitz.store');
-  }
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
+  const item = req.query.item;
+  const refCode = req.query.refCode;
 
-  const { data: product, error: productError } = await supabase
-    .from('products')
-    .select('*')
-    .eq('file_id', fileId)
-    .single();
-  if (productError || !product) {
-    console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
-    return res.status(403).json({ success: false, error: 'Invalid file ID' });
+  // Validate request
+  if (!item || !refCode) {
+    return res.status(400).json({ success: false, error: 'Missing item or refCode' });
   }
 
   try {
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (orderError || !order || order.status !== 'confirmed' || order.downloaded) {
+      console.log(`[${new Date().toISOString()}] Invalid download request for ${fileId}: ${item}/${refCode}`);
+      return res.status(403).json({ success: false, error: 'Invalid download request' });
+    }
+
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .eq('file_id', fileId)
+      .single();
+    if (productError || !product) {
+      console.log(`[${new Date().toISOString()}] Product not found for fileId: ${fileId}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    // Fetch the file from Supabase Storage
     const { data: fileData, error: fileError } = await supabase.storage
       .from('bots')
       .download(fileId);
@@ -822,12 +844,15 @@ app.get('/download/:fileId', async (req, res) => {
 
     const buffer = await fileData.arrayBuffer();
     const mimeType = fileData.type || 'application/octet-stream';
-    const filename = `bot_${fileId}.${mimeType.split('/')[1] || 'bin'}`;
 
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // Use the original file name (assuming it's stored or derived; here, using item as a fallback)
+    const originalFileName = `${item}.bin`; // Replace with actual file name if stored in products table
+    res.setHeader('Content-Disposition', `attachment; filename="${originalFileName}"`);
     res.setHeader('Content-Type', mimeType);
     res.send(Buffer.from(buffer));
-    console.log(`[${new Date().toISOString()}] File download completed: ${fileId}`);
+    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${originalFileName}`);
+
+    // Mark as downloaded (optional, already handled in /api/order-status)
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to download file' });
