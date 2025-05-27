@@ -389,7 +389,7 @@ async function selfCheck() {
   if (fs.existsSync(indexPath)) {
     console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
   } else {
-    console.error(`[${new Date().toISOString()]] public/index.html NOT found at: ${indexPath}`);
+    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`); // Fixed line
   }
 
   async function pingRoutes() {
@@ -414,7 +414,6 @@ async function selfCheck() {
 
   console.log(`[${new Date().toISOString()}] Self-check completed`);
 }
-
 // Session check endpoint
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
