@@ -645,133 +645,139 @@
     </div>
 
   <script>
-    // Initialize Quill editors
-    const descQuill = new Quill('#desc-editor', {
-      theme: 'snow',
-      modules: { toolbar: '#desc-toolbar' }
-    });
-    const editDescQuill = new Quill('#edit-desc-editor', {
-      theme: 'snow',
-      modules: { toolbar: '#edit-desc-toolbar' }
-    });
-    const urgentQuill = new Quill('#urgent-editor', {
-      theme: 'snow',
-      modules: { toolbar: '#urgent-toolbar' }
-    });
-    const pageQuill = new Quill('#page-editor', {
-      theme: 'snow',
-      modules: { toolbar: '#page-toolbar' }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  // Initialize Quill editors
+  const descQuill = new Quill('#desc-editor', {
+    theme: 'snow',
+    modules: { toolbar: '#desc-toolbar' }
+  });
+  const editDescQuill = new Quill('#edit-desc-editor', {
+    theme: 'snow',
+    modules: { toolbar: '#edit-desc-toolbar' }
+  });
+  const urgentQuill = new Quill('#urgent-editor', {
+    theme: 'snow',
+    modules: { toolbar: '#urgent-toolbar' }
+  });
+  const pageQuill = new Quill('#page-editor', {
+    theme: 'snow',
+    modules: { toolbar: '#page-toolbar' }
+  });
 
-    // Code view toggles
-    function setupCodeToggle(quill, toggleBtnId, editorId) {
-      const toggleBtn = document.getElementById(toggleBtnId);
-      const editor = document.querySelector(`#${editorId}`);
-      let isCodeView = false;
-      toggleBtn.addEventListener('click', () => {
-        isCodeView = !isCodeView;
-        if (isCodeView) {
-          editor.style.display = 'none';
-          const textarea = document.createElement('textarea');
-          textarea.id = `${editorId}-code`;
-          textarea.className = 'w-full p-2 border rounded-md';
-          textarea.value = quill.root.innerHTML;
-          editor.parentNode.appendChild(textarea);
-          toggleBtn.textContent = 'Rich Text View';
-        } else {
-          const textarea = document.getElementById(`${editorId}-code`);
-          quill.root.innerHTML = textarea.value;
-          textarea.remove();
-          editor.style.display = 'block';
-          toggleBtn.textContent = 'Code View';
-        }
-      });
-    }
-    setupCodeToggle(descQuill, 'desc-code-toggle', 'desc-editor');
-    setupCodeToggle(editDescQuill, 'edit-desc-code-toggle', 'edit-desc-editor');
-    setupCodeToggle(pageQuill, 'page-code-toggle', 'page-editor');
-
-    // Theme toggle
-    function setTheme(theme) {
-      document.body.setAttribute('data-theme', theme);
-      localStorage.setItem('theme', theme);
-      const icon = document.getElementById('theme-icon');
-      icon.innerHTML = theme === 'dark'
-        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>'
-        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
-    }
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const savedTheme = localStorage.getItem('theme') || (prefersDark ? 'dark' : 'light');
-    setTheme(savedTheme);
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const currentTheme = document.body.getAttribute('data-theme');
-      setTheme(currentTheme === 'light' ? 'dark' : 'light');
-    });
-
-    // Helper function for button feedback
-    function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
-      btn.disabled = true;
-      btn.textContent = actionText;
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = originalText;
-      }, duration);
-    }
-
-    // Image compression
-    async function compressImage(file, maxWidth = 1280, maxHeight = 720, quality = 0.8) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        img.src = URL.createObjectURL(file);
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-          if (width > maxWidth || height > maxHeight) {
-            const ratio = Math.min(maxWidth / width, maxHeight / height);
-            width *= ratio;
-            height *= ratio;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(blob => {
-            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-          }, 'image/jpeg', quality);
-          URL.revokeObjectURL(img.src);
-        };
-        img.onerror = reject;
-      });
-    }
-
-    // Check session
-    async function checkSession() {
-      try {
-        const response = await fetch('/api/check-session', { credentials: 'include' });
-        const result = await response.json();
-        return result.isAuthenticated;
-      } catch (error) {
-        console.error('Error checking session:', error);
-        return false;
-      }
-    }
-
-    // Login handling
-    document.getElementById('toggle-password').addEventListener('click', () => {
-      const passwordInput = document.getElementById('login-password');
-      const toggleBtn = document.getElementById('toggle-password');
-      if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        toggleBtn.textContent = 'Hide';
+  // Code view toggles
+  function setupCodeToggle(quill, toggleBtnId, editorId) {
+    const toggleBtn = document.getElementById(toggleBtnId);
+    const editor = document.querySelector(`#${editorId}`);
+    let isCodeView = false;
+    toggleBtn.addEventListener('click', () => {
+      isCodeView = !isCodeView;
+      if (isCodeView) {
+        editor.style.display = 'none';
+        const textarea = document.createElement('textarea');
+        textarea.id = `${editorId}-code`;
+        textarea.className = 'w-full p-2 border rounded-md';
+        textarea.value = quill.root.innerHTML;
+        editor.parentNode.appendChild(textarea);
+        toggleBtn.textContent = 'Rich Text View';
       } else {
-        passwordInput.type = 'password';
-        toggleBtn.textContent = 'Show';
+        const textarea = document.getElementById(`${editorId}-code`);
+        quill.root.innerHTML = textarea.value;
+        textarea.remove();
+        editor.style.display = 'block';
+        toggleBtn.textContent = 'Code View';
       }
     });
+  }
+  setupCodeToggle(descQuill, 'desc-code-toggle', 'desc-editor');
+  setupCodeToggle(editDescQuill, 'edit-desc-code-toggle', 'edit-desc-editor');
+  setupCodeToggle(pageQuill, 'page-code-toggle', 'page-editor');
 
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
+  // Theme toggle
+  function setTheme(theme) {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    const icon = document.getElementById('theme-icon');
+    icon.innerHTML = theme === 'dark'
+      ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>'
+      : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+  }
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const savedTheme = localStorage.getItem('theme') || (prefersDark ? 'dark' : 'light');
+  setTheme(savedTheme);
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const currentTheme = document.body.getAttribute('data-theme');
+    setTheme(currentTheme === 'light' ? 'dark' : 'light');
+  });
+
+  // Helper function for button feedback
+  function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
+    btn.disabled = true;
+    btn.textContent = actionText;
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }, duration);
+  }
+
+  // Image compression
+  async function compressImage(file, maxWidth = 1280, maxHeight = 720, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = reject;
+    });
+  }
+
+  // Check session
+  async function checkSession() {
+    try {
+      const response = await fetch('/api/check-session', { credentials: 'include' });
+      const result = await response.json();
+      return result.isAuthenticated;
+    } catch (error) {
+      console.error('Error checking session:', error);
+      return false;
+    }
+  }
+
+  // Login handling
+  const loginForm = document.getElementById('login-form');
+  const loginButton = document.getElementById('login-submit');
+
+  document.getElementById('toggle-password').addEventListener('click', () => {
+    const passwordInput = document.getElementById('login-password');
+    const toggleBtn = document.getElementById('toggle-password');
+    if (passwordInput.type === 'password') {
+      passwordInput.type = 'text';
+      toggleBtn.textContent = 'Hide';
+    } else {
+      passwordInput.type = 'password';
+      toggleBtn.textContent = 'Show';
+    }
+  });
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      console.log('Login form submitted'); // Debug log
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value.trim();
       const btn = document.getElementById('login-submit');
@@ -789,7 +795,7 @@
           document.getElementById('login-page').classList.add('hidden');
           document.getElementById('admin-panel').classList.remove('hidden');
           document.getElementById('admin-nav').classList.remove('hidden');
-          initialize();
+          await initialize();
         } else {
           alert('Invalid credentials. Please try again.');
         }
@@ -798,854 +804,862 @@
         alert('Failed to login. Please check your network or try again.');
       }
     });
+  }
 
-    // Logout
-    document.getElementById('logout').addEventListener('click', async () => {
-      try {
-        await fetch('/api/logout', { method: 'POST', credentials: 'include' });
-        document.getElementById('admin-panel').classList.add('hidden');
-        document.getElementById('admin-nav').classList.add('hidden');
-        document.getElementById('login-page').classList.remove('hidden');
-        document.getElementById('login-email').value = '';
-        document.getElementById('login-password').value = '';
-      } catch (error) {
-        console.error('Error logging out:', error);
-        alert('Failed to logout. Please try again.');
-      }
-    });
-
-    // Navigation
-    document.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
-        link.classList.add('border-b-2', 'border-green-500');
-        document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-        document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
-        if (link.getAttribute('href') === '#orders') {
-          fetchOrders();
-        }
-      });
-    });
-
-    // Fetch orders
-    async function fetchOrders() {
-      try {
-        const response = await fetch('/api/orders', { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch orders');
-        const result = await response.json();
-        if (result.success) {
-          orders = result.orders;
-          renderOrders();
-        } else {
-          throw new Error(result.error || 'Failed to fetch orders');
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        alert('Failed to load orders. Please try again.');
-      }
+  // Logout
+  document.getElementById('logout').addEventListener('click', async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+      document.getElementById('admin-panel').classList.add('hidden');
+      document.getElementById('admin-nav').classList.add('hidden');
+      document.getElementById('login-page').classList.remove('hidden');
+      document.getElementById('login-email').value = '';
+      document.getElementById('login-password').value = '';
+    } catch (error) {
+      console.error('Error logging out:', error);
+      alert('Failed to logout. Please try again.');
     }
+  });
 
-    // Render orders
-    let orders = [];
-    function renderOrders() {
-      const orderList = document.getElementById('order-list');
-      orderList.innerHTML = '';
-      orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      orders.forEach(order => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${order.product_name}</td>
-          <td>${order.ref_code}</td>
-          <td>${order.amount_kes}</td>
-          <td>${new Date(order.created_at).toLocaleString()}</td>
-          <td>${order.status}</td>
-          <td>
-            <select class="status-select border rounded-md p-1" data-id="${order.id}">
-              <option value="" selected disabled>Update Status</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="no payment">No Payment</option>
-              <option value="partial payment">Partial Payment</option>
-            </select>
-          </td>
-        `;
-        orderList.appendChild(row);
-      });
-
-      document.querySelectorAll('.status-select').forEach(select => {
-        select.addEventListener('change', async () => {
-          const id = select.dataset.id;
-          const status = select.value;
-          const originalText = select.options[select.selectedIndex].text;
-          showButtonFeedback(select, 'Updating...', originalText);
-
-          try {
-            const response = await fetch('/api/update-order-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id, status }),
-              credentials: 'include'
-            });
-            const result = await response.json();
-            if (result.success) {
-              await fetchOrders();
-              alert(`Order status updated to "${status}"!`);
-            } else {
-              throw new Error(result.error || 'Failed to update order status');
-            }
-          } catch (error) {
-            console.error('Error updating order status:', error);
-            alert('Failed to update order status. Please try again.');
-          }
-        });
-      });
-    }
-
-    // Orders polling
-    function startOrdersPolling() {
-      setInterval(async () => {
-        const ordersSection = document.getElementById('orders');
-        const isOrdersActive = !ordersSection.classList.contains('hidden');
-        const isModalOpen = !document.getElementById('edit-modal').classList.contains('hidden');
-        if (isOrdersActive && !isModalOpen) {
-          await fetchOrders();
-        }
-      }, 5000);
-    }
-
-    // Add bot
-    document.getElementById('product-form').addEventListener('submit', async e => {
+  // Navigation
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', e => {
       e.preventDefault();
-      const btn = e.submitter;
-      showButtonFeedback(btn, 'Uploading...', 'Add Bot');
-
-      const name = document.getElementById('name').value.trim();
-      const price = parseFloat(document.getElementById('price').value);
-      const category = document.getElementById('category').value;
-      const description = descQuill.root.innerHTML;
-      const embed = document.getElementById('embed').value.trim();
-      const thumbnail = document.getElementById('thumbnail').files[0];
-      const botFile = document.getElementById('bot-file').files[0];
-      const isActive = document.getElementById('is-active').checked;
-
-      if (!name || !price || !category || !description || !thumbnail || !botFile) {
-        alert('Please fill in all required fields.');
-        return;
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+      link.classList.add('border-b-2', 'border-green-500');
+      document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+      document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
+      if (link.getAttribute('href') === '#orders') {
+        fetchOrders();
       }
-
-      const compressedThumbnail = await compressImage(thumbnail);
-      const formData = new FormData();
-      formData.append('name', name);
-      formData.append('price', price);
-      formData.append('category_id', category);
-      formData.append('description', description);
-      formData.append('embed_link', embed);
-      formData.append('thumbnail', compressedThumbnail);
-      formData.append('bot_file', botFile);
-      formData.append('is_active', isActive);
-
-      const thumbnailProgress = document.getElementById('thumbnail-progress-bar');
-      const botFileProgress = document.getElementById('bot-file-progress-bar');
-      const thumbnailContainer = document.getElementById('thumbnail-progress');
-      const botFileContainer = document.getElementById('bot-file-progress');
-      thumbnailContainer.classList.remove('hidden');
-      botFileContainer.classList.remove('hidden');
-      thumbnailProgress.style.width = '0%';
-      botFileProgress.style.width = '0%';
-
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/add-bot', true);
-
-      xhr.upload.onprogress = event => {
-        if (event.lengthComputable) {
-          const percent = (event.loaded / event.total) * 100;
-          thumbnailProgress.style.width = `${percent}%`;
-          botFileProgress.style.width = `${percent}%`;
-        }
-      };
-
-      xhr.onload = async () => {
-        thumbnailContainer.classList.add('hidden');
-        botFileContainer.classList.add('hidden');
-        if (xhr.status === 200) {
-          const result = JSON.parse(xhr.responseText);
-          if (result.success) {
-            document.getElementById('product-form').reset();
-            descQuill.setContents([]);
-            await fetchData();
-            renderBots();
-            alert('Bot added successfully!');
-          } else {
-            throw new Error(result.error || 'Failed to add bot');
-          }
-        } else {
-          throw new Error('Upload failed');
-        }
-      };
-
-      xhr.onerror = () => {
-        thumbnailContainer.classList.add('hidden');
-        botFileContainer.classList.add('hidden');
-        alert('Error uploading bot. Please try again.');
-      };
-
-      xhr.send(formData);
     });
+  });
 
-    // Fetch data
-    let data = { products: [], categories: [], settings: {}, social_links: [], static_pages: [] };
-    async function fetchData() {
-      try {
-        const response = await fetch('/api/data', { credentials: 'include' });
-        if (!response.ok) throw new Error('Failed to fetch data');
-        data = await response.json();
-        return true;
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        alert('Failed to load data. Please try again.');
-        return false;
+  // Fetch orders
+  async function fetchOrders() {
+    try {
+      const response = await fetch('/api/orders', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      const result = await response.json();
+      if (result.success) {
+        orders = result.orders;
+        renderOrders();
+      } else {
+        throw new Error(result.error || 'Failed to fetch orders');
       }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      alert('Failed to load orders. Please try again.');
     }
+  }
 
-    // Render bots
-    function renderBots() {
-      const botList = document.getElementById('bot-list');
-      botList.innerHTML = '';
-      data.products.forEach(product => {
-        const li = document.createElement('li');
-        li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-        li.innerHTML = `
-          <div>
-            <h3 class="text-lg font-medium text-gray-900">${product.name}</h3>
-            <p class="text-sm text-gray-600">ID: ${product.id} | Price: KES ${product.price_kes} | Active: ${product.is_active ? 'Yes' : 'No'}</p>
-          </div>
-          <div class="space-x-2">
-            <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${product.id}">Edit</button>
-            <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${product.id}">Delete</button>
-          </div>
-        `;
-        botList.appendChild(li);
-      });
-
-      document.querySelectorAll('.edit-bot').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.id;
-          const product = data.products.find(p => p.id === id);
-          if (!product) {
-            alert('Bot not found. Please refresh and try again.');
-            return;
-          }
-          document.getElementById('edit-name').value = product.name;
-          document.getElementById('edit-price').value = product.price_kes;
-          editDescQuill.root.innerHTML = product.description;
-          document.getElementById('edit-embed').value = product.embed_link || '';
-          document.getElementById('edit-category').value = product.category_id;
-          document.getElementById('edit-is-active').checked = product.is_active;
-          document.getElementById('edit-thumbnail-preview').innerHTML = `<img src="${product.thumbnail_url}" alt="Thumbnail" class="w-32 h-auto rounded-md">`;
-          document.getElementById('edit-bot-file-preview').innerHTML = `<span>Current: ${product.file_url.split('/').pop()}</span>`;
-          document.getElementById('edit-form').dataset.id = id;
-          document.getElementById('edit-modal').classList.remove('hidden');
-          document.body.classList.add('modal-active');
-        });
-      });
-
-      document.querySelectorAll('.delete-bot').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Are you sure you want to delete this bot?')) return;
-          showButtonFeedback(btn, 'Deleting...', 'Delete');
-          const id = btn.dataset.id;
-          try {
-            const response = await fetch('/api/delete-bot', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id }),
-              credentials: 'include'
-            });
-            const result = await response.json();
-            if (result.success) {
-              await fetchData();
-              renderBots();
-              alert('Bot deleted successfully!');
-            } else {
-              throw new Error(result.error || 'Failed to delete bot');
-            }
-          } catch (error) {
-            console.error('Error deleting bot:', error);
-            alert('Failed to delete bot. Please try again.');
-          }
-        });
-      });
-    }
-
-    // Edit bot
-    document.getElementById('edit-form').addEventListener('submit', async e => {
-      e.preventDefault();
-      const btn = e.submitter;
-      showButtonFeedback(btn, 'Saving...', 'Save Changes');
-
-      const id = document.getElementById('edit-form').dataset.id;
-      const name = document.getElementById('edit-name').value.trim();
-      const price = parseFloat(document.getElementById('edit-price').value);
-      const category = document.getElementById('edit-category').value;
-      const description = editDescQuill.root.innerHTML;
-      const embed = document.getElementById('edit-embed').value.trim();
-      const thumbnail = document.getElementById('edit-thumbnail').files[0];
-      const botFile = document.getElementById('edit-bot-file').files[0];
-      const isActive = document.getElementById('edit-is-active').checked;
-
-      const formData = new FormData();
-      formData.append('id', id);
-      formData.append('name', name);
-      formData.append('price', price);
-      formData.append('category_id', category);
-      formData.append('description', description);
-      formData.append('embed_link', embed);
-      formData.append('is_active', isActive);
-      if (thumbnail) formData.append('thumbnail', await compressImage(thumbnail));
-      if (botFile) formData.append('bot_file', botFile);
-
-      try {
-        const response = await fetch('/api/update-bot', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          renderBots();
-          closeEditModal();
-          alert('Bot updated successfully!');
-        } else {
-          throw new Error(result.error || 'Failed to update bot');
-        }
-      } catch (error) {
-        console.error('Error updating bot:', error);
-        alert('Failed to update bot. Please try again.');
-      }
+  // Render orders
+  let orders = [];
+  function renderOrders() {
+    const orderList = document.getElementById('order-list');
+    orderList.innerHTML = '';
+    orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    orders.forEach(order => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${order.product_name}</td>
+        <td>${order.ref_code}</td>
+        <td>${order.amount_kes}</td>
+        <td>${new Date(order.created_at).toLocaleString()}</td>
+        <td>${order.status}</td>
+        <td>
+          <select class="status-select border rounded-md p-1" data-id="${order.id}">
+            <option value="" selected disabled>Update Status</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="no payment">No Payment</option>
+            <option value="partial payment">Partial Payment</option>
+          </select>
+        </td>
+      `;
+      orderList.appendChild(row);
     });
 
-    function closeEditModal() {
-      document.getElementById('edit-modal').classList.add('hidden');
-      document.body.classList.remove('modal-active');
-      document.getElementById('edit-form').reset();
-      editDescQuill.setContents([]);
-      document.getElementById('edit-thumbnail-preview').innerHTML = '';
-      document.getElementById('edit-bot-file-preview').innerHTML = '';
-    }
-    document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
+    document.querySelectorAll('.status-select').forEach(select => {
+      select.addEventListener('change', async () => {
+        const id = select.dataset.id;
+        const status = select.value;
+        const originalText = select.options[select.selectedIndex].text;
+        showButtonFeedback(select, 'Updating...', originalText);
 
-    // Categories
-    function renderCategories() {
-      const categoryList = document.getElementById('category-list');
-      const categorySelect = document.getElementById('category');
-      const editCategorySelect = document.getElementById('edit-category');
-      categoryList.innerHTML = '';
-      categorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
-      editCategorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
-      data.categories.forEach(cat => {
-        const li = document.createElement('li');
-        li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded-md';
-        li.innerHTML = `
-          <span>${cat.name}</span>
-          <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-id="${cat.id}">Delete</button>
-        `;
-        categoryList.appendChild(li);
-        categorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-        editCategorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-      });
-
-      document.querySelectorAll('.delete-category').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Are you sure you want to delete this category?')) return;
-          showButtonFeedback(btn, 'Deleting...', 'Delete');
-          const id = btn.dataset.id;
-          try {
-            const response = await fetch('/api/delete-category', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id }),
-              credentials: 'include'
-            });
-            const result = await response.json();
-            if (result.success) {
-              await fetchData();
-              renderCategories();
-              renderBots();
-              alert('Category deleted successfully!');
-            } else {
-              throw new Error(result.error || 'Failed to delete category');
-            }
-          } catch (error) {
-            console.error('Error deleting category:', error);
-            alert('Failed to delete category. Please try again.');
-          }
-        });
-      });
-    }
-
-    document.getElementById('add-category').addEventListener('click', async () => {
-      const btn = document.getElementById('add-category');
-      showButtonFeedback(btn, 'Adding...', 'Add Category');
-      const name = document.getElementById('new-category').value.trim();
-      if (!name) {
-        alert('Category name is required.');
-        return;
-      }
-      try {
-        const response = await fetch('/api/add-category', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          renderCategories();
-          document.getElementById('new-category').value = '';
-          alert('Category added successfully!');
-        } else {
-          throw new Error(result.error || 'Failed to add category');
-        }
-      } catch (error) {
-        console.error('Error adding category:', error);
-        alert('Failed to add category. Please try again.');
-      }
-    });
-
-    // Settings
-    document.getElementById('urgent-toggle').addEventListener('change', () => {
-      urgentQuill.enable(document.getElementById('urgent-toggle').checked);
-    });
-
-    document.getElementById('save-urgent').addEventListener('click', async () => {
-      const btn = document.getElementById('save-urgent');
-      showButtonFeedback(btn, 'Saving...', 'Save Message');
-      try {
-        const response = await fetch('/api/update-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            urgent_message: {
-              enabled: document.getElementById('urgent-toggle').checked,
-              text: urgentQuill.root.innerHTML
-            }
-          }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          alert('Urgent message saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save urgent message');
-        }
-      } catch (error) {
-        console.error('Error saving urgent message:', error);
-        alert('Failed to save urgent message. Please try again.');
-      }
-    });
-
-    document.getElementById('save-email').addEventListener('click', async () => {
-      const btn = document.getElementById('save-email');
-      showButtonFeedback(btn, 'Saving...', 'Save Email');
-      try {
-        const response = await fetch('/api/update-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            support_email: document.getElementById('support-email').value.trim()
-          }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          alert('Support email saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save email');
-        }
-      } catch (error) {
-        console.error('Error saving email:', error);
-        alert('Failed to save email. Please try again.');
-      }
-    });
-
-    document.getElementById('save-copyright').addEventListener('click', async () => {
-      const btn = document.getElementById('save-copyright');
-      showButtonFeedback(btn, 'Saving...', 'Save Copyright');
-      try {
-        const response = await fetch('/api/update-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            footer_copyright: document.getElementById('copyright-text').value.trim()
-          }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          alert('Copyright text saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save copyright');
-        }
-      } catch (error) {
-        console.error('Error saving copyright:', error);
-        alert('Failed to save copyright. Please try again.');
-      }
-    });
-
-    document.getElementById('save-logo').addEventListener('click', async () => {
-      const btn = document.getElementById('save-logo');
-      showButtonFeedback(btn, 'Saving...', 'Save Logo');
-      const file = document.getElementById('logo-file').files[0];
-      if (!file) {
-        alert('Please select a logo file.');
-        return;
-      }
-      const formData = new FormData();
-      formData.append('logo', await compressImage(file));
-      try {
-        const response = await fetch('/api/update-logo', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          document.getElementById('logo-preview').innerHTML = `<img src="${result.logo_url}" alt="Logo" class="w-32 h-auto rounded-md">`;
-          alert('Logo saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save logo');
-        }
-      } catch (error) {
-        console.error('Error saving logo:', error);
-        alert('Failed to save logo. Please try again.');
-      }
-    });
-
-    document.getElementById('save-mpesa-till').addEventListener('click', async () => {
-      const btn = document.getElementById('save-mpesa-till');
-      showButtonFeedback(btn, 'Saving...', 'Save Till Number');
-      try {
-        const response = await fetch('/api/update-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mpesa_till_number: document.getElementById('mpesa-till').value.trim()
-          }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          alert('MPESA Till Number saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save till number');
-        }
-      } catch (error) {
-        console.error('Error saving till number:', error);
-        alert('Failed to save till number. Please try again.');
-      }
-    });
-
-    document.getElementById('save-socials').addEventListener('click', async () => {
-      const btn = document.getElementById('save-socials');
-      showButtonFeedback(btn, 'Saving...', 'Save Socials');
-      const socials = {
-        tiktok: { url: document.getElementById('tiktok').value.trim() },
-        instagram: { url: document.getElementById('instagram').value.trim() },
-        x: { url: document.getElementById('x').value.trim() },
-        facebook: { url: document.getElementById('facebook').value.trim() },
-        youtube: { url: document.getElementById('youtube').value.trim() }
-      };
-      ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
-        const file = document.getElementById(`${platform}-logo`).files[0];
-        if (file) socials[platform].logo = file;
-      });
-
-      const formData = new FormData();
-      Object.keys(socials).forEach(platform => {
-        formData.append(`${platform}_url`, socials[platform].url);
-        if (socials[platform].logo) formData.append(`${platform}_logo`, socials[platform].logo);
-      });
-
-      try {
-        const response = await fetch('/api/update-socials', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
-            const link = data.social_links.find(l => l.platform === platform);
-            document.getElementById(platform).value = link?.url || '';
-            document.getElementById(`${platform}-logo-preview`).innerHTML = link?.logo_url ? `<img src="${link.logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md">` : '';
-          });
-          alert('Social links saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save social links');
-        }
-      } catch (error) {
-        console.error('Error saving social links:', error);
-        alert('Failed to save social links. Please try again.');
-      }
-    });
-
-    document.querySelectorAll('.delete-social-logo').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const platform = btn.dataset.platform;
-        if (!confirm(`Are you sure you want to delete the ${platform} logo?`)) return;
-        showButtonFeedback(btn, 'Deleting...', 'Delete Logo');
         try {
-          const response = await fetch('/api/delete-social-logo', {
+          const response = await fetch('/api/update-order-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform }),
+            body: JSON.stringify({ id, status }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            await fetchOrders();
+            alert(`Order status updated to "${status}"!`);
+          } else {
+            throw new Error(result.error || 'Failed to update order status');
+          }
+        } catch (error) {
+          console.error('Error updating order status:', error);
+          alert('Failed to update order status. Please try again.');
+        }
+      });
+    });
+  }
+
+  // Orders polling
+  function startOrdersPolling() {
+    setInterval(async () => {
+      const ordersSection = document.getElementById('orders');
+      const isOrdersActive = !ordersSection.classList.contains('hidden');
+      const isModalOpen = !document.getElementById('edit-modal').classList.contains('hidden');
+      if (isOrdersActive && !isModalOpen) {
+        await fetchOrders();
+      }
+    }, 5000);
+  }
+
+  // Add bot
+  document.getElementById('product-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.submitter;
+    showButtonFeedback(btn, 'Uploading...', 'Add Bot');
+
+    const name = document.getElementById('name').value.trim();
+    const price = parseFloat(document.getElementById('price').value);
+    const category = document.getElementById('category').value;
+    const description = descQuill.root.innerHTML;
+    const embed = document.getElementById('embed').value.trim();
+    const thumbnail = document.getElementById('thumbnail').files[0];
+    const botFile = document.getElementById('bot-file').files[0];
+    const isActive = document.getElementById('is-active').checked;
+
+    if (!name || !price || !category || !description || !thumbnail || !botFile) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    const compressedThumbnail = await compressImage(thumbnail);
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('price', price);
+    formData.append('category_id', category);
+    formData.append('description', description);
+    formData.append('embed_link', embed);
+    formData.append('thumbnail', compressedThumbnail);
+    formData.append('bot_file', botFile);
+    formData.append('is_active', isActive);
+
+    const thumbnailProgress = document.getElementById('thumbnail-progress-bar');
+    const botFileProgress = document.getElementById('bot-file-progress-bar');
+    const thumbnailContainer = document.getElementById('thumbnail-progress');
+    const botFileContainer = document.getElementById('bot-file-progress');
+    thumbnailContainer.classList.remove('hidden');
+    botFileContainer.classList.remove('hidden');
+    thumbnailProgress.style.width = '0%';
+    botFileProgress.style.width = '0%';
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/add-bot', true);
+
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) {
+        const percent = (event.loaded / event.total) * 100;
+        thumbnailProgress.style.width = `${percent}%`;
+        botFileProgress.style.width = `${percent}%`;
+      }
+    };
+
+    xhr.onload = async () => {
+      thumbnailContainer.classList.add('hidden');
+      botFileContainer.classList.add('hidden');
+      if (xhr.status === 200) {
+        const result = JSON.parse(xhr.responseText);
+        if (result.success) {
+          document.getElementById('product-form').reset();
+          descQuill.setContents([]);
+          await fetchData();
+          renderBots();
+          alert('Bot added successfully!');
+        } else {
+          throw new Error(result.error || 'Failed to add bot');
+        }
+      } else {
+        throw new Error('Upload failed');
+      }
+    };
+
+    xhr.onerror = () => {
+      thumbnailContainer.classList.add('hidden');
+      botFileContainer.classList.add('hidden');
+      alert('Error uploading bot. Please try again.');
+    };
+
+    xhr.send(formData);
+  });
+
+  // Fetch data
+  let data = { products: [], categories: [], settings: {}, social_links: [], static_pages: [] };
+  async function fetchData() {
+    try {
+      const response = await fetch('/api/data', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch data');
+      data = await response.json();
+      return true;
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      alert('Failed to load data. Please try again.');
+      return false;
+    }
+  }
+
+  // Render bots
+  function renderBots() {
+    const botList = document.getElementById('bot-list');
+    botList.innerHTML = '';
+    data.products.forEach(product => {
+      const li = document.createElement('li');
+      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+      li.innerHTML = `
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">${product.name}</h3>
+          <p class="text-sm text-gray-600">ID: ${product.id} | Price: KES ${product.price_kes} | Active: ${product.is_active ? 'Yes' : 'No'}</p>
+        </div>
+        <div class="space-x-2">
+          <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${product.id}">Edit</button>
+          <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${product.id}">Delete</button>
+        </div>
+      `;
+      botList.appendChild(li);
+    });
+
+    document.querySelectorAll('.edit-bot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const product = data.products.find(p => p.id === id);
+        if (!product) {
+          alert('Bot not found. Please refresh and try again.');
+          return;
+        }
+        document.getElementById('edit-name').value = product.name;
+        document.getElementById('edit-price').value = product.price_kes;
+        editDescQuill.root.innerHTML = product.description;
+        document.getElementById('edit-embed').value = product.embed_link || '';
+        document.getElementById('edit-category').value = product.category_id;
+        document.getElementById('edit-is-active').checked = product.is_active;
+        document.getElementById('edit-thumbnail-preview').innerHTML = `<img src="${product.thumbnail_url}" alt="Thumbnail" class="w-32 h-auto rounded-md">`;
+        document.getElementById('edit-bot-file-preview').innerHTML = `<span>Current: ${product.file_url.split('/').pop()}</span>`;
+        document.getElementById('edit-form').dataset.id = id;
+        document.getElementById('edit-modal').classList.remove('hidden');
+        document.body.classList.add('modal-active');
+      });
+    });
+
+    document.querySelectorAll('.delete-bot').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this bot?')) return;
+        showButtonFeedback(btn, 'Deleting...', 'Delete');
+        const id = btn.dataset.id;
+        try {
+          const response = await fetch('/api/delete-bot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
             credentials: 'include'
           });
           const result = await response.json();
           if (result.success) {
             await fetchData();
-            document.getElementById(`${platform}-logo-preview`).innerHTML = '';
-            alert(`${platform} logo deleted successfully!`);
+            renderBots();
+            alert('Bot deleted successfully!');
           } else {
-            throw new Error(result.error || `Failed to delete ${platform} logo`);
+            throw new Error(result.error || 'Failed to delete bot');
           }
         } catch (error) {
-          console.error(`Error deleting ${platform} logo:`, error);
-          alert(`Failed to delete ${platform} logo. Please try again.`);
+          console.error('Error deleting bot:', error);
+          alert('Failed to delete bot. Please try again.');
         }
       });
     });
+  }
 
-    document.getElementById('save-payment-method').addEventListener('click', async () => {
-      const btn = document.getElementById('save-payment-method');
-      showButtonFeedback(btn, 'Saving...', 'Save Payment Method');
+  // Edit bot
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.submitter;
+    showButtonFeedback(btn, 'Saving...', 'Save Changes');
+
+    const id = document.getElementById('edit-form').dataset.id;
+    const name = document.getElementById('edit-name').value.trim();
+    const price = parseFloat(document.getElementById('edit-price').value);
+    const category = document.getElementById('edit-category').value;
+    const description = editDescQuill.root.innerHTML;
+    const embed = document.getElementById('edit-embed').value.trim();
+    const thumbnail = document.getElementById('edit-thumbnail').files[0];
+    const botFile = document.getElementById('edit-bot-file').files[0];
+    const isActive = document.getElementById('edit-is-active').checked;
+
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('name', name);
+    formData.append('price', price);
+    formData.append('category_id', category);
+    formData.append('description', description);
+    formData.append('embed_link', embed);
+    formData.append('is_active', isActive);
+    if (thumbnail) formData.append('thumbnail', await compressImage(thumbnail));
+    if (botFile) formData.append('bot_file', botFile);
+
+    try {
+      const response = await fetch('/api/update-bot', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        renderBots();
+        closeEditModal();
+        alert('Bot updated successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to update bot');
+      }
+    } catch (error) {
+      console.error('Error updating bot:', error);
+      alert('Failed to update bot. Please try again.');
+    }
+  });
+
+  function closeEditModal() {
+    document.getElementById('edit-modal').classList.add('hidden');
+    document.body.classList.remove('modal-active');
+    document.getElementById('edit-form').reset();
+    editDescQuill.setContents([]);
+    document.getElementById('edit-thumbnail-preview').innerHTML = '';
+    document.getElementById('edit-bot-file-preview').innerHTML = '';
+  }
+  document.getElementById('edit-cancel').addEventListener('click', closeEditModal);
+
+  // Categories
+  function renderCategories() {
+    const categoryList = document.getElementById('category-list');
+    const categorySelect = document.getElementById('category');
+    const editCategorySelect = document.getElementById('edit-category');
+    categoryList.innerHTML = '';
+    categorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
+    editCategorySelect.innerHTML = '<option value="" disabled selected>Select a category</option>';
+    data.categories.forEach(cat => {
+      const li = document.createElement('li');
+      li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded-md';
+      li.innerHTML = `
+        <span>${cat.name}</span>
+        <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-id="${cat.id}">Delete</button>
+      `;
+      categoryList.appendChild(li);
+      categorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+      editCategorySelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+    });
+
+    document.querySelectorAll('.delete-category').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this category?')) return;
+        showButtonFeedback(btn, 'Deleting...', 'Delete');
+        const id = btn.dataset.id;
+        try {
+          const response = await fetch('/api/delete-category', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            await fetchData();
+            renderCategories();
+            renderBots();
+            alert('Category deleted successfully!');
+          } else {
+            throw new Error(result.error || 'Failed to delete category');
+          }
+        } catch (error) {
+          console.error('Error deleting category:', error);
+          alert('Failed to delete category. Please try again.');
+        }
+      });
+    });
+  }
+
+  document.getElementById('add-category').addEventListener('click', async () => {
+    const btn = document.getElementById('add-category');
+    showButtonFeedback(btn, 'Adding...', 'Add Category');
+    const name = document.getElementById('new-category').value.trim();
+    if (!name) {
+      alert('Category name is required.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/add-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        renderCategories();
+        document.getElementById('new-category').value = '';
+        alert('Category added successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to add category');
+      }
+    } catch (error) {
+      console.error('Error adding category:', error);
+      alert('Failed to add category. Please try again.');
+    }
+  });
+
+  // Settings
+  document.getElementById('urgent-toggle').addEventListener('change', () => {
+    urgentQuill.enable(document.getElementById('urgent-toggle').checked);
+  });
+
+  document.getElementById('save-urgent').addEventListener('click', async () => {
+    const btn = document.getElementById('save-urgent');
+    showButtonFeedback(btn, 'Saving...', 'Save Message');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urgent_message: {
+            enabled: document.getElementById('urgent-toggle').checked,
+            text: urgentQuill.root.innerHTML
+          }
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('Urgent message saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save urgent message');
+      }
+    } catch (error) {
+      console.error('Error saving urgent message:', error);
+      alert('Failed to save urgent message. Please try again.');
+    }
+  });
+
+  document.getElementById('save-email').addEventListener('click', async () => {
+    const btn = document.getElementById('save-email');
+    showButtonFeedback(btn, 'Saving...', 'Save Email');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          support_email: document.getElementById('support-email').value.trim()
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('Support email saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save email');
+      }
+    } catch (error) {
+      console.error('Error saving email:', error);
+      alert('Failed to save email. Please try again.');
+    }
+  });
+
+  document.getElementById('save-copyright').addEventListener('click', async () => {
+    const btn = document.getElementById('save-copyright');
+    showButtonFeedback(btn, 'Saving...', 'Save Copyright');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          footer_copyright: document.getElementById('copyright-text').value.trim()
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('Copyright text saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save copyright');
+      }
+    } catch (error) {
+      console.error('Error saving copyright:', error);
+      alert('Failed to save copyright. Please try again.');
+    }
+  });
+
+  document.getElementById('save-logo').addEventListener('click', async () => {
+    const btn = document.getElementById('save-logo');
+    showButtonFeedback(btn, 'Saving...', 'Save Logo');
+    const file = document.getElementById('logo-file').files[0];
+    if (!file) {
+      alert('Please select a logo file.');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('logo', await compressImage(file));
+    try {
+      const response = await fetch('/api/update-logo', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        document.getElementById('logo-preview').innerHTML = `<img src="${result.logo_url}" alt="Logo" class="w-32 h-auto rounded-md">`;
+        alert('Logo saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save logo');
+      }
+    } catch (error) {
+      console.error('Error saving logo:', error);
+      alert('Failed to save logo. Please try again.');
+    }
+  });
+
+  document.getElementById('save-mpesa-till').addEventListener('click', async () => {
+    const btn = document.getElementById('save-mpesa-till');
+    showButtonFeedback(btn, 'Saving...', 'Save Till Number');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mpesa_till_number: document.getElementById('mpesa-till').value.trim()
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('MPESA Till Number saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save till number');
+      }
+    } catch (error) {
+      console.error('Error saving till number:', error);
+      alert('Failed to save till number. Please try again.');
+    }
+  });
+
+  document.getElementById('save-socials').addEventListener('click', async () => {
+    const btn = document.getElementById('save-socials');
+    showButtonFeedback(btn, 'Saving...', 'Save Socials');
+    const socials = {
+      tiktok: { url: document.getElementById('tiktok').value.trim() },
+      instagram: { url: document.getElementById('instagram').value.trim() },
+      x: { url: document.getElementById('x').value.trim() },
+      facebook: { url: document.getElementById('facebook').value.trim() },
+      youtube: { url: document.getElementById('youtube').value.trim() }
+    };
+    ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+      const file = document.getElementById(`${platform}-logo`).files[0];
+      if (file) socials[platform].logo = file;
+    });
+
+    const formData = new FormData();
+    Object.keys(socials).forEach(platform => {
+      formData.append(`${platform}_url`, socials[platform].url);
+      if (socials[platform].logo) formData.append(`${platform}_logo`, socials[platform].logo);
+    });
+
+    try {
+      const response = await fetch('/api/update-socials', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+          const link = data.social_links.find(l => l.platform === platform);
+          document.getElementById(platform).value = link?.url || '';
+          document.getElementById(`${platform}-logo-preview`).innerHTML = link?.logo_url ? `<img src="${link.logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md">` : '';
+        });
+        alert('Social links saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save social links');
+      }
+    } catch (error) {
+      console.error('Error saving social links:', error);
+      alert('Failed to save social links. Please try again.');
+    }
+  });
+
+  document.querySelectorAll('.delete-social-logo').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const platform = btn.dataset.platform;
+      if (!confirm(`Are you sure you want to delete the ${platform} logo?`)) return;
+      showButtonFeedback(btn, 'Deleting...', 'Delete Logo');
       try {
-        const response = await fetch('/api/update-settings', {
+        const response = await fetch('/api/delete-social-logo', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            payment_method: document.getElementById('payment-method').value
-          }),
+          body: JSON.stringify({ platform }),
           credentials: 'include'
         });
         const result = await response.json();
         if (result.success) {
           await fetchData();
-          alert('Payment method saved!');
+          document.getElementById(`${platform}-logo-preview`).innerHTML = '';
+          alert(`${platform} logo deleted successfully!`);
         } else {
-          throw new Error(result.error || 'Failed to save payment method');
+          throw new Error(result.error || `Failed to delete ${platform} logo`);
         }
       } catch (error) {
-        console.error('Error saving payment method:', error);
-        alert('Failed to save payment method. Please try again.');
+        console.error(`Error deleting ${platform} logo:`, error);
+        alert(`Failed to delete ${platform} logo. Please try again.`);
       }
     });
+  });
 
-    document.getElementById('save-fallback-rate').addEventListener('click', async () => {
-      const btn = document.getElementById('save-fallback-rate');
-      showButtonFeedback(btn, 'Saving...', 'Save Rate');
-      try {
-        const response = await fetch('/api/update-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fallback_exchange_rate: parseFloat(document.getElementById('fallback-rate').value)
-          }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchData();
-          alert('Fallback rate saved!');
-        } else {
-          throw new Error(result.error || 'Failed to save fallback rate');
+  document.getElementById('save-payment-method').addEventListener('click', async () => {
+    const btn = document.getElementById('save-payment-method');
+    showButtonFeedback(btn, 'Saving...', 'Save Payment Method');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payment_method: document.getElementById('payment-method').value
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('Payment method saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save payment method');
+      }
+    } catch (error) {
+      console.error('Error saving payment method:', error);
+      alert('Failed to save payment method. Please try again.');
+    }
+  });
+
+  document.getElementById('save-fallback-rate').addEventListener('click', async () => {
+    const btn = document.getElementById('save-fallback-rate');
+    showButtonFeedback(btn, 'Saving...', 'Save Rate');
+    try {
+      const response = await fetch('/api/update-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fallback_exchange_rate: parseFloat(document.getElementById('fallback-rate').value)
+        }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        await fetchData();
+        alert('Fallback rate saved!');
+      } else {
+        throw new Error(result.error || 'Failed to save fallback rate');
+      }
+    } catch (error) {
+      console.error('Error saving fallback rate:', error);
+      alert('Failed to save fallback rate. Please try again.');
+    }
+  });
+
+  document.getElementById('change-credentials').addEventListener('click', async () => {
+    const btn = document.getElementById('change-credentials');
+    showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+    const email = document.getElementById('new-email').value.trim();
+    const password = document.getElementById('new-password').value.trim();
+    const confirmPassword = document.getElementById('confirm-password').value.trim();
+    if (!email || !password || !confirmPassword || password !== confirmPassword) {
+      alert('Please fill in all fields and ensure passwords match.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/update-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        document.getElementById('new-email').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        await fetchData();
+        alert('Credentials updated successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to update credentials');
+      }
+    } catch (error) {
+      console.error('Error updating credentials:', error);
+      alert('Failed to update credentials. Please try again.');
+    }
+  });
+
+  // Static pages
+  document.getElementById('add-page').addEventListener('click', async () => {
+    const btn = document.getElementById('add-page');
+    showButtonFeedback(btn, 'Adding...', 'Add Page');
+    const title = document.getElementById('page-title').value.trim();
+    const slug = document.getElementById('page-slug').value.trim();
+    const meta = document.getElementById('page-meta').value.trim();
+    const content = pageQuill.root.innerHTML;
+    if (!title || !slug || !content) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/add-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, slug, meta, content }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        document.getElementById('page-title').value = '';
+        document.getElementById('page-slug').value = '';
+        document.getElementById('page-meta').value = '';
+        pageQuill.setContents([]);
+        await fetchData();
+        renderPages();
+        alert('Page added successfully!');
+      } else {
+        throw new Error(result.error || 'Failed to add page');
+      }
+    } catch (error) {
+      console.error('Error adding page:', error);
+      alert('Failed to add page. Please try again.');
+    }
+  });
+
+  function renderPages() {
+    const pageList = document.getElementById('page-list');
+    pageList.innerHTML = '';
+    data.static_pages.forEach(page => {
+      const li = document.createElement('li');
+      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+      li.innerHTML = `
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
+          <p class="text-sm text-gray-600">Slug: ${page.slug} | Meta: ${page.meta || 'N/A'}</p>
+        </div>
+        <div class="space-x-2">
+          <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${page.id}">Edit</button>
+          <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${page.id}">Delete</button>
+        </div>
+      `;
+      pageList.appendChild(li);
+    });
+
+    document.querySelectorAll('.edit-page').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const page = data.static_pages.find(p => p.id === id);
+        if (!page) {
+          alert('Page not found. Please refresh and try again.');
+          return;
         }
-      } catch (error) {
-        console.error('Error saving fallback rate:', error);
-        alert('Failed to save fallback rate. Please try again.');
-      }
+        document.getElementById('page-title').value = page.title;
+        document.getElementById('page-slug').value = page.slug;
+        document.getElementById('page-meta').value = page.meta || '';
+        pageQuill.root.innerHTML = page.content;
+        document.getElementById('add-page').textContent = 'Update Page';
+        document.getElementById('add-page').dataset.id = id;
+      });
     });
 
-    document.getElementById('change-credentials').addEventListener('click', async () => {
-      const btn = document.getElementById('change-credentials');
-      showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-      const email = document.getElementById('new-email').value.trim();
-      const password = document.getElementById('new-password').value.trim();
-      const confirmPassword = document.getElementById('confirm-password').value.trim();
-      if (!email || !password || !confirmPassword || password !== confirmPassword) {
-alert('Please fill in all fields and ensure passwords match.');
-return;
-}
-try {
-const response = await fetch('/api/update-credentials', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ email, password }),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-document.getElementById('new-email').value = '';
-document.getElementById('new-password').value = '';
-document.getElementById('confirm-password').value = '';
-await fetchData();
-alert('Credentials updated successfully!');
-} else {
-throw new Error(result.error || 'Failed to update credentials');
-}
-} catch (error) {
-console.error('Error updating credentials:', error);
-alert('Failed to update credentials. Please try again.');
-}
-});
+    document.querySelectorAll('.delete-page').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this page?')) return;
+        showButtonFeedback(btn, 'Deleting...', 'Delete');
+        const id = btn.dataset.id;
+        try {
+          const response = await fetch('/api/delete-page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            await fetchData();
+            renderPages();
+            alert('Page deleted successfully!');
+          } else {
+            throw new Error(result.error || 'Failed to delete page');
+          }
+        } catch (error) {
+          console.error('Error deleting page:', error);
+          alert('Failed to delete page. Please try again.');
+        }
+      });
+    });
+  }
 
-// Static pages
-document.getElementById('add-page').addEventListener('click', async () => {
-const btn = document.getElementById('add-page');
-showButtonFeedback(btn, 'Adding...', 'Add Page');
-const title = document.getElementById('page-title').value.trim();
-const slug = document.getElementById('page-slug').value.trim();
-const meta = document.getElementById('page-meta').value.trim();
-const content = pageQuill.root.innerHTML;
-if (!title || !slug || !content) {
-alert('Please fill in all required fields.');
-return;
-}
-try {
-const response = await fetch('/api/add-page', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ title, slug, meta, content }),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-document.getElementById('page-title').value = '';
-document.getElementById('page-slug').value = '';
-document.getElementById('page-meta').value = '';
-pageQuill.setContents([]);
-await fetchData();
-renderPages();
-alert('Page added successfully!');
-} else {
-throw new Error(result.error || 'Failed to add page');
-}
-} catch (error) {
-console.error('Error adding page:', error);
-alert('Failed to add page. Please try again.');
-}
-});
+  // Character counters
+  function setupCounter(inputId, counterId, maxLength) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    input.addEventListener('input', () => {
+      const remaining = maxLength - input.value.length;
+      counter.textContent = `${remaining} characters remaining`;
+      if (remaining < 0) counter.classList.add('text-red-600');
+      else counter.classList.remove('text-red-600');
+    });
+  }
+  setupCounter('name', 'name-counter', 100);
+  setupCounter('edit-name', 'edit-name-counter', 100);
+  setupCounter('page-meta', 'meta-counter', 140);
 
-function renderPages() {
-const pageList = document.getElementById('page-list');
-pageList.innerHTML = '';
-data.static_pages.forEach(page => {
-const li = document.createElement('li');
-li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-li.innerHTML = `
+  // Initialize
+  async function initialize() {
+    const isAuthenticated = await checkSession();
+    if (isAuthenticated) {
+      document.getElementById('login-page').classList.add('hidden');
+      document.getElementById('admin-panel').classList.remove('hidden');
+      document.getElementById('admin-nav').classList.remove('hidden');
+      await fetchData();
+      renderCategories();
+      renderBots();
+      renderPages();
+      document.querySelector('.nav-link').click();
+      startOrdersPolling();
+      ['support-email', 'copyright-text', 'mpesa-till', 'tiktok', 'instagram', 'x', 'facebook', 'youtube', 'payment-method', 'fallback-rate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && data.settings[id]) el.value = data.settings[id];
+      });
+      const urgentMessage = data.settings.urgent_message || {};
+      document.getElementById('urgent-toggle').checked = urgentMessage.enabled || false;
+      urgentQuill.root.innerHTML = urgentMessage.text || '';
+      urgentQuill.enable(urgentMessage.enabled || false);
+      const logoUrl = data.settings.logo_url;
+      if (logoUrl) document.getElementById('logo-preview').innerHTML = `<img src="${logoUrl}" alt="Logo" class="w-32 h-auto rounded-md">`;
+      data.social_links.forEach(link => {
+        document.getElementById(link.platform).value = link.url || '';
+        if (link.logo_url) document.getElementById(`${link.platform}-logo-preview`).innerHTML = `<img src="${link.logo_url}" alt="${link.platform} logo" class="w-16 h-16 rounded-md">`;
+      });
+    }
+  }
 
-${page.title}
-Slug: ${page.slug} | Meta: ${page.meta || 'N/A'}
-
-<button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${page.id}">Edit</button> <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${page.id}">Delete</button>
-`; pageList.appendChild(li); });
-document.querySelectorAll('.edit-page').forEach(btn => {
-btn.addEventListener('click', () => {
-const id = btn.dataset.id;
-const page = data.static_pages.find(p => p.id === id);
-if (!page) {
-alert('Page not found. Please refresh and try again.');
-return;
-}
-document.getElementById('page-title').value = page.title;
-document.getElementById('page-slug').value = page.slug;
-document.getElementById('page-meta').value = page.meta || '';
-pageQuill.root.innerHTML = page.content;
-document.getElementById('add-page').textContent = 'Update Page';
-document.getElementById('add-page').dataset.id = id;
+  initialize();
 });
-});
-
-document.querySelectorAll('.delete-page').forEach(btn => {
-btn.addEventListener('click', async () => {
-if (!confirm('Are you sure you want to delete this page?')) return;
-showButtonFeedback(btn, 'Deleting...', 'Delete');
-const id = btn.dataset.id;
-try {
-const response = await fetch('/api/delete-page', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ id }),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-renderPages();
-alert('Page deleted successfully!');
-} else {
-throw new Error(result.error || 'Failed to delete page');
-}
-} catch (error) {
-console.error('Error deleting page:', error);
-alert('Failed to delete page. Please try again.');
-}
-});
-});
-}
-
-// Character counters
-function setupCounter(inputId, counterId, maxLength) {
-const input = document.getElementById(inputId);
-const counter = document.getElementById(counterId);
-input.addEventListener('input', () => {
-const remaining = maxLength - input.value.length;
-counter.textContent = ${remaining} characters remaining;
-if (remaining < 0) counter.classList.add('text-red-600');
-else counter.classList.remove('text-red-600');
-});
-}
-setupCounter('name', 'name-counter', 100);
-setupCounter('edit-name', 'edit-name-counter', 100);
-setupCounter('page-meta', 'meta-counter', 140);
-
-// Initialize
-async function initialize() {
-const isAuthenticated = await checkSession();
-if (isAuthenticated) {
-document.getElementById('login-page').classList.add('hidden');
-document.getElementById('admin-panel').classList.remove('hidden');
-document.getElementById('admin-nav').classList.remove('hidden');
-await fetchData();
-renderCategories();
-renderBots();
-renderPages();
-document.querySelector('.nav-link').click();
-startOrdersPolling();
-['support-email', 'copyright-text', 'mpesa-till', 'tiktok', 'instagram', 'x', 'facebook', 'youtube', 'payment-method', 'fallback-rate'].forEach(id => {
-const el = document.getElementById(id);
-if (el && data.settings[id]) el.value = data.settings[id];
-});
-const urgentMessage = data.settings.urgent_message || {};
-document.getElementById('urgent-toggle').checked = urgentMessage.enabled || false;
-urgentQuill.root.innerHTML = urgentMessage.text || '';
-urgentQuill.enable(urgentMessage.enabled || false);
-const logoUrl = data.settings.logo_url;
-if (logoUrl) document.getElementById('logo-preview').innerHTML = <img src="${logoUrl}" alt="Logo" class="w-32 h-auto rounded-md">;
-data.social_links.forEach(link => {
-document.getElementById(link.platform).value = link.url || '';
-if (link.logo_url) document.getElementById(${link.platform}-logo-preview).innerHTML = <img src="${link.logo_url}" alt="${link.platform} logo" class="w-16 h-16 rounded-md">;
-});
-}
-}
-
-initialize();
 </script>
