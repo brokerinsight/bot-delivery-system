@@ -3,41 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BotBlitz Store - Discover top trading bots for Deriv. Fast, secure payments with PayHero and instant downloads.">
-  <meta name="keywords" content="trading bots, Deriv bots, PayHero payments, BotBlitz Store, automated trading">
-  <meta name="robots" content="index, follow">
-  <title>BotBlitz Store</title>
+  <title>Deriv Bot Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-  <script src="https://applet.payherokenya.com/cdn/button_sdk.js?v=3.1"></script>
-  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg-color: #f9fafb;
-      --text-color: #1f2937;
-      --card-bg: #ffffff;
-      --accent-color: #10b981;
-      --header-bg: #ffffff;
-      --subnav-bg: #f1f5f9;
-      --subnav-text: #4b5563;
-    }
-    [data-theme="dark"] {
-      --bg-color: #111827;
-      --text-color: #d1d5db;
-      --card-bg: #1f2937;
-      --accent-color: #34d399;
-      --header-bg: #1f2937;
-      --subnav-bg: #374151;
-      --subnav-text: #9ca3af;
-    }
-    body {
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      font-family: 'Poppins', sans-serif;
-      transition: background-color 0.3s, color 0.3s;
+    body.popup-active {
+      overflow: hidden;
     }
     .truncate-2-lines {
       display: -webkit-box;
@@ -53,8 +28,8 @@
       min-height: 4.5rem;
     }
     #urgent-message {
-      background: linear-gradient(90deg, #f59e0b, #ef4444);
-      border-radius: 0 0 12px 12px;
+      background: linear-gradient(90deg, rgba(255, 215, 0, 0.9), rgba(255, 165, 0, 0.9));
+      border-radius: 0 0 15px 15px;
       animation: slideDown 0.5s ease-out;
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
@@ -64,21 +39,16 @@
     }
     .search-container {
       position: relative;
-      width: 100%;
     }
     .search-container input {
       padding-left: 2.5rem;
-      padding-right: 1rem;
       transition: all 0.3s ease;
       border: 1px solid #d1d5db;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-      background-color: var(--card-bg);
-      color: var(--text-color);
-      border-radius: 8px;
     }
     .search-container input:focus {
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+      border-color: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
       outline: none;
     }
     .search-container svg {
@@ -93,109 +63,55 @@
     #mobile-menu {
       transform: translateX(-100%);
       transition: transform 0.3s ease-in-out;
-      background: var(--card-bg);
-      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
     }
     #mobile-menu.open {
       transform: translateX(0);
     }
-    #mobile-backdrop {
-      display: none;
+    #cookie-popup-container {
       position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 29;
-    }
-    #mobile-backdrop.open {
-      display: block;
-    }
-    .product-image-container img {
+      top: 0;
+      left: 0;
       width: 100%;
-      height: 200px;
-      object-fit: cover;
-      border-top-left-radius: 12px;
-      border-top-right-radius: 12px;
-      transition: transform 0.3s ease;
-    }
-    .product-image-container img:hover {
-      transform: scale(1.03);
-    }
-    #product-grid .product-card {
-      display: flex;
-      flex-direction: column;
       height: 100%;
-      border-radius: 12px;
-      overflow: hidden;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    #cookie-popup {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+      animation: popupFadeIn 0.5s ease-out forwards;
+      max-width: 90%;
+      width: 500px;
+    }
+    #cookie-popup p {
+      color: #444;
+      font-size: 1rem;
+      margin-bottom: 20px;
+    }
+    #cookie-popup button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
       transition: all 0.3s ease;
-      background-color: var(--card-bg);
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      display: block;
+      margin: 20px auto 0;
+      background: linear-gradient(90deg, #28a745, #34d058);
+      color: white;
     }
-    #product-grid .product-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-    }
-    .view-details {
-      background: linear-gradient(90deg, var(--accent-color), #34d399);
-      transition: all 0.3s ease;
-    }
-    .view-details:hover {
-      background: linear-gradient(90deg, #059669, var(--accent-color));
-      transform: translateY(-1px);
-      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
-    }
-    .ql-editor {
-      color: var(--text-color);
-      background-color: var(--card-bg);
-    }
-    .social-icon {
-      width: 24px;
-      height: 24px;
-      object-fit: contain;
-      transition: transform 0.2s ease;
-    }
-    .social-icon:hover {
-      transform: scale(1.1);
-    }
-    #sub-nav-links {
-      background-color: var(--subnav-bg);
-      color: var(--subnav-text);
-      padding: 0.5rem 0;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    }
-    #sub-nav-links a {
-      color: var(--subnav-text);
-      padding: 0.5rem 1rem;
-      text-decoration: none;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: color 0.2s ease;
-    }
-    #sub-nav-links a:hover {
-      color: var(--accent-color);
-    }
-    #legal-dropdown {
-      background-color: var(--card-bg);
-      color: var(--text-color);
-      border-radius: 8px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-    #legal-dropdown a {
-      color: var(--text-color);
-      transition: background-color 0.2s ease;
-    }
-    #legal-dropdown a:hover {
-      background-color: rgba(0, 0, 0, 0.05);
-    }
-    #sort-select {
-      background-color: var(--card-bg);
-      color: var(--text-color);
-      border: 1px solid #d1d5db;
-      padding: 0.5rem;
-      border-radius: 8px;
-      font-size: 0.875rem;
-    }
-    body.popup-active {
-      overflow: hidden;
+    #cookie-popup button:hover {
+      background: linear-gradient(90deg, #218838, #2cb94e);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
     }
     .popup {
       position: fixed;
@@ -210,73 +126,379 @@
       z-index: 999;
     }
     .popup-content {
-      background: var(--card-bg);
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
       padding: 2rem;
-      border-radius: 12px;
+      border-radius: 16px;
       text-align: center;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
       animation: popupFadeIn 0.5s ease-out forwards;
       max-width: 90%;
-      width: 450px;
+      width: 500px;
+    }
+    .popup-content h3 {
+      margin-bottom: 1.5rem;
+      font-size: 1.75rem;
+      color: #222;
+      font-weight: 600;
     }
     @keyframes popupFadeIn {
-      from { transform: translateY(20px) scale(0.95); opacity: 0; }
+      from { transform: translateY(20px) scale(0.9); opacity: 0; }
       to { transform: translateY(0) scale(1); opacity: 1; }
     }
     .browser-popup-button {
-      padding: 10px 20px;
+      padding: 12px 24px;
       border: none;
-      border-radius: 8px;
-      font-size: 0.875rem;
+      border-radius: 10px;
+      font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.3s ease;
       display: block;
-      margin: 15px auto 0;
+      margin: 20px auto 0;
     }
     .browser-popup-button.cancel {
-      background: linear-gradient(90deg, #10b981, #34d399);
+      background: linear-gradient(90deg, #28a745, #34d058);
       color: white;
     }
     .browser-popup-button.cancel:hover {
-      background: linear-gradient(90deg, #059669, #10b981);
-      transform: translateY(-1px);
-      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+      background: linear-gradient(90deg, #218838, #2cb94e);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
     }
-    .create-account-btn {
-      padding: 0.5rem 1rem;
-      font-size: 0.875rem;
-      font-weight: 600;
+    #details-modal .modal-content {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      border: 1px solid #e5e7eb;
+      max-width: 900px;
+      width: 90%;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+      transform: translateY(20px) scale(0.9);
+      animation: popupFadeIn 0.5s ease-out forwards;
+    }
+    #details-modal .modal-main {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #16a34a #e5e7eb;
+    }
+    #details-modal .modal-main::-webkit-scrollbar {
+      width: 8px;
+    }
+    #details-modal .modal-main::-webkit-scrollbar-track {
+      background: #e5e7eb;
+      border-radius: 4px;
+    }
+    #details-modal .modal-main::-webkit-scrollbar-thumb {
+      background: #16a34a;
+      border-radius: 4px;
+    }
+    #details-modal .modal-sidebar {
+      width: 250px;
+      background: #f9fafb;
+      padding: 2rem;
+      border-left: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      position: sticky;
+      top: 0;
+      height: 100%;
+    }
+    #details-modal .close-btn {
+      background: linear-gradient(90deg, #ef4444, #f87171);
+      color: white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: all 0.3s ease;
+      z-index: 10;
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+    }
+    #details-modal .close-btn:hover {
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+    #details-desc {
+      line-height: 1.8;
+      margin-bottom: 2rem;
+      color: #4b5563;
+    }
+    #details-desc p {
+      margin-bottom: 1rem;
+    }
+    #details-desc ul {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 1.5rem;
+    }
+    #details-desc li {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+    #details-desc li::before {
+      content: "•";
+      color: #16a34a;
+      margin-right: 0.75rem;
+      font-size: 1.3rem;
+      line-height: 1.8;
+    }
+    .embed-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+    .embed-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .thumbnail-image {
+      width: 100%;
+      max-width: 640px;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
+      transition: transform 0.3s ease;
+    }
+    .thumbnail-image:hover {
+      transform: scale(1.02);
+    }
+    .product-image-container {
+      position: relative;
+      width: 100%;
+      padding-bottom: 56.25%;
+      overflow: hidden;
+    }
+    .product-image-container img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      aspect-ratio: 16 / 9;
+      transition: transform 0.3s ease;
+    }
+    .product-image-container img:hover {
+      transform: scale(1.05);
+    }
+    .new-badge {
+      position: absolute;
+      top: 0.75rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, #16a34a, #22c55e);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 1rem;
+      border-radius: 9999px;
+      z-index: 10;
+      box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+    }
+    .item-hidden {
+      display: none;
+    }
+    #download-progress-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      display: none;
+    }
+    #download-progress-content {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      padding: 1.5rem;
+      border-radius: 16px;
+      text-align: center;
+      width: 90%;
+      max-width: 420px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      transform: translateY(20px) scale(0.9);
+      animation: popupFadeIn 0.5s ease-out forwards;
+    }
+    #download-progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    #download-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #16a34a, #22c55e);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    #download-error {
+      color: #dc2626;
+      margin-top: 10px;
+      display: none;
+    }
+    #product-grid .bg-white {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    #product-grid .bg-white:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+    #product-grid .p-6 {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #product-grid .view-details {
+      background: linear-gradient(90deg, #16a34a, #22c55e);
+      transition: all 0.3s ease;
+    }
+    #product-grid .view-details:hover {
+      background: linear-gradient(90deg, #15803d, #16a34a);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    }
+    #payment-modal .bg-white,
+    #ref-code-modal .bg-white,
+    #status-modal .bg-white,
+    #static-page-modal .bg-white {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      transform: translateY(20px) scale(0.9);
+      animation: popupFadeIn 0.5s ease-out forwards;
+    }
+    #payment-modal .bg-white button,
+    #ref-code-modal .bg-white button,
+    #status-modal .bg-white button {
+      transition: all 0.3s ease;
+    }
+    #payment-modal .bg-white button:hover,
+    #ref-code-modal .bg-white button:hover,
+    #status-modal .bg-white button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    #confirm-payment,
+    #submit-ref-code {
+      background: linear-gradient(90deg, #16a34a, #22c55e);
+    }
+    #confirm-payment:hover,
+    #submit-ref-code:hover {
+      background: linear-gradient(90deg, #15803d, #16a34a);
+    }
+    #payment-cancel,
+    #ref-code-cancel {
+      background: linear-gradient(90deg, #6b7280, #9ca3af);
+    }
+    #payment-cancel:hover,
+    #ref-code-cancel:hover {
+      background: linear-gradient(90deg, #4b5563, #6b7280);
+    }
+    #status-retry {
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+    }
+    #status-retry:hover {
+      background: linear-gradient(90deg, #1d4ed8, #2563eb);
+    }
+    @media (max-width: 768px) {
+      #details-modal .modal-content {
+        flex-direction: column;
+        max-height: 90vh;
+      }
+      #details-modal .modal-main {
+        padding: 1.5rem;
+      }
+      #details-modal .modal-sidebar {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+        position: sticky;
+        bottom: 0;
+        background: #f9fafb;
+        padding: 1rem;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+        z-index: 10;
+      }
+      #details-modal .modal-sidebar .buy-now-btn {
+        width: 100%;
+        background: linear-gradient(90deg, #16a34a, #22c55e);
+      }
+      #details-modal .modal-sidebar .buy-now-btn:hover {
+        background: linear-gradient(90deg, #15803d, #16a34a);
+      }
+      #details-modal .thumbnail-image {
+        max-width: 100%;
+      }
+      #payment-modal .bg-white,
+      #ref-code-modal .bg-white,
+      #status-modal .bg-white {
+        width: 90%;
+        max-width: 380px;
+      }
+      #static-page-modal .bg-white {
+        width: 90%;
+        max-width: 90%;
+      }
     }
     @media (max-width: 640px) {
       #nav-links {
         display: none;
       }
       #mobile-menu {
-        width: 75%;
-        max-width: 280px;
+        display: block;
       }
       #mobile-nav-links {
         flex-direction: column;
         align-items: flex-start;
       }
       #mobile-nav-links a {
-        padding: 0.75rem 0;
+        padding: 0.5rem 0;
         width: 100%;
-        font-size: 0.875rem;
-      }
-      #sub-nav-links {
-        display: none;
-      }
-      .social-icon {
-        width: 20px;
-        height: 20px;
       }
       .create-account-btn {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.75rem;
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(90deg, #16a34a, #22c55e);
       }
+      .create-account-btn:hover {
+        background: linear-gradient(90deg, #15803d, #16a34a);
+      }
+    }
+    @media (max-width: 640px) {
       footer {
         display: none;
       }
@@ -285,15 +507,7 @@
         flex-direction: column;
         padding: 1rem;
         border-top: 1px solid #e5e7eb;
-        background: var(--card-bg);
-        font-size: 0.75rem;
-      }
-      #product-grid .product-card {
-        margin: 0 auto;
-        max-width: 320px;
-      }
-      .product-image-container img {
-        height: 180px;
+        background: #f9fafb;
       }
     }
     @media (min-width: 641px) {
@@ -303,356 +517,487 @@
     }
   </style>
 </head>
-<body>
+<body class="bg-gray-100">
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
-    <p id="urgent-text" class="text-center text-sm font-medium"></p>
-    <button id="urgent-close" class="mt-2 block mx-auto bg-gray-700 text-white px-3 py-1 rounded-full text-sm hover:bg-gray-800 transition-colors">Okay</button>
+    <p id="urgent-text" class="text-center text-lg font-semibold"></p>
+    <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
-  <nav class="shadow-sm sticky top-0 z-20" style="background-color: var(--header-bg);">
+  <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-16">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div id="logo-container">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Deriv Bot Store</h1>
+          </div>
+          <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
+          </div>
+        </div>
         <div class="flex items-center space-x-4">
-          <button id="mobile-menu-button" class="sm:hidden text-gray-600 hover:text-gray-900 p-2">
+          <div class="hidden sm:block search-container">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
+          </div>
+          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
+          <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div id="logo-container">
-            <img id="site-logo" src="" alt="BotBlitz Store" class="h-9 w-auto">
-          </div>
-          <div id="nav-links" class="hidden sm:flex sm:space-x-6">
-            <a href="/" class="nav-link text-gray-600 hover:text-gray-900 text-sm font-medium py-2 transition-colors">Home</a>
-          </div>
-        </div>
-        <div class="flex items-center space-x-3">
-          <div id="social-links-header" class="hidden sm:flex space-x-2"></div>
-          <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            <svg id="theme-icon" class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          </button>
-          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">Create Deriv Account</a>
         </div>
       </div>
     </div>
-    <div id="sub-nav-links" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 overflow-x-auto scrollbar-hide">
-      <!-- Categories will be dynamically inserted here -->
-    </div>
-    <div id="mobile-backdrop" class="sm:hidden"></div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full z-30">
-      <div class="flex justify-between items-center p-4 border-b" style="background-color: var(--card-bg);">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Menu</h2>
-        <button id="mobile-menu-close" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30">
+      <div class="flex justify-between items-center p-4 border-b">
+        <h2 class="text-lg font-bold text-gray-800">Menu</h2>
+        <button id="mobile-menu-close" class="text-gray-500">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-2"></div>
-      <div id="mobile-social-links" class="p-4 flex flex-col space-y-3 border-t border-gray-200 dark:border-gray-700"></div>
+      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
       <div id="mobile-footer" class="mt-auto p-4">
-        <p id="mobile-copyright-text" class="text-gray-500 dark:text-gray-400 text-sm"></p>
-        <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline hover:text-gray-700 dark:hover:text-gray-200"></a></p>
+        <p id="mobile-copyright-text" class="text-gray-600 text-sm"></p>
+        <p class="text-gray-500 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline"></a></p>
+        <div id="mobile-social-links" class="mt-4 flex flex-col space-y-2"></div>
+        <div id="mobile-static-links" class="mt-4 flex flex-col space-y-2"></div>
       </div>
     </div>
   </nav>
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-    <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4">
-      <div class="search-container w-full sm:w-1/2">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input id="search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
-      </div>
-      <select id="sort-select" class="p-2 border rounded-md">
-        <option value="newest">Sort by: Newest</option>
-        <option value="price-asc">Price: Low to High</option>
-        <option value="price-desc">Price: High to Low</option>
-        <option value="name-asc">Name: A to Z</option>
-        <option value="name-desc">Name: Z to A</option>
-      </select>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
+    <div class="search-container">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
     </div>
   </div>
 
-  <main id="main-content" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-    <h2 class="text-3xl font-bold mb-8 text-center text-gray-800 dark:text-gray-100">Explore Our Trading Bots</h2>
-    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-    <div id="loading-message" class="col-span-full text-center text-gray-600 dark:text-gray-400 hidden">
-      Loading bots...
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
+    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div id="loading-message" class="col-span-full text-center text-gray-600">
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
+      </div>
     </div>
   </main>
 
-  <footer class="shadow-inner mt-12 py-6" style="background-color: var(--header-bg);">
+  <footer class="bg-white shadow-inner mt-12 py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <p id="copyright-text" class="text-gray-500 dark:text-gray-400 text-sm"></p>
+      <p id="copyright-text" class="text-gray-600"></p>
+      <p class="text-gray-500 mt-2">Support: <a id="support-email" class="underline"></a></p>
+      <div id="social-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
+      <div id="static-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
     </div>
   </footer>
 
-  <div id="download-progress-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-      <h3 class="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">Downloading File</h3>
-      <p id="download-progress-text" class="text-gray-600 dark:text-gray-300 mb-4">Starting download...</p>
-      <div id="download-progress-bar" class="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full">
-        <div id="download-progress-fill" class="h-full bg-green-600 rounded-full" style="width: 0%;"></div>
-      </div>
-      <p id="download-error" class="text-red-500 mt-2 hidden"></p>
-    </div>
-  </div>
-
-  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-      <div id="countdown-timer" class="mb-4">
-        <p class="text-gray-600 dark:text-gray-300">Time remaining: <span id="timer-text">10:00</span></p>
-        <div class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
-        </div>
-      </div>
-      <h3 id="payment-title" class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4"></h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-4">Please send the payment via MPESA to:</p>
-      <div class="flex items-center space-x-2">
-        <p class="font-semibold text-gray-900 dark:text-gray-100">Till Number: <span id="mpesa-till-number">4933614</span></p>
-        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
-      </div>
-      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">I Have Paid</button>
-      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition-colors">Cancel</button>
+  <div id="cookie-popup-container" class="hidden">
+    <div id="cookie-popup" class="popup-content">
+      <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
+      <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
     </div>
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://kiaratuwomaxqebxkacv.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYXJhdHV3b21heHFlYnhrYWN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyOTU2MjgsImV4cCI6MjA2Mzg3MTYyOH0.W4topF3UQBYKSHee9uXwLKQed9j4O84VNks5s4vy84M';
-    const BASE_URL = 'https://botblitz.store';
-    const PAYHERO_LIPWA = 'https://app.payhero.co.ke/lipwa/2003';
-    const PAYHERO_CHANNEL_ID = 2328;
-    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+    // Define handleCookiePopup before calling it
+    function handleCookiePopup() {
+      const cookiePopup = document.getElementById('cookie-popup-container');
+      const acceptButton = document.getElementById('cookie-accept');
+      
+      // Check if cookies have already been accepted
+      const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+      const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+      const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+      const now = Date.now();
 
+      // If cookies are accepted and the 3-day period hasn't passed, keep the popup hidden
+      if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none'; // Ensure it's hidden
+        return;
+      }
+
+      // If we reach here, show the popup
+      cookiePopup.classList.remove('hidden');
+      cookiePopup.style.display = 'flex'; // Ensure it's visible
+      document.body.classList.add('popup-active');
+
+      // Remove any existing event listeners to avoid duplicates
+      acceptButton.removeEventListener('click', handleAcceptClick);
+      
+      // Define the click handler
+      function handleAcceptClick() {
+        localStorage.setItem('cookiesAccepted', 'true');
+        localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none';
+        document.body.classList.remove('popup-active');
+      }
+
+      // Add the event listener
+      acceptButton.addEventListener('click', handleAcceptClick);
+    }
+
+    // Call handleCookiePopup immediately after the popup container is parsed
+    handleCookiePopup();
+  </script>
+
+  <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="modal-content flex flex-col md:flex-row relative">
+      <button id="details-close" class="close-btn">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <div class="modal-main">
+        <img id="details-thumbnail" class="thumbnail-image" src="" alt="">
+        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-3"></h3>
+        <p id="details-item" class="text-sm text-gray-500 mb-3">File: <span id="details-item-name"></span></p>
+        <div id="details-desc" class="text-gray-600"></div>
+        <div id="details-embed"></div>
+      </div>
+      <div class="modal-sidebar">
+        <button id="details-buy-now" class="buy-now-btn bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Buy Now</button>
+        <button id="details-test-pay" class="buy-now-btn bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 hidden">Test Instant Payment</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="countdown-timer" class="mb-4">
+        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <div class="flex items-center space-x-2">
+        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+      </div>
+      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
+      <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
+      <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
+      <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <div id="status-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="status-countdown" class="mb-4">
+        <p class="text-gray-600">Confirming payment... Time remaining: <span id="status-timer-text">5:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="status-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <p id="status-message" class="text-gray-600 mb-4"></p>
+      <button id="status-retry" class="mt-2 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 hidden">Retry</button>
+    </div>
+  </div>
+
+  <div id="download-progress-modal">
+    <div id="download-progress-content">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Downloading File</h3>
+      <p id="download-progress-text" class="text-gray-600 mb-4">Starting download...</p>
+      <div id="download-progress-bar">
+        <div id="download-progress-fill"></div>
+      </div>
+      <p id="download-error"></p>
+    </div>
+  </div>
+
+  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full relative max-h-[80vh] overflow-y-auto">
+      <button id="static-page-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <h3 id="static-page-title" class="text-2xl font-bold text-gray-900 mb-4"></h3>
+      <div id="static-page-content" class="prose"></div>
+    </div>
+  </div>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+  <script>
+    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+    const BASE_URL = 'https://bot-delivery-system.onrender.com';
     let products = [];
     let categories = [];
     let settings = {};
     let staticPages = [];
-    let socialLinks = [];
+    let exchangeRate = null;
     let allowInAppBrowser = false;
+    const TEST_MODE = new URLSearchParams(window.location.search).get('test') === 'true';
 
-    async function initSupabase() {
-      const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
-      return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-
-    async function fetchData() {
-      const supabase = await initSupabase();
+    async function fetchWithTimeout(url, options = {}, timeout = 15000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      const headers = options.headers || {};
+      if (options.method === 'GET') {
+        delete headers['Content-Type'];
+      }
       try {
-        const [productsRes, categoriesRes, settingsRes, staticPagesRes, socialLinksRes] = await Promise.all([
-          supabase.from('products').select('*').eq('is_active', true),
-          supabase.from('categories').select('*'),
-          supabase.from('settings').select('*').limit(1).single(),
-          supabase.from('social_links').select('*')
-        ]);
-        products = productsRes.data || [];
-        categories = categoriesRes.data || [];
-        settings = settingsRes.data || {};
-        staticPages = staticPagesRes.data || [];
-        socialLinks = socialLinksRes.data || [];
-        document.getElementById('loading-message').classList.add('hidden');
+        const response = await fetch(url, { 
+          ...options, 
+          signal: controller.signal,
+          headers
+        });
+        clearTimeout(id);
+        return response;
       } catch (error) {
-        console.error('Error fetching data:', error);
-        document.getElementById('loading-message').textContent = 'Failed to load bots. Please try again or contact support.';
+        clearTimeout(id);
+        throw error;
       }
     }
 
-    function initTheme() {
-      const savedTheme = localStorage.getItem('theme');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', theme);
-      updateThemeIcon(theme);
-      document.getElementById('theme-toggle').onclick = () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-        updateThemeIcon(newTheme);
-      };
+    async function getExchangeRate() {
+      if (exchangeRate) return exchangeRate;
+      try {
+        const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 5000);
+        const data = await response.json();
+        exchangeRate = data.rates.KES || settings.fallbackRate || 130;
+        console.log('Exchange rate fetched:', exchangeRate);
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error.message);
+        exchangeRate = settings.fallbackRate || 130;
+      }
+      return exchangeRate;
     }
 
-    function updateThemeIcon(theme) {
-      const icon = document.getElementById('theme-icon');
-      icon.innerHTML = theme === 'light'
-        ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />`
-        : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />`;
+    async function fetchData() {
+      try {
+        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 15000);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}, StatusText: ${response.statusText}`);
+        }
+        const data = await response.json();
+        products = data.products.filter(p => !p.isArchived);
+        categories = data.categories;
+        settings = data.settings;
+        staticPages = data.staticPages;
+        console.log('Data fetched successfully:', { products, categories, settings, staticPages });
+        return true;
+      } catch (error) {
+        console.error('Error fetching data:', error.message);
+        document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>. (Error: ${error.message})`;
+        return false;
+      }
+    }
+
+    async function fetchModalContent() {
+      const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
+      const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+      if (typeof sanitizeHtml !== 'function') {
+        console.error('sanitizeHtml is not available. Skipping modal content rendering.');
+        return;
+      }
+      if (paymentModalContent) {
+        const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
+        paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
+      }
+      if (refCodeModalContent) {
+        const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
+        refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
+      }
     }
 
     function renderNavLinks() {
       const navLinks = document.getElementById('nav-links');
       const mobileNavLinks = document.getElementById('mobile-nav-links');
-      const subNavLinks = document.getElementById('sub-nav-links');
-      navLinks.innerHTML = `<a href="/" class="nav-link text-gray-600 hover:text-gray-900 text-sm font-medium py-2 transition-colors ${window.location.pathname === '/' ? 'text-green-600 font-semibold' : ''}">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="/" class="nav-link text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">Home</a>`;
-      subNavLinks.innerHTML = `<a href="/" class="text-gray-500 hover:text-gray-900 text-sm font-medium">All</a>` + categories.map(cat => `<a href="/category/${cat.name}" class="text-gray-500 hover:text-gray-900 text-sm font-medium">${cat.name}</a>`).join('');
-      mobileNavLinks.innerHTML += categories.map(cat => `<a href="/category/${cat.name}" class="nav-link text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">${cat.name}</a>`).join('');
-      mobileNavLinks.innerHTML += `<a href="#" id="mobile-legal-menu-button" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 text-sm font-medium">Legal</a>`;
-      const legalLinks = document.getElementById('legal-links');
-      legalLinks.innerHTML = staticPages.map(page => `<a href="/${page.slug}" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">${page.title}</a>`).join('');
-      mobileNavLinks.innerHTML += `<div id="mobile-legal-links" class="hidden flex flex-col pl-4 space-y-2">${staticPages.map(page => `<a href="/${page.slug}" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm">${page.title}</a>`).join('')}</div>`;
-      document.getElementById('legal-menu-button').onclick = () => {
-        document.getElementById('legal-dropdown').classList.toggle('hidden');
-      };
-      document.getElementById('mobile-legal-menu-button').onclick = () => {
-        document.getElementById('mobile-legal-links').classList.toggle('hidden');
-      };
+      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
+      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
+      categories.forEach(cat => {
+        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
+        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
+      });
+
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', e => {
+          e.preventDefault();
+          const category = link.dataset.category;
+          filterProducts(category);
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
+          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
+          document.getElementById('mobile-menu').classList.remove('open');
+        });
+      });
     }
 
-    function renderSocialLinks() {
-      const headerSocial = document.getElementById('social-links-header');
-      const mobileSocial = document.getElementById('mobile-social-links');
-      headerSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank" class="p-1"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"></a>`).join('');
-      mobileSocial.innerHTML = socialLinks.map(link => `<a href="${link.url}" target="_blank" class="flex items-center space-x-2"><img src="${link.logo_url || `/icons/${link.platform}.png`}" alt="${link.platform}" class="social-icon"><span class="text-gray-600 dark:text-gray-300 text-sm font-medium">${link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}</span></a>`).join('');
+    function formatDescription(desc) {
+      const lines = desc.split('\n').filter(line => line.trim() !== '');
+      let html = '';
+      let inList = false;
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+          }
+          const content = line.replace(/^(✅|🚀|🧠)\s*/, '');
+          html += `<li>${content}</li>`;
+        } else {
+          if (inList) {
+            html += '</ul>';
+            inList = false;
+          }
+          html += `<p>${line}</p>`;
+        }
+      });
+
+      if (inList) {
+        html += '</ul>';
+      }
+
+      return html;
     }
 
-    async function renderProducts(category = 'all', search = '', sort = 'newest') {
+    async function renderProducts(category = 'all', search = '') {
       const grid = document.getElementById('product-grid');
+      const loadingMessage = document.getElementById('loading-message');
+      if (loadingMessage) {
+        loadingMessage.classList.add('hidden');
+      } else {
+        console.warn('Loading message element not found.');
+      }
       grid.innerHTML = '';
-      const supabase = await initSupabase();
       let filteredProducts = products;
       if (category !== 'all') {
-        filteredProducts = products.filter(p => p.category_id === categories.find(c => c.name === category)?.id);
+        filteredProducts = products.filter(p => p.category === category);
       }
       if (search) {
         const searchTerm = search.toLowerCase();
-        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.description.toLowerCase().includes(searchTerm));
+        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
       }
-      filteredProducts.sort((a, b) => {
-        if (sort === 'price-asc') return a.price_kes - b.price_kes;
-        if (sort === 'price-desc') return b.price_kes - a.price_kes;
-        if (sort === 'name-asc') return a.name.localeCompare(b.name);
-        if (sort === 'name-desc') return b.name.localeCompare(a.name);
-        return new Date(b.created_at) - new Date(a.created_at); // newest
-      });
+      // Reverse the filtered products to show newest first (since Excel appends new products at the bottom)
+      filteredProducts = filteredProducts.reverse();
       if (!filteredProducts.length) {
-        grid.innerHTML = '<p class="text-center col-span-full text-gray-500 dark:text-gray-400">No products found.</p>';
+        grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
         return;
       }
-      for (const product of filteredProducts) {
-        const { data: signedThumbnail } = await supabase.storage.from('thumbnails').createSignedUrl(product.thumbnail_url, 3600);
-        if (!signedThumbnail) continue;
-        product.thumbnail_url = signedThumbnail.signedUrl;
+      filteredProducts.forEach(product => {
         const card = document.createElement('div');
-        card.className = 'product-card';
+        card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
         card.innerHTML = `
           <div class="relative">
             <div class="product-image-container">
-              <img src="${product.thumbnail_url}" alt="${product.name}" loading="lazy">
+              <img src="${product.img}" alt="${product.name}" class="thumbnail-image">
             </div>
+            ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
           </div>
-          <div class="p-5 flex flex-col flex-grow">
-            <h3 class="text-lg font-semibold truncate text-gray-800 dark:text-gray-100">${product.name}</h3>
-            <p class="mt-2 text-sm truncate-3-lines text-gray-600 dark:text-gray-300">${product.excerpt}</p>
-            <p class="mt-3 text-green-600 dark:text-green-400 font-bold">KES ${product.price_kes}</p>
-            <a href="/product/${product.slug}" class="view-details mt-4 w-full block text-center text-white py-2 rounded-md text-sm font-medium">View Details</a>
+          <div class="p-6">
+            <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
+            <p class="mt-2 text-gray-600 text-sm truncate-3-lines">${product.desc}</p>
+            <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
+            <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
+            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
           </div>
         `;
         grid.appendChild(card);
-      }
-    }
+      });
 
-    async function renderProductPage(slug) {
-      const supabase = await initSupabase();
-      const { data: product } = await supabase.from('products').select('*').eq('slug', slug).eq('is_active', true).single();
-      if (!product) {
-        document.getElementById('main-content').innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400">Product not found.</p>';
-        return;
-      }
-      const { data: signedThumbnail } = await supabase.storage.from('thumbnails').createSignedUrl(product.thumbnail_url, 3600);
-      if (signedThumbnail) product.thumbnail_url = signedThumbnail.signedUrl;
-      document.title = `${product.name} - BotBlitz Store`;
-      document.querySelector('meta[name="description"]').content = product.meta_description || product.excerpt;
-      const main = document.getElementById('main-content');
-      main.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <img src="${product.thumbnail_url}" alt="${product.name}" class="w-full max-w-3xl mx-auto rounded-lg mb-6">
-          <h1 class="text-3xl font-bold mb-4 text-gray-800 dark:text-gray-100">${product.name}</h1>
-          <div id="product-description" class="prose dark:prose-invert mb-6"></div>
-          ${product.embed_link ? `<div class="embed-container mb-6"><iframe src="${product.embed_link}" frameborder="0" allowfullscreen class="rounded-lg w-full aspect-video"></iframe></div>` : ''}
-          <p class="text-green-600 dark:text-green-400 font-bold mb-4 text-lg">KES ${product.price_kes}</p>
-          <div id="payhero-button-${product.id}"></div>
-          <div id="manual-payment-${product.id}" class="hidden">
-            <button class="pay-now bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors w-full text-sm font-medium">Pay KES ${product.price_kes}</button>
-          </div>
-        </div>
-      `;
-      const quill = new Quill('#product-description', { theme: 'snow', readOnly: true });
-      quill.setContents(JSON.parse(product.description));
-      if (settings.payment_method === 'payhero') {
-        PayHero.init({
-          paymentUrl: PAYHERO_LIPWA,
-          containerId: `payhero-button-${product.id}`,
-          channelID: PAYHERO_CHANNEL_ID,
-          amount: product.price_kes,
-          reference: product.id,
-          buttonName: `Pay KES ${product.price_kes}`,
-          buttonColor: '#10b981',
-          callbackUrl: `${BASE_URL}/api/payment-callback`
-        });
-        window.addEventListener('message', async (event) => {
-          if (event.data.paymentSuccess && event.data.user_reference === product.id) {
-            alert('Payment successful\nThe file should start downloading...');
-            const { data: signedUrl } = await supabase.storage.from('bots').createSignedUrl(product.file_url, 60);
-            if (signedUrl) {
-              await downloadFile(signedUrl.signedUrl, `${product.name}.zip`);
-            } else {
-              alert('Failed to generate download link. Please contact support.');
-            }
+      document.querySelectorAll('.view-details').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const item = btn.dataset.item;
+          const product = products.find(p => p.item === item);
+          const rate = await getExchangeRate();
+          const kesPrice = (product.price * rate).toFixed(2);
+
+          document.getElementById('details-thumbnail').src = product.img;
+          document.getElementById('details-name').textContent = product.name;
+          document.getElementById('details-item-name').textContent = product.item;
+          document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
+          const embedDiv = document.getElementById('details-embed');
+          if (product.embed) {
+            embedDiv.innerHTML = `
+              <div class="embed-container">
+                <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
+              </div>
+            `;
+          } else {
+            embedDiv.innerHTML = '';
           }
+
+          const modal = document.getElementById('details-modal');
+          modal.classList.remove('hidden');
+          document.body.classList.add('popup-active');
+
+          const buyNowBtn = document.getElementById('details-buy-now');
+          buyNowBtn.dataset.item = item;
+          buyNowBtn.dataset.kesPrice = kesPrice;
+          buyNowBtn.onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            showPaymentModal(product, kesPrice);
+            const confirmPaymentBtn = document.getElementById('confirm-payment');
+            confirmPaymentBtn.dataset.item = item;
+            confirmPaymentBtn.dataset.kesPrice = kesPrice;
+            const submitRefCodeBtn = document.getElementById('submit-ref-code');
+            submitRefCodeBtn.dataset.item = item;
+            submitRefCodeBtn.dataset.kesPrice = kesPrice;
+          };
+
+          const testPayBtn = document.getElementById('details-test-pay');
+          testPayBtn.classList.toggle('hidden', !TEST_MODE);
+          testPayBtn.dataset.item = item;
+          testPayBtn.dataset.kesPrice = kesPrice;
+          testPayBtn.onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            initiateTestPayment(product, product.price);
+          };
+
+          document.getElementById('details-close').onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+          };
         });
-      } else {
-        document.getElementById(`manual-payment-${product.id}`).classList.remove('hidden');
-        document.querySelector('.pay-now').onclick = () => showPaymentModal(product);
-      }
+      });
     }
 
-    async function downloadFile(url, name) {
-      const modal = document.getElementById('download-progress-modal');
-      const progressText = document.getElementById('download-progress-text');
-      const progressFill = document.getElementById('download-progress-fill');
-      const errorText = document.getElementById('download-error');
-      modal.classList.remove('hidden');
-      progressText.textContent = 'Starting download...';
-      errorText.classList.add('hidden');
-      progressFill.style.width = '0%';
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Download failed');
-        const blob = await response.blob();
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = name;
-        link.click();
-        URL.revokeObjectURL(link.href);
-        progressText.textContent = 'Download complete!';
-        progressFill.style.width = '100%';
-        setTimeout(() => modal.classList.add('hidden'), 1000);
-        return true;
-      } catch (error) {
-        progressText.textContent = 'Download failed.';
-        errorText.textContent = error.message;
-        errorText.classList.remove('hidden');
-        progressFill.style.width = '0%';
-        setTimeout(() => modal.classList.add('hidden'), 3000);
-        return false;
-      }
+    function debounce(func, wait) {
+      let timeout;
+      return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+      };
     }
 
-    async function showPaymentModal(product) {
+    const debouncedFilterProducts = debounce((category) => {
+      const search = document.getElementById('search-bar')?.value || document.getElementById('mobile-search-bar')?.value || '';
+      renderProducts(category, search);
+    }, 300);
+
+    function filterProducts(category) {
+      debouncedFilterProducts(category);
+    }
+
+    async function showPaymentModal(product, kesPrice) {
       const modal = document.getElementById('payment-modal');
       document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
-      document.getElementById('mpesa-till-number').textContent = settings.mpesa_till_number || '4933614';
-      document.getElementById('payment-amount').textContent = `Amount: ${product.price_kes} KES`;
+      document.getElementById('mpesa-till-number').textContent = settings.mpesaTill || '4933614';
+      document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
       modal.classList.remove('hidden');
       document.body.classList.add('popup-active');
 
-      let timeLeft = 10 * 60; // 10 minutes
+      let timeLeft = 10 * 60;
       const timerText = document.getElementById('timer-text');
       const timerBar = document.getElementById('timer-bar');
 
@@ -696,10 +1041,12 @@
 
       document.getElementById('confirm-payment').onclick = () => {
         clearInterval(countdown);
+        const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+        document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
+        localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
         modal.classList.add('hidden');
         document.body.classList.remove('popup-active');
-        alert('Please contact support to confirm your payment.');
-        window.location.href = WHATSAPP_REDIRECT;
+        showRefCodeModal(product, kesPrice);
       };
 
       document.getElementById('payment-cancel').onclick = () => {
@@ -709,8 +1056,441 @@
       };
     }
 
+    async function initiateTestPayment(product, price) {
+      try {
+        const response = await fetchWithTimeout(`${BASE_URL}/deliver-bot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            item: product.item,
+            price: price,
+            payment_method: 'test'
+          }),
+          credentials: 'include'
+        }, 15000);
+
+        const data = await response.json();
+        if (response.ok && data.success && data.downloadLink) {
+          await downloadFile(data.downloadLink, product.name);
+        } else {
+          throw new Error(data.error || 'Failed to initiate test payment');
+        }
+      } catch (error) {
+        console.error('Error initiating test payment:', error.message);
+        showStatusModal({ item: product.item }, null, `Test payment failed: ${error.message}. Contact support.`, false);
+      }
+    }
+
+    function showRefCodeModal(product, kesPrice) {
+      const modal = document.getElementById('ref-code-modal');
+      modal.classList.remove('hidden');
+      document.body.classList.add('popup-active');
+
+      const refCodeInput = document.getElementById('ref-code-input');
+      refCodeInput.value = localStorage.getItem(`payment_${product.item}_refCode`) || '';
+
+      document.getElementById('submit-ref-code').onclick = async () => {
+        const refCode = refCodeInput.value.trim();
+        if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
+          alert('Please enter a valid MPESA ref code (8-12 alphanumeric characters).');
+          return;
+        }
+
+        try {
+          const response = await fetchWithTimeout(`${BASE_URL}/api/submit-ref`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              item: product.item,
+              refCode,
+              amount: kesPrice,
+              timestamp: new Date().toISOString()
+            }),
+            credentials: 'include'
+          }, 15000);
+
+          const data = await response.json();
+          if (response.ok && data.success) {
+            localStorage.setItem(`payment_${product.item}_refCode`, refCode);
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            await showStatusModal(product, refCode);
+          } else {
+            throw new Error(data.error || `Failed to submit ref code: ${response.status}`);
+          }
+        } catch (error) {
+          console.error('Error submitting ref code:', error.message);
+          alert(`Error submitting ref code: ${error.message}. Please try again or contact support at ${settings.supportEmail}.`);
+        }
+      };
+
+      document.getElementById('ref-code-cancel').onclick = () => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
+    }
+
+    async function showStatusModal(product, refCode, initialMessage = 'Confirming payment...', showRetry = true) {
+      const modal = document.getElementById('status-modal');
+      const statusMessage = document.getElementById('status-message');
+      const statusTimerText = document.getElementById('status-timer-text');
+      const statusTimerBar = document.getElementById('status-timer-bar');
+      const retryBtn = document.getElementById('status-retry');
+      statusMessage.innerHTML = initialMessage;
+      modal.classList.remove('hidden');
+      document.body.classList.add('popup-active');
+      retryBtn.classList.add('hidden');
+
+      let timeLeft = 5 * 60;
+      const pollInterval = 15;
+      let elapsed = 0;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      const countdown = setInterval(async () => {
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          statusMessage.innerHTML = `Confirmation timed out. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+          if (showRetry && retryCount < maxRetries) {
+            retryBtn.classList.remove('hidden');
+            retryBtn.onclick = () => {
+              retryCount++;
+              modal.classList.add('hidden');
+              document.body.classList.remove('popup-active');
+              showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+            };
+          } else {
+            setTimeout(() => {
+              modal.classList.add('hidden');
+              document.body.classList.remove('popup-active');
+              clearPaymentCookie(product.item);
+              window.location.href = WHATSAPP_REDIRECT;
+            }, 3000);
+          }
+          return;
+        }
+
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const percentage = (timeLeft / (5 * 60)) * 100;
+        statusTimerBar.style.width = `${percentage}%`;
+
+        elapsed += 1;
+        if (refCode && elapsed % pollInterval === 0) {
+          try {
+            const statusRes = await fetchWithTimeout(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, {
+              credentials: 'include',
+              headers: { 'X-Debug-Source': 'Client-Polling' }
+            }, 10000);
+            const data = await statusRes.json();
+
+            if (!statusRes.ok) {
+              if (statusRes.status === 403) {
+                clearInterval(countdown);
+                statusMessage.innerHTML = `Access denied. This ref code may have already been used. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                }, 3000);
+                return;
+              }
+              throw new Error(data.error || `HTTP error! Status: ${statusRes.status}`);
+            }
+
+            if (data.success && data.status !== 'pending') {
+              clearInterval(countdown);
+              if (data.status === 'confirmed') {
+                statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
+                const downloadSuccess = await downloadFile(data.downloadLink, product.name);
+                if (downloadSuccess) {
+                  setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    clearPaymentCookie(product.item);
+                  }, 2000);
+                } else {
+                  statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                  if (showRetry && retryCount < maxRetries) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.onclick = () => {
+                      retryCount++;
+                      modal.classList.add('hidden');
+                      document.body.classList.remove('popup-active');
+                      showStatusModal(product, refCode, 'Retrying download...', showRetry);
+                    };
+                  } else {
+                    setTimeout(() => {
+                      modal.classList.add('hidden');
+                      document.body.classList.remove('popup-active');
+                      clearPaymentCookie(product.item);
+                    }, 3000);
+                  }
+                }
+              } else if (data.status === 'no payment') {
+                clearInterval(countdown);
+                statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                }, 3000);
+              } else if (data.status === 'partial payment') {
+                clearInterval(countdown);
+                statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                  window.location.href = WHATSAPP_REDIRECT;
+                }, 3000);
+              } else {
+                statusMessage.textContent = 'Unknown status received. Please wait...';
+              }
+            }
+          } catch (error) {
+            console.error('Error checking order status:', error.message);
+            statusMessage.innerHTML = `Order Status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+            if (showRetry && retryCount < maxRetries) {
+              retryBtn.classList.remove('hidden');
+              retryBtn.onclick = () => {
+                retryCount++;
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+              };
+            }
+          }
+        }
+        timeLeft--;
+      }, 1000);
+    }
+
+    function clearPaymentCookie(item) {
+      document.cookie = `payment_${item}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+      localStorage.removeItem(`payment_${item}_refCode`);
+      localStorage.removeItem(`payment_${item}_kesPrice`);
+      console.log(`Cleared payment state for item ${item}`);
+    }
+
+    async function downloadFile(downloadLink, fileNameBase) {
+      const modal = document.getElementById('download-progress-modal');
+      const progressText = document.getElementById('download-progress-text');
+      const progressFill = document.getElementById('download-progress-fill');
+      const errorText = document.getElementById('download-error');
+      
+      modal.style.display = 'flex';
+      document.body.classList.add('popup-active');
+      progressText.textContent = 'Starting download...';
+      errorText.style.display = 'none';
+      progressFill.style.width = '0%';
+
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', downloadLink, true);
+        xhr.responseType = 'blob';
+        xhr.withCredentials = true;
+
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            progressFill.style.width = `${percentComplete}%`;
+            progressText.textContent = `Downloading... ${Math.round(percentComplete)}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            const contentDisposition = xhr.getResponseHeader('Content-Disposition');
+            let fileName = fileNameBase;
+            if (contentDisposition) {
+              const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+              if (fileNameMatch && fileNameMatch[1]) {
+                fileName = fileNameMatch[1];
+              }
+            }
+
+            const url = window.URL.createObjectURL(xhr.response);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            progressText.textContent = 'Download complete!';
+            setTimeout(() => {
+              modal.style.display = 'none';
+              document.body.classList.remove('popup-active');
+            }, 1000);
+            resolve(true);
+          } else {
+            progressText.textContent = 'Download failed.';
+            errorText.textContent = `Error: ${xhr.statusText || 'Unknown error'}. Contact support.`;
+            errorText.style.display = 'block';
+            modal.style.display = 'none';
+            document.body.classList.remove('popup-active');
+            resolve(false);
+          }
+        };
+
+        xhr.onerror = () => {
+          progressText.textContent = 'Download failed.';
+          errorText.textContent = 'Network error occurred. Please try again or contact support.';
+          errorText.style.display = 'block';
+          modal.style.display = 'none';
+          document.body.classList.remove('popup-active');
+          resolve(false);
+        };
+
+        xhr.send();
+      });
+    }
+
+    function updateFooter() {
+      document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('support-email').textContent = settings.supportEmail;
+      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+      const socialLinks = document.getElementById('social-links');
+      socialLinks.innerHTML = '';
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            socialLinks.appendChild(a);
+          }
+        });
+      }
+
+      const staticLinks = document.getElementById('static-links');
+      staticLinks.innerHTML = '';
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = 'text-gray-500 hover:text-green-600';
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
+            document.getElementById('static-page-content').innerHTML = page.content;
+            modal.classList.remove('hidden');
+            document.body.classList.add('popup-active');
+          });
+          staticLinks.appendChild(a);
+        });
+
+      document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('mobile-support-email').textContent = settings.supportEmail;
+      document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+      const mobileSocialLinks = document.getElementById('mobile-social-links');
+      mobileSocialLinks.innerHTML = '';
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600 text-sm';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            mobileSocialLinks.appendChild(a);
+          }
+        });
+      }
+
+      const mobileStaticLinks = document.getElementById('mobile-static-links');
+      mobileStaticLinks.innerHTML = '';
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = "text-gray-500 hover:text-green-600 text-sm";
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
+            document.getElementById('static-page-content').innerHTML = page.content;
+            modal.classList.remove('hidden');
+            document.body.classList.add('popup-active');
+            document.getElementById('mobile-menu').classList.remove('open');
+          });
+          mobileStaticLinks.appendChild(a);
+        });
+
+      document.getElementById('static-page-close').onclick = () => {
+        document.getElementById('static-page-modal').classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
+    }
+
+    function showUrgentMessage() {
+      const urgentMessage = document.getElementById('urgent-message');
+      const urgentText = document.getElementById('urgent-text');
+      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+        urgentText.textContent = settings.urgentMessage.text;
+        urgentMessage.classList.remove('hidden');
+      }
+      document.getElementById('urgent-close').onclick = () => {
+        urgentMessage.classList.add('hidden');
+      };
+    }
+
+    async function checkPaymentCookie() {
+      const cookies = document.cookie.split(';');
+      const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
+      if (paymentCookie) {
+        const [itemKey, status] = paymentCookie.split('=');
+        const item = itemKey.replace('payment_', '');
+        if (status === 'initiated') {
+          const product = products.find(p => p.item === item);
+          if (product) {
+            const kesPrice = localStorage.getItem(`payment_${item}_kesPrice`);
+            if (kesPrice) {
+              showRefCodeModal(product, kesPrice);
+            } else {
+              const rate = await getExchangeRate();
+              const newKesPrice = (product.price * rate).toFixed(2);
+              localStorage.setItem(`payment_${item}_kesPrice`, newKesPrice);
+              showRefCodeModal(product, newKesPrice);
+            }
+          }
+        }
+      }
+    }
+
+    function startPolling() {
+      setInterval(async () => {
+        const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal']
+          .some(modalId => !document.getElementById(modalId).classList.contains('hidden') || document.getElementById(modalId).style.display === 'flex');
+        if (isUserActive) {
+          console.log('Skipping polling: User is in an active modal');
+          return;
+        }
+        const success = await fetchData();
+        if (success) {
+          renderNavLinks();
+          renderProducts();
+          updateFooter();
+          showUrgentMessage();
+        }
+      }, 10 * 1000);
+    }
+
     function isInAppBrowser() {
       const ua = navigator.userAgent.toLowerCase();
+      console.log("User Agent:", navigator.userAgent);
       const inAppPatterns = [
         'tiktok', 'bytedancewebview',
         'twitter', 'twitterandroid', 'twitterios',
@@ -734,6 +1514,7 @@
       const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
       const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
       const result = (isAppBrowser || isWebView) && !isRegularBrowser;
+      console.log('Is In-App Browser:', result);
       return result;
     }
 
@@ -743,8 +1524,8 @@
         popup.className = "popup";
         popup.innerHTML = `
           <div class="popup-content">
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Open in Browser</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-300 mt-2">
+            <h3>Open in Browser</h3>
+            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
               For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
             </p>
             <button class="browser-popup-button cancel">Okay</button>
@@ -752,6 +1533,7 @@
         document.body.appendChild(popup);
 
         popup.querySelector(".cancel").addEventListener("click", () => {
+          console.log('Okay button clicked');
           popup.remove();
           allowInAppBrowser = true;
           proceedWithInit();
@@ -762,59 +1544,33 @@
     }
 
     async function proceedWithInit() {
-      await fetchData();
-      initTheme();
-      renderNavLinks();
-      renderSocialLinks();
-      document.getElementById('site-logo').src = settings.logo_url || '/default-logo.png';
-      document.getElementById('copyright-text').textContent = settings.footer_copyright || '© 2025 BotBlitz Store. All rights reserved.';
-      document.getElementById('mobile-copyright-text').textContent = settings.footer_copyright || '© 2025 BotBlitz Store. All rights reserved.';
-      document.getElementById('mobile-support-email').href = `mailto:${settings.support_email}`;
-      document.getElementById('mobile-support-email').textContent = settings.support_email || 'support@botblitz.store';
-      if (settings.urgent_message) {
-        document.getElementById('urgent-text').textContent = settings.urgent_message;
-        document.getElementById('urgent-message').classList.remove('hidden');
+      const success = await fetchData();
+      if (success) {
+        renderNavLinks();
+        renderProducts();
+        updateFooter();
+        showUrgentMessage();
+        checkPaymentCookie();
+        startPolling();
+        await fetchModalContent();
       }
-      document.getElementById('urgent-close').onclick = () => {
-        document.getElementById('urgent-message').classList.add('hidden');
+
+      document.getElementById('mobile-menu-button').onclick = () => {
+        document.getElementById('mobile-menu').classList.add('open');
       };
-      const mobileMenuButton = document.getElementById('mobile-menu-button');
-      const mobileMenuClose = document.getElementById('mobile-menu-close');
-      const mobileMenu = document.getElementById('mobile-menu');
-      const mobileBackdrop = document.getElementById('mobile-backdrop');
-      mobileMenuButton.onclick = () => {
-        mobileMenu.classList.add('open');
-        mobileBackdrop.classList.add('open');
-        document.body.classList.add('popup-active');
+
+      document.getElementById('mobile-menu-close').onclick = () => {
+        document.getElementById('mobile-menu').classList.remove('open');
       };
-      mobileMenuClose.onclick = () => {
-        mobileMenu.classList.remove('open');
-        mobileBackdrop.classList.remove('open');
-        document.body.classList.remove('popup-active');
-      };
-      mobileBackdrop.onclick = () => {
-        mobileMenu.classList.remove('open');
-        mobileBackdrop.classList.remove('open');
-        document.body.classList.remove('popup-active');
-      };
-      document.getElementById('search-bar').addEventListener('input', () => {
-        const category = new URLSearchParams(window.location.search).get('category') || 'all';
-        renderProducts(category, document.getElementById('search-bar').value, document.getElementById('sort-select').value);
+
+      const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
+      searchBars.forEach(searchBar => {
+        searchBar.addEventListener('input', debounce(() => {
+          const search = searchBar.value;
+          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+          renderProducts(category, search);
+        }, 300));
       });
-      document.getElementById('sort-select').onchange = () => {
-        const category = new URLSearchParams(window.location.search).get('category') || 'all';
-        renderProducts(category, document.getElementById('search-bar').value, document.getElementById('sort-select').value);
-      };
-      const path = window.location.pathname;
-      if (path.startsWith('/product/')) {
-        const slug = path.split('/')[2];
-        await renderProductPage(slug);
-      } else if (path.startsWith('/category/')) {
-        const category = path.split('/')[2];
-        await renderProducts(category);
-      } else {
-        await renderProducts();
-      }
     }
 
     async function init() {
@@ -823,5 +1579,9 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+</script>
 </body>
 </html>
