@@ -280,10 +280,11 @@ async function saveData() {
     // Save products
     await supabase.from('products').delete().neq('item', null); // Clear existing
     if (cachedData.products.length > 0) {
-      await supabase.from('products').insert(
+      const { error: productsError } = await supabase.from('products').insert(
         cachedData.products.map(p => ({
           item: p.item,
           file_id: p.fileId,
+          original_file_name: p.originalFileName || 'unknown', // Add this field, fallback if missing
           price: p.price,
           name: p.name,
           description: p.desc,
@@ -294,29 +295,45 @@ async function saveData() {
           is_archived: p.isArchived
         }))
       );
+      if (productsError) {
+        console.error(`[${new Date().toISOString()}] Failed to save products:`, productsError.message);
+        throw new Error('Failed to save products: ' + productsError.message);
+      }
     }
 
     // Save settings
     await supabase.from('settings').delete().neq('key', null);
-    await supabase.from('settings').insert(
+    const { error: settingsError } = await supabase.from('settings').insert(
       Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
         value: typeof value === 'object' ? JSON.stringify(value) : value
       }))
     );
+    if (settingsError) {
+      console.error(`[${new Date().toISOString()}] Failed to save settings:`, settingsError.message);
+      throw new Error('Failed to save settings: ' + settingsError.message);
+    }
 
     // Save categories
     await supabase.from('categories').delete().neq('name', null);
     if (cachedData.categories.length > 0) {
-      await supabase.from('categories').insert(
+      const { error: categoriesError } = await supabase.from('categories').insert(
         cachedData.categories.map(c => ({ name: c }))
       );
+      if (categoriesError) {
+        console.error(`[${new Date().toISOString()}] Failed to save categories:`, categoriesError.message);
+        throw new Error('Failed to save categories: ' + categoriesError.message);
+      }
     }
 
     // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
-      await supabase.from('static_pages').insert(cachedData.staticPages);
+      const { error: pagesError } = await supabase.from('static_pages').insert(cachedData.staticPages);
+      if (pagesError) {
+        console.error(`[${new Date().toISOString()}] Failed to save static pages:`, pagesError.message);
+        throw new Error('Failed to save static pages: ' + pagesError.message);
+      }
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
@@ -326,7 +343,6 @@ async function saveData() {
     throw error;
   }
 }
-
 // Delete orders older than 3 days
 async function deleteOldOrders() {
   try {
