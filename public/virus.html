@@ -293,7 +293,7 @@
 
   <!-- Login Page -->
   <div id="login-page" class="min-h-screen flex items-center justify-center">
-    <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-md">
+    <form id="login-form" class="bg-white rounded-lg p-6 max-w-sm w-full shadow-md">
       <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">BotBlitz Store Admin Login</h3>
       <div class="mb-4">
         <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
@@ -304,8 +304,8 @@
         <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
         <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500 hover:text-green-600">Show</button>
       </div>
-      <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
-    </div>
+      <button type="submit" id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
+    </form>
   </div>
 
   <!-- Admin Panel (hidden on login) -->
@@ -696,9 +696,9 @@
       document.body.setAttribute('data-theme', theme);
       localStorage.setItem('theme', theme);
       const icon = document.getElementById('theme-icon');
-      icon.innerHTML = theme === 'dark' ?
-        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>' :
-        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+      icon.innerHTML = theme === 'dark'
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
     }
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const savedTheme = localStorage.getItem('theme') || (prefersDark ? 'dark' : 'light');
@@ -770,7 +770,8 @@
       }
     });
 
-    document.getElementById('login-submit').addEventListener('click', async () => {
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value.trim();
       const btn = document.getElementById('login-submit');
@@ -794,7 +795,7 @@
         }
       } catch (error) {
         console.error('Error logging in:', error);
-        alert('Failed to login. Please try again.');
+        alert('Failed to login. Please check your network or try again.');
       }
     });
 
@@ -875,7 +876,7 @@
         select.addEventListener('change', async () => {
           const id = select.dataset.id;
           const status = select.value;
-          const originalText = select.value;
+          const originalText = select.options[select.selectedIndex].text;
           showButtonFeedback(select, 'Updating...', originalText);
 
           try {
@@ -1373,123 +1374,118 @@
       });
 
       try {
-const response = await fetch('/api/update-socials', {
-method: 'POST',
-body: formData,
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
-const url = data.social_links.find(link => link.platform === platform)?.url;
-const logo_url = data.social_links.find(link => link.platform === platform)?.logo_url;
-document.getElementById(platform).value = url || '';
-document.getElementById(${platform}-logo-preview).innerHTML = logo_url ? <img src="${logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md"> : '';
-});
-alert('Social links saved!');
-} else {
-throw new Error(result.error || 'Failed to save social links');
-}
-} catch (error) {
-console.error('Error saving social links:', error);
-alert('Failed to save social links. Please try again.');
-}
-});
+        const response = await fetch('/api/update-socials', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          ['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
+            const link = data.social_links.find(l => l.platform === platform);
+            document.getElementById(platform).value = link?.url || '';
+            document.getElementById(`${platform}-logo-preview`).innerHTML = link?.logo_url ? `<img src="${link.logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md">` : '';
+          });
+          alert('Social links saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save social links');
+        }
+      } catch (error) {
+        console.error('Error saving social links:', error);
+        alert('Failed to save social links. Please try again.');
+      }
+    });
 
-document.querySelectorAll('.delete-social-logo').forEach(btn => {
-btn.addEventListener('click', async () => {
-const platform = btn.dataset.platform;
-if (!confirm(Are you sure you want to delete the ${platform} logo?)) return;
-showButtonFeedback(btn, 'Deleting...', 'Delete Logo');
-try {
-const response = await fetch('/api/delete-social-logo', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ platform }),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-document.getElementById(${platform}-logo-preview).innerHTML = '';
-alert(${platform} logo deleted successfully!);
-} else {
-throw new Error(result.error || Failed to delete ${platform} logo);
-}
-} catch (error) {
-console.error(Error deleting ${platform} logo:, error);
-alert(Failed to delete ${platform} logo. Please try again.);
-}
-});
-});
+    document.querySelectorAll('.delete-social-logo').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const platform = btn.dataset.platform;
+        if (!confirm(`Are you sure you want to delete the ${platform} logo?`)) return;
+        showButtonFeedback(btn, 'Deleting...', 'Delete Logo');
+        try {
+          const response = await fetch('/api/delete-social-logo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            await fetchData();
+            document.getElementById(`${platform}-logo-preview`).innerHTML = '';
+            alert(`${platform} logo deleted successfully!`);
+          } else {
+            throw new Error(result.error || `Failed to delete ${platform} logo`);
+          }
+        } catch (error) {
+          console.error(`Error deleting ${platform} logo:`, error);
+          alert(`Failed to delete ${platform} logo. Please try again.`);
+        }
+      });
+    });
 
-document.getElementById('save-payment-method').addEventListener('click', async () => {
-const btn = document.getElementById('save-payment-method');
-showButtonFeedback(btn, 'Saving...', 'Save Payment Method');
-try {
-const response = await fetch('/api/update-settings', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-payment_method: document.getElementById('payment-method').value
-}),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-alert('Payment method saved!');
-} else {
-throw new Error(result.error || 'Failed to save payment method');
-}
-} catch (error) {
-console.error('Error saving payment method:', error);
-alert('Failed to save payment method. Please try again.');
-}
-});
+    document.getElementById('save-payment-method').addEventListener('click', async () => {
+      const btn = document.getElementById('save-payment-method');
+      showButtonFeedback(btn, 'Saving...', 'Save Payment Method');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payment_method: document.getElementById('payment-method').value
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('Payment method saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save payment method');
+        }
+      } catch (error) {
+        console.error('Error saving payment method:', error);
+        alert('Failed to save payment method. Please try again.');
+      }
+    });
 
-document.getElementById('save-fallback-rate').addEventListener('click', async () => {
-const btn = document.getElementById('save-fallback-rate');
-showButtonFeedback(btn, 'Saving...', 'Save Rate');
-try {
-const response = await fetch('/api/update-settings', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-fallback_exchange_rate: parseFloat(document.getElementById('fallback-rate').value)
-}),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-alert('Fallback rate saved!');
-} else {
-throw new Error(result.error || 'Failed to save fallback rate');
-}
-} catch (error) {
-console.error('Error saving fallback rate:', error);
-alert('Failed to save fallback rate. Please try again.');
-}
-});
+    document.getElementById('save-fallback-rate').addEventListener('click', async () => {
+      const btn = document.getElementById('save-fallback-rate');
+      showButtonFeedback(btn, 'Saving...', 'Save Rate');
+      try {
+        const response = await fetch('/api/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fallback_exchange_rate: parseFloat(document.getElementById('fallback-rate').value)
+          }),
+          credentials: 'include'
+        });
+        const result = await response.json();
+        if (result.success) {
+          await fetchData();
+          alert('Fallback rate saved!');
+        } else {
+          throw new Error(result.error || 'Failed to save fallback rate');
+        }
+      } catch (error) {
+        console.error('Error saving fallback rate:', error);
+        alert('Failed to save fallback rate. Please try again.');
+      }
+    });
 
-document.getElementById('change-credentials').addEventListener('click', async () => {
-const btn = document.getElementById('change-credentials');
-showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-const email = document.getElementById('new-email').value.trim();
-const password = document.getElementById('new-password').value.trim();
-const confirmPassword = document.getElementById('confirm-password').value.trim();
-if (!email || !password || !confirmPassword) {
-alert('Please fill in all fields.');
-return;
-}
-if (password !== confirmPassword) {
-alert('Passwords do not match.');
+    document.getElementById('change-credentials').addEventListener('click', async () => {
+      const btn = document.getElementById('change-credentials');
+      showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+      const email = document.getElementById('new-email').value.trim();
+      const password = document.getElementById('new-password').value.trim();
+      const confirmPassword = document.getElementById('confirm-password').value.trim();
+      if (!email || !password || !confirmPassword || password !== confirmPassword) {
+alert('Please fill in all fields and ensure passwords match.');
 return;
 }
 try {
-const response = await fetch('/api/change-credentials', {
+const response = await fetch('/api/update-credentials', {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify({ email, password }),
@@ -1500,6 +1496,7 @@ if (result.success) {
 document.getElementById('new-email').value = '';
 document.getElementById('new-password').value = '';
 document.getElementById('confirm-password').value = '';
+await fetchData();
 alert('Credentials updated successfully!');
 } else {
 throw new Error(result.error || 'Failed to update credentials');
@@ -1510,7 +1507,43 @@ alert('Failed to update credentials. Please try again.');
 }
 });
 
-// Static Pages
+// Static pages
+document.getElementById('add-page').addEventListener('click', async () => {
+const btn = document.getElementById('add-page');
+showButtonFeedback(btn, 'Adding...', 'Add Page');
+const title = document.getElementById('page-title').value.trim();
+const slug = document.getElementById('page-slug').value.trim();
+const meta = document.getElementById('page-meta').value.trim();
+const content = pageQuill.root.innerHTML;
+if (!title || !slug || !content) {
+alert('Please fill in all required fields.');
+return;
+}
+try {
+const response = await fetch('/api/add-page', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ title, slug, meta, content }),
+credentials: 'include'
+});
+const result = await response.json();
+if (result.success) {
+document.getElementById('page-title').value = '';
+document.getElementById('page-slug').value = '';
+document.getElementById('page-meta').value = '';
+pageQuill.setContents([]);
+await fetchData();
+renderPages();
+alert('Page added successfully!');
+} else {
+throw new Error(result.error || 'Failed to add page');
+}
+} catch (error) {
+console.error('Error adding page:', error);
+alert('Failed to add page. Please try again.');
+}
+});
+
 function renderPages() {
 const pageList = document.getElementById('page-list');
 pageList.innerHTML = '';
@@ -1520,7 +1553,7 @@ li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
 li.innerHTML = `
 
 ${page.title}
-Slug: ${page.slug}
+Slug: ${page.slug} | Meta: ${page.meta || 'N/A'}
 
 <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-id="${page.id}">Edit</button> <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-id="${page.id}">Delete</button>
 `; pageList.appendChild(li); });
@@ -1534,9 +1567,8 @@ return;
 }
 document.getElementById('page-title').value = page.title;
 document.getElementById('page-slug').value = page.slug;
-document.getElementById('page-meta').value = page.meta_description || '';
+document.getElementById('page-meta').value = page.meta || '';
 pageQuill.root.innerHTML = page.content;
-document.getElementById('meta-counter').textContent = ${140 - (page.meta_description || '').length} characters remaining;
 document.getElementById('add-page').textContent = 'Update Page';
 document.getElementById('add-page').dataset.id = id;
 });
@@ -1570,100 +1602,48 @@ alert('Failed to delete page. Please try again.');
 });
 }
 
-document.getElementById('add-page').addEventListener('click', async () => {
-const btn = document.getElementById('add-page');
-const isUpdate = btn.textContent === 'Update Page';
-showButtonFeedback(btn, isUpdate ? 'Updating...' : 'Adding...', isUpdate ? 'Update Page' : 'Add Page');
-const title = document.getElementById('page-title').value.trim();
-const slug = document.getElementById('page-slug').value.trim();
-const metaDescription = document.getElementById('page-meta').value.trim();
-const content = pageQuill.root.innerHTML;
-if (!title || !slug || !content) {
-alert('Please fill in all required fields.');
-return;
-}
-try {
-const endpoint = isUpdate ? '/api/update-page' : '/api/add-page';
-const body = isUpdate
-? { id: btn.dataset.id, title, slug, meta_description: metaDescription, content }
-: { title, slug, meta_description: metaDescription, content };
-const response = await fetch(endpoint, {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(body),
-credentials: 'include'
-});
-const result = await response.json();
-if (result.success) {
-await fetchData();
-renderPages();
-document.getElementById('page-title').value = '';
-document.getElementById('page-slug').value = '';
-document.getElementById('page-meta').value = '';
-pageQuill.setContents([]);
-btn.textContent = 'Add Page';
-delete btn.dataset.id;
-alert(Page ${isUpdate ? 'updated' : 'added'} successfully!);
-} else {
-throw new Error(result.error || Failed to ${isUpdate ? 'update' : 'add'} page);
-}
-} catch (error) {
-console.error(Error ${isUpdate ? 'updating' : 'adding'} page:, error);
-alert(Failed to ${isUpdate ? 'update' : 'add'} page. Please try again.);
-}
-});
-
 // Character counters
-document.getElementById('name').addEventListener('input', () => {
-const counter = document.getElementById('name-counter');
-const remaining = 100 - document.getElementById('name').value.length;
+function setupCounter(inputId, counterId, maxLength) {
+const input = document.getElementById(inputId);
+const counter = document.getElementById(counterId);
+input.addEventListener('input', () => {
+const remaining = maxLength - input.value.length;
 counter.textContent = ${remaining} characters remaining;
+if (remaining < 0) counter.classList.add('text-red-600');
+else counter.classList.remove('text-red-600');
 });
-
-document.getElementById('edit-name').addEventListener('input', () => {
-const counter = document.getElementById('edit-name-counter');
-const remaining = 100 - document.getElementById('edit-name').value.length;
-counter.textContent = ${remaining} characters remaining;
-});
-
-document.getElementById('page-meta').addEventListener('input', () => {
-const counter = document.getElementById('meta-counter');
-const remaining = 140 - document.getElementById('page-meta').value.length;
-counter.textContent = ${remaining} characters remaining;
-});
+}
+setupCounter('name', 'name-counter', 100);
+setupCounter('edit-name', 'edit-name-counter', 100);
+setupCounter('page-meta', 'meta-counter', 140);
 
 // Initialize
 async function initialize() {
 const isAuthenticated = await checkSession();
-if (!isAuthenticated) {
-document.getElementById('login-page').classList.remove('hidden');
-document.getElementById('admin-panel').classList.add('hidden');
-document.getElementById('admin-nav').classList.add('hidden');
-return;
-}
+if (isAuthenticated) {
 document.getElementById('login-page').classList.add('hidden');
 document.getElementById('admin-panel').classList.remove('hidden');
 document.getElementById('admin-nav').classList.remove('hidden');
-const success = await fetchData();
-if (success) {
-renderBots();
+await fetchData();
 renderCategories();
+renderBots();
 renderPages();
-document.getElementById('support-email').value = data.settings.support_email || '';
-document.getElementById('copyright-text').value = data.settings.footer_copyright || '';
-document.getElementById('mpesa-till').value = data.settings.mpesa_till_number || '';
-document.getElementById('payment-method').value = data.settings.payment_method || 'payhero';
-document.getElementById('fallback-rate').value = data.settings.fallback_exchange_rate || '';
-document.getElementById('urgent-toggle').checked = data.settings.urgent_message?.enabled || false;
-urgentQuill.root.innerHTML = data.settings.urgent_message?.text || '';
-urgentQuill.enable(data.settings.urgent_message?.enabled || false);
-document.getElementById('logo-preview').innerHTML = data.settings.logo_url ? <img src="${data.settings.logo_url}" alt="Logo" class="w-32 h-auto rounded-md"> : '';
-['tiktok', 'instagram', 'x', 'facebook', 'youtube'].forEach(platform => {
-const link = data.social_links.find(l => l.platform === platform);
-document.getElementById(platform).value = link?.url || '';
-document.getElementById(${platform}-logo-preview).innerHTML = link?.logo_url ? <img src="${link.logo_url}" alt="${platform} logo" class="w-16 h-16 rounded-md"> : '';
-});
+document.querySelector('.nav-link').click();
 startOrdersPolling();
+['support-email', 'copyright-text', 'mpesa-till', 'tiktok', 'instagram', 'x', 'facebook', 'youtube', 'payment-method', 'fallback-rate'].forEach(id => {
+const el = document.getElementById(id);
+if (el && data.settings[id]) el.value = data.settings[id];
+});
+const urgentMessage = data.settings.urgent_message || {};
+document.getElementById('urgent-toggle').checked = urgentMessage.enabled || false;
+urgentQuill.root.innerHTML = urgentMessage.text || '';
+urgentQuill.enable(urgentMessage.enabled || false);
+const logoUrl = data.settings.logo_url;
+if (logoUrl) document.getElementById('logo-preview').innerHTML = <img src="${logoUrl}" alt="Logo" class="w-32 h-auto rounded-md">;
+data.social_links.forEach(link => {
+document.getElementById(link.platform).value = link.url || '';
+if (link.logo_url) document.getElementById(${link.platform}-logo-preview).innerHTML = <img src="${link.logo_url}" alt="${link.platform} logo" class="w-16 h-16 rounded-md">;
+});
 }
 }
 
