@@ -469,21 +469,40 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     const file = req.file;
     if (!file) throw new Error('No file uploaded');
 
-    const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const originalFileName = file.originalname; // Store the original file name
+    // Generate a unique prefix to avoid collisions
+    let attempts = 0;
+    let fileId;
+    let uploadSuccess = false;
+    const originalFileName = file.originalname; // e.g., "botfile.zip"
 
-    const { error: uploadError } = await supabase.storage
-      .from('bots')
-      .upload(fileId, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true
-      });
-    if (uploadError) throw uploadError;
+    while (attempts < 5 && !uploadSuccess) {
+      const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      fileId = `${uniquePrefix}_${originalFileName}`; // e.g., "1748355962817_4o58ow_botfile.zip"
+
+      const { error: uploadError } = await supabase.storage
+        .from('bots')
+        .upload(fileId, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false // Prevent overwriting existing files
+        });
+
+      if (uploadError) {
+        if (uploadError.statusCode === '409') { // Conflict: file already exists
+          attempts++;
+          continue;
+        }
+        throw uploadError;
+      }
+      uploadSuccess = true;
+    }
+
+    if (!uploadSuccess) {
+      throw new Error('Failed to upload file: too many collisions');
+    }
 
     const product = {
       item,
       fileId,
-      originalFileName, // Add to product object
       price: parseFloat(price),
       name,
       desc,
@@ -497,7 +516,6 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     await supabase.from('products').insert({
       item: product.item,
       file_id: product.fileId,
-      original_file_name: product.originalFileName, // Add to database
       price: product.price,
       name: product.name,
       description: product.desc,
@@ -508,7 +526,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
       is_archived: product.isArchived
     });
 
-    await loadData(); // Reload cache to reflect the new product
+    await loadData();
     res.json({ success: true, product: product });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
@@ -552,7 +570,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       .eq('item', item);
     if (deleteProductError) throw deleteProductError;
 
-    await loadData(); // Reload cache to reflect the deletion
+    await loadData();
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
@@ -838,14 +856,27 @@ app.get('/download/:fileId', async (req, res) => {
     const buffer = await fileData.arrayBuffer();
     const mimeType = fileData.type || 'application/octet-stream';
 
-    // Use the original file name if available
-    const originalFileName = product.original_file_name || `${item}.bin`;
-    res.setHeader('Content-Disposition', `attachment; filename="${originalFileName}"`);
+    // Extract the original file name from the file_id
+    // file_id format: "<timestamp>_<random>_botfile.zip"
+    const fileIdParts = fileId.split('_');
+    let finalFileName;
+    if (fileIdParts.length >= 3) {
+      // New format: <timestamp>_<random>_botfile.zip
+      finalFileName = fileIdParts.slice(2).join('_'); // Rejoin parts after the second underscore
+    } else {
+      // Old format: file_<timestamp>_<random> (or other unexpected formats)
+      finalFileName = `${item}.bin`;
+      console.warn(`[${new Date().toISOString()}] Old or invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
+    }
+
+    // Encode the file name for the Content-Disposition header
+    const encodedFileName = encodeURIComponent(finalFileName);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
     res.setHeader('Content-Type', mimeType);
 
     // Send the file
     res.send(Buffer.from(buffer));
-    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${originalFileName}`);
+    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${finalFileName}`);
 
     // Mark the order as downloaded after successful download
     await supabase
