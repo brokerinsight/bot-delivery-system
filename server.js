@@ -319,6 +319,7 @@ async function saveData() {
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
+    await loadData(); // Reload cache after saving
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
@@ -388,7 +389,7 @@ async function selfCheck() {
   if (fs.existsSync(indexPath)) {
     console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
   } else {
-    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
+    console.error(`[${new Date().toISOString()]] public/index.html NOT found at: ${indexPath}`);
   }
 
   async function pingRoutes() {
@@ -433,24 +434,24 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     cachedData = req.body;
-    if (Array.isArray(cachedData.categories)) {
-      const { data: existingCategories, error: catError } = await supabase
+
+    // Handle category deletions and updates
+    const { data: existingCategories, error: catError } = await supabase
+      .from('categories')
+      .select('name');
+    if (catError) throw catError;
+
+    const newCategories = cachedData.categories;
+    const deletedCategories = existingCategories
+      .map(c => c.name)
+      .filter(c => !newCategories.includes(c));
+
+    if (deletedCategories.length > 0) {
+      await supabase
         .from('categories')
-        .select('name');
-      if (catError) throw catError;
-
-      const newCategories = cachedData.categories;
-      const deletedCategories = existingCategories
-        .map(c => c.name)
-        .filter(c => !newCategories.includes(c));
-
-      if (deletedCategories.length > 0) {
-        await supabase
-          .from('categories')
-          .delete()
-          .in('name', deletedCategories);
-        console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
-      }
+        .delete()
+        .in('name', deletedCategories);
+      console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
     }
 
     await saveData();
@@ -469,7 +470,6 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     if (!file) throw new Error('No file uploaded');
 
     const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const filename = `${item}_${name}.${file.originalname.split('.').pop()}`;
     const { error: uploadError } = await supabase.storage
       .from('bots')
       .upload(fileId, file.buffer, {
@@ -491,8 +491,20 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
       isArchived: false
     };
 
-    cachedData.products.push(product);
-    await saveData();
+    await supabase.from('products').insert({
+      item: product.item,
+      file_id: product.fileId,
+      price: product.price,
+      name: product.name,
+      description: product.desc,
+      image: product.img,
+      category: product.category,
+      embed: product.embed,
+      is_new: product.isNew,
+      is_archived: product.isArchived
+    });
+
+    await loadData(); // Reload cache to reflect the new product
     res.json({ success: true, product: product });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
@@ -504,12 +516,17 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
 app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
-    const productIndex = cachedData.products.findIndex(p => p.item === item);
-    if (productIndex === -1) {
-      console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
-      return res.status(404).json({ success: false, error: 'Bot not found in cache' });
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
+      console.log(`[${new Date().toISOString()}] Bot not found in database: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
     }
-    const fileId = cachedData.products[productIndex].fileId;
+
+    const fileId = product.file_id;
 
     const { error: deleteFileError } = await supabase.storage
       .from('bots')
@@ -522,7 +539,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
       .eq('item', item);
     if (deleteProductError) throw deleteProductError;
 
-    cachedData.products.splice(productIndex, 1);
+    await loadData(); // Reload cache to reflect the deletion
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
@@ -548,8 +565,12 @@ async function sendOrderNotification(item, refCode, amount) {
 app.post('/api/submit-ref', async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) {
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
       console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
@@ -627,24 +648,28 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
     let downloadLink = null;
 
     if (status === 'confirmed' && !downloaded) {
-      const product = cachedData.products.find(p => p.item === item);
-      if (product) {
-        const { data: signedUrlData, error: urlError } = await supabase.storage
-          .from('bots')
-          .createSignedUrl(product.fileId, 60); // 60-second signed URL
-        if (urlError) throw urlError;
-        downloadLink = signedUrlData.signedUrl;
-
-        await supabase
-          .from('orders')
-          .update({ downloaded: true })
-          .eq('item', item)
-          .eq('ref_code', refCode);
-        console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
-      } else {
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('item', item)
+        .single();
+      if (productError || !product) {
         console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
         return res.status(500).json({ success: false, error: 'Product not found' });
       }
+
+      const { data: signedUrlData, error: urlError } = await supabase.storage
+        .from('bots')
+        .createSignedUrl(product.file_id, 60);
+      if (urlError) throw urlError;
+      downloadLink = signedUrlData.signedUrl;
+
+      await supabase
+        .from('orders')
+        .update({ downloaded: true })
+        .eq('item', item)
+        .eq('ref_code', refCode);
+      console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
     } else if (downloaded) {
       console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
       return res.status(403).json({ success: false, error: 'Ref code already used for download' });
@@ -696,15 +721,19 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
 app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) {
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
       console.log(`[${new Date().toISOString()}] Product not found for order confirmation: ${item}`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
     const { data: signedUrlData, error: urlError } = await supabase.storage
       .from('bots')
-      .createSignedUrl(product.fileId, 60);
+      .createSignedUrl(product.file_id, 60);
     if (urlError) throw urlError;
     const downloadLink = signedUrlData.signedUrl;
 
@@ -723,7 +752,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
+    console.error(`[${new Date().toISOString()]] Error confirming order:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
@@ -736,8 +765,12 @@ app.post('/deliver-bot', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required parameters: item, price, payment_method' });
     }
 
-    const product = cachedData.products.find(p => p.item === item);
-    if (!product) {
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
       console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
@@ -748,7 +781,7 @@ app.post('/deliver-bot', async (req, res) => {
 
     const { data: signedUrlData, error: urlError } = await supabase.storage
       .from('bots')
-      .createSignedUrl(product.fileId, 60);
+      .createSignedUrl(product.file_id, 60);
     if (urlError) throw urlError;
     const downloadLink = signedUrlData.signedUrl;
 
@@ -772,8 +805,12 @@ app.get('/download/:fileId', async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Access-Control-Allow-Headers', 'X-Debug-Source, Content-Type');
 
-  const product = cachedData.products.find(p => p.fileId === fileId);
-  if (!product) {
+  const { data: product, error: productError } = await supabase
+    .from('products')
+    .select('*')
+    .eq('file_id', fileId)
+    .single();
+  if (productError || !product) {
     console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
     return res.status(403).json({ success: false, error: 'Invalid file ID' });
   }
@@ -801,21 +838,17 @@ app.get('/download/:fileId', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    // Select both key and value to access them in the result
     const { data: adminSettings, error } = await supabase
       .from('settings')
       .select('key, value')
       .in('key', ['adminEmail', 'adminPassword']);
     if (error) throw error;
 
-    // Debug: Log the raw data from Supabase
     console.log(`[${new Date().toISOString()}] Admin settings from DB:`, adminSettings);
 
-    // Find adminEmail and adminPasswordHash
     const adminEmail = adminSettings.find(s => s.key === 'adminEmail')?.value;
     const adminPasswordHash = adminSettings.find(s => s.key === 'adminPassword')?.value;
 
-    // Debug: Log the extracted values
     console.log(`[${new Date().toISOString()}] Admin Email: ${adminEmail}, Password Hash: ${adminPasswordHash}`);
 
     if (
@@ -835,6 +868,7 @@ app.post('/api/login', async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to login' });
   }
 });
+
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
   let page = cachedData.staticPages.find(p => p.slug === slug);
@@ -908,7 +942,7 @@ app.get('/:slug', async (req, res) => {
         </div>
       </nav>
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8"}>${page.title}</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
         <div class="prose">${htmlContent}</div>
       </main>
     </body>
