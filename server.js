@@ -9,6 +9,8 @@ const path = require('path');
 const sanitizeHtml = require('sanitize-html');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+// Add multer for file uploads
+const multer = require('multer');
 
 dotenv.config();
 const app = express();
@@ -33,6 +35,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(), // Store files in memory as buffers
+  limits: { fileSize: 5 * 1024 * 1024 } // Limit to 5MB
+});
 
 // Session middleware
 app.use(session({
@@ -283,10 +291,235 @@ app.post('/api/update-settings', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/update-bot', isAuthenticated, async (req, res) => {
+// New Endpoints Start Here
+
+// /api/update-logo
+app.post('/api/update-logo', isAuthenticated, upload.single('logo'), async (req, res) => {
+  const logoFile = req.file;
+  try {
+    if (!logoFile) return res.status(400).json({ success: false, error: 'No logo file uploaded' });
+
+    const { data: currentSettings } = await supabase
+      .from('settings')
+      .select('logo_url')
+      .single();
+    if (currentSettings.logo_url) {
+      const fileName = currentSettings.logo_url.split('/').pop();
+      await supabase.storage
+        .from('logos')
+        .remove([`logos/${fileName}`]);
+    }
+
+    const fileName = `${Date.now()}_${logoFile.originalname}`;
+    const { error: uploadError } = await supabase.storage
+      .from('logos')
+      .upload(`logos/${fileName}`, logoFile.buffer, {
+        contentType: logoFile.mimetype,
+        upsert: true
+      });
+    if (uploadError) throw uploadError;
+
+    const logoUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/logos/logos/${fileName}`;
+    const { data: updatedSettings } = await supabase
+      .from('settings')
+      .update({ logo_url: logoUrl, updated_at: new Date() })
+      .eq('id', currentSettings.id)
+      .select()
+      .single();
+    res.json({ success: true, logo_url: updatedSettings.logo_url });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating logo:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update logo' });
+  }
+});
+
+// /api/update-socials
+app.post('/api/update-socials', isAuthenticated, upload.fields([
+  { name: 'tiktok_logo', maxCount: 1 },
+  { name: 'instagram_logo', maxCount: 1 },
+  { name: 'x_logo', maxCount: 1 },
+  { name: 'facebook_logo', maxCount: 1 },
+  { name: 'youtube_logo', maxCount: 1 }
+]), async (req, res) => {
+  const platforms = ['tiktok', 'instagram', 'x', 'facebook', 'youtube'];
+  try {
+    const updates = {};
+    for (const platform of platforms) {
+      const url = req.body[`${platform}_url`];
+      const logoFile = req.files[`${platform}_logo`] ? req.files[`${platform}_logo`][0] : null;
+      if (url) updates[`${platform}_url`] = url;
+
+      if (logoFile) {
+        const { data: existingLink } = await supabase
+          .from('social_links')
+          .select('logo_url')
+          .eq('platform', platform)
+          .single();
+        if (existingLink?.logo_url) {
+          const fileName = existingLink.logo_url.split('/').pop();
+          await supabase.storage
+            .from('socials')
+            .remove([`socials/${fileName}`]);
+        }
+
+        const fileName = `${platform}_${Date.now()}_${logoFile.originalname}`;
+        const { error: uploadError } = await supabase.storage
+          .from('socials')
+          .upload(`socials/${fileName}`, logoFile.buffer, {
+            contentType: logoFile.mimetype,
+            upsert: true
+          });
+        if (uploadError) throw uploadError;
+
+        const logoUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/socials/socials/${fileName}`;
+        updates[`${platform}_logo_url`] = logoUrl;
+      }
+    }
+
+    const { data: existingLinks } = await supabase
+      .from('social_links')
+      .select('*');
+    for (const platform of platforms) {
+      const existing = existingLinks.find(l => l.platform === platform);
+      if (existing) {
+        await supabase
+          .from('social_links')
+          .update({
+            url: updates[`${platform}_url`] || existing.url,
+            logo_url: updates[`${platform}_logo_url`] || existing.logo_url,
+            updated_at: new Date()
+          })
+          .eq('platform', platform);
+      } else if (updates[`${platform}_url`]) {
+        await supabase
+          .from('social_links')
+          .insert({
+            platform,
+            url: updates[`${platform}_url`],
+            logo_url: updates[`${platform}_logo_url`],
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+      }
+    }
+    const { data: updatedLinks } = await supabase.from('social_links').select('*');
+    res.json({ success: true, social_links: updatedLinks });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating socials:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update social links' });
+  }
+});
+
+// /api/delete-social-logo
+app.post('/api/delete-social-logo', isAuthenticated, async (req, res) => {
+  const { platform } = req.body;
+  try {
+    if (!platform) return res.status(400).json({ success: false, error: 'Platform is required' });
+
+    const { data: link } = await supabase
+      .from('social_links')
+      .select('logo_url')
+      .eq('platform', platform)
+      .single();
+    if (link?.logo_url) {
+      const fileName = link.logo_url.split('/').pop();
+      await supabase.storage
+        .from('socials')
+        .remove([`socials/${fileName}`]);
+      await supabase
+        .from('social_links')
+        .update({ logo_url: null, updated_at: new Date() })
+        .eq('platform', platform);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting social logo:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete social logo' });
+  }
+});
+
+// /api/add-page
+app.post('/api/add-page', isAuthenticated, async (req, res) => {
+  const { title, slug, meta, content } = req.body;
+  try {
+    if (!title || !slug || !content) return res.status(400).json({ success: false, error: 'Title, slug, and content are required' });
+
+    const meta_description = meta.slice(0, 140);
+    const { data, error } = await supabase
+      .from('static_pages')
+      .insert({
+        title,
+        slug,
+        content,
+        meta_description,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, page: data });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error adding page:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to add page' });
+  }
+});
+
+// /api/delete-page
+app.post('/api/delete-page', isAuthenticated, async (req, res) => {
+  const { id } = req.body;
+  try {
+    if (!id) return res.status(400).json({ success: false, error: 'Page ID is required' });
+
+    const { error } = await supabase
+      .from('static_pages')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting page:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete page' });
+  }
+});
+
+// /api/update-credentials
+app.post('/api/update-credentials', isAuthenticated, async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password are required' });
+
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('email', req.session.email)
+      .single();
+    if (!admin) return res.status(404).json({ success: false, error: 'Admin not found' });
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const { error } = await supabase
+      .from('admins')
+      .update({ email, password_hash, updated_at: new Date() })
+      .eq('id', admin.id);
+    if (error) throw error;
+
+    req.session.email = email; // Update session email
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating credentials:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update credentials' });
+  }
+});
+
+// Existing Endpoints Continue Here
+
+app.post('/api/update-bot', isAuthenticated, upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'bot_file', maxCount: 1 }
+]), async (req, res) => {
   const { id, name, price, category_id, description, embed_link, is_active } = req.body;
-  const thumbnail = req.body.thumbnail; // FormData field
-  const bot_file = req.body.bot_file; // FormData field
+  const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0] : null;
+  const bot_file = req.files['bot_file'] ? req.files['bot_file'][0] : null;
 
   try {
     const { data: product } = await supabase
@@ -302,13 +535,13 @@ app.post('/api/update-bot', isAuthenticated, async (req, res) => {
     if (thumbnail) {
       await supabase.storage.from('thumbnails').remove([thumbnailPath]);
       thumbnailPath = `thumbnails/${product.file_id}_${name}.jpg`;
-      await supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail, { contentType: 'image/jpeg' });
+      await supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail.buffer, { contentType: 'image/jpeg' });
     }
 
     if (bot_file) {
       await supabase.storage.from('bots').remove([botPath]);
       botPath = `bots/${product.file_id}_${name}.zip`;
-      await supabase.storage.from('bots').upload(botPath, bot_file, { contentType: 'application/zip' });
+      await supabase.storage.from('bots').upload(botPath, bot_file.buffer, { contentType: 'application/zip' });
     }
 
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -485,16 +718,24 @@ app.get('/api/order-status/:product_id/:ref_code', async (req, res) => {
 });
 
 // Add bot (admin)
-app.post('/api/add-bot', isAuthenticated, async (req, res) => {
-  const { name, price, description, embed_link, category_id, thumbnail, bot_file } = req.body;
+app.post('/api/add-bot', isAuthenticated, upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'bot_file', maxCount: 1 }
+]), async (req, res) => {
+  const { name, price, description, embed_link, category_id, is_active } = req.body;
+  const thumbnail = req.files['thumbnail'] ? req.files['thumbnail'][0] : null;
+  const bot_file = req.files['bot_file'] ? req.files['bot_file'][0] : null;
+
   try {
+    if (!thumbnail || !bot_file) return res.status(400).json({ success: false, error: 'Thumbnail and bot file are required' });
+
     const file_id = crypto.randomUUID();
     const thumbnailPath = `thumbnails/${file_id}_${name}.jpg`;
     const botPath = `bots/${file_id}_${name}.zip`;
 
     const [thumbnailRes, botRes] = await Promise.all([
-      supabase.storage.from('thumbnails').upload(thumbnailPath, Buffer.from(thumbnail, 'base64'), { contentType: 'image/jpeg' }),
-      supabase.storage.from('bots').upload(botPath, Buffer.from(bot_file, 'base64'), { contentType: 'application/zip' })
+      supabase.storage.from('thumbnails').upload(thumbnailPath, thumbnail.buffer, { contentType: 'image/jpeg' }),
+      supabase.storage.from('bots').upload(botPath, bot_file.buffer, { contentType: 'application/zip' })
     ]);
     if (thumbnailRes.error || botRes.error) throw new Error('File upload failed');
 
@@ -515,7 +756,7 @@ app.post('/api/add-bot', isAuthenticated, async (req, res) => {
         slug,
         excerpt,
         meta_description,
-        is_active: true
+        is_active: is_active === 'true'
       }
     ]).select().single();
 
@@ -565,6 +806,7 @@ app.post('/api/login', async (req, res) => {
     if (!isValid) return res.status(401).json({ success: false, error: 'Invalid credentials' });
 
     req.session.isAuthenticated = true;
+    req.session.email = email; // Store email in session for /api/update-credentials
     res.json({ success: true });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error logging in:`, error.message);
