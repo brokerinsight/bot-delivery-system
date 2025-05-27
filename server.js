@@ -1,5 +1,4 @@
 const express = require('express');
-const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
@@ -10,13 +9,17 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
-const stream = require('stream');
 const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
+const bcrypt = require('bcrypt');
 
 dotenv.config();
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Supabase client setup with service role key for RLS
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Allowed domains for CORS and download links
 const ALLOWED_ORIGINS = [
@@ -31,7 +34,6 @@ function getBaseUrl(req) {
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     return origin;
   }
-  // Default to botblitz.store for external or non-matching origins
   return 'https://botblitz.store';
 }
 
@@ -42,6 +44,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
 }));
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -49,7 +52,6 @@ app.use(cookieParser());
 
 // Serve static files from 'public' directory
 const publicPath = path.join(__dirname, 'public');
-//sitemap start
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const products = cachedData.products || [];
@@ -59,7 +61,6 @@ app.get('/sitemap.xml', async (req, res) => {
     sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
       xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
 
-    // Homepage
     sitemap += `
       <url>
         <loc>https://botblitz.store/</loc>
@@ -68,7 +69,6 @@ app.get('/sitemap.xml', async (req, res) => {
         <priority>1.0</priority>
       </url>\n`;
 
-    // Static pages
     for (const page of staticPages) {
       if (page.slug && !page.slug.includes('modal')) {
         sitemap += `
@@ -81,7 +81,6 @@ app.get('/sitemap.xml', async (req, res) => {
       }
     }
 
-    // Product pages (mapped by item + description + embed)
     for (const product of products) {
       if (!product.isArchived && product.item) {
         sitemap += `
@@ -92,8 +91,6 @@ app.get('/sitemap.xml', async (req, res) => {
             <priority>0.8</priority>
             <!-- Bot Name: ${sanitizeXml(product.name || '')} -->
             <!-- Description: ${sanitizeXml(product.desc || '')} -->`;
-
-        // Include embedded YouTube video if available
         if (product.embed && product.embed.includes('youtube.com')) {
           sitemap += `
             <video:video>
@@ -103,7 +100,6 @@ app.get('/sitemap.xml', async (req, res) => {
               <video:content_loc>${sanitizeXml(product.embed)}</video:content_loc>
             </video:video>`;
         }
-
         sitemap += `\n</url>\n`;
       }
     }
@@ -118,19 +114,16 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
-// Helper to sanitize XML fields
 function sanitizeXml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"')
+    .replace(/'/g, '');
 }
-//sitemap end
-app.use(express.static(publicPath));
 
-// Log static file middleware setup
+app.use(express.static(publicPath));
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
 
 // Session middleware with MemoryStore
@@ -144,11 +137,10 @@ app.use(session({
     secure: 'auto',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
-// Log session details for debugging
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
   console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
@@ -156,14 +148,6 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
   next();
 });
-
-// Google API setup
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-});
-const sheets = google.sheets({ version: 'v4', auth });
-const drive = google.drive({ version: 'v3', auth });
 
 // Email setup
 const transporter = nodemailer.createTransport({
@@ -215,104 +199,63 @@ const fallbackRefCodeModal = {
   `
 };
 
-// Helper function to fetch item details
-async function getItemDetails(itemNumber) {
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
-    });
-    const row = response.data.values.find(row => row[0] == itemNumber);
-    if (!row) {
-      throw new Error(`Item ${itemNumber} not found in Sheet1`);
-    }
-    return {
-      fileId: row[1],
-      price: parseFloat(row[2]),
-      name: row[3],
-      desc: row[4] || '',
-      img: row[5] || 'https://via.placeholder.com/300',
-      category: row[6] || 'General',
-      embed: row[7] || '',
-      isNew: row[8] === 'TRUE',
-      isArchived: row[9] === 'TRUE'
-    };
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error fetching item details for ${itemNumber}:`, error.message);
-    throw error;
-  }
-}
-
-// Load data from Google Sheets
+// Load data from Supabase
 async function loadData() {
   try {
-    const productRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J'
-    });
-    const products = productRes.data.values?.slice(1).map(row => ({
-      item: row[0],
-      fileId: row[1],
-      price: parseFloat(row[2]),
-      name: row[3],
-      desc: row[4] || '',
-      img: row[5] || 'https://via.placeholder.com/300',
-      category: row[6] || 'General',
-      embed: row[7] || '',
-      isNew: row[8] === 'TRUE',
-      isArchived: row[9] === 'TRUE'
-    })) || [];
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select('*');
+    if (productsError) throw productsError;
 
-    const settingsRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B'
-    });
-    const settingsRows = settingsRes.data.values || [];
-    if (!settingsRows[0] || settingsRows[0][0] !== 'KEY' || settingsRows[0][1] !== 'VALUE') {
-      console.error(`[${new Date().toISOString()}] Invalid headers in settings tab. Expected: ["KEY", "VALUE"], Got: ${settingsRows[0]}`);
-      throw new Error('Invalid headers in settings tab');
-    }
-    const settingsData = Object.fromEntries(settingsRows.slice(1).map(([k, v]) => [k, v]) || []);
-    const settings = {
-      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
-      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
-      logoUrl: settingsData.logoUrl || '',
-      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
-      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
-      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
-      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsData.adminPassword || 'securepassword123',
-      mpesaTill: settingsData.mpesaTill || '4933614'
-    };
+    const { data: categories, error: categoriesError } = await supabase
+      .from('categories')
+      .select('name');
+    if (categoriesError) throw categoriesError;
 
-    const categoriesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A'
-    });
-    const categories = [...new Set(categoriesRes.data.values?.slice(1).flat() || ['General'])];
-    console.log(`[${new Date().toISOString()}] Loaded categories (after deduplication):`, categories);
+    const { data: settingsRows, error: settingsError } = await supabase
+      .from('settings')
+      .select('key, value');
+    if (settingsError) throw settingsError;
 
-    const pagesRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C'
-    });
-    let staticPages = pagesRes.data.values?.slice(1).map(row => ({
-      title: row[0],
-      slug: row[1],
-      content: row[2]
-    })) || [];
+    const { data: staticPages, error: pagesError } = await supabase
+      .from('static_pages')
+      .select('*');
+    if (pagesError) throw pagesError;
+
+    const settings = Object.fromEntries(
+      settingsRows.map(row => [
+        row.key,
+        row.key === 'socials' || row.key === 'urgentMessage' ? JSON.parse(row.value) : row.value
+      ])
+    );
+    settings.fallbackRate = parseFloat(settings.fallbackRate) || 130;
+    settings.mpesaTill = settings.mpesaTill || '4933614';
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
-      console.log(`[${new Date().toISOString()}] Adding fallback for /payment-modal`);
       staticPages.push(fallbackPaymentModal);
     }
     if (!staticPages.find(page => page.slug === '/ref-code-modal')) {
-      console.log(`[${new Date().toISOString()}] Adding fallback for /ref-code-modal`);
       staticPages.push(fallbackRefCodeModal);
     }
 
-    cachedData = { products, categories, settings, staticPages };
-    console.log(`[${new Date().toISOString()}] Data loaded successfully from Google Sheets`);
+    cachedData = {
+      products: products.map(p => ({
+        item: p.item,
+        fileId: p.file_id,
+        price: p.price,
+        name: p.name,
+        desc: p.description,
+        img: p.image,
+        category: p.category,
+        embed: p.embed,
+        isNew: p.is_new,
+        isArchived: p.is_archived
+      })),
+      categories: categories.map(c => c.name),
+      settings,
+      staticPages
+    };
+    console.log(`[${new Date().toISOString()}] Data loaded from Supabase`);
     console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
@@ -330,99 +273,52 @@ async function refreshCache() {
   }
 }
 
-// Stream file to Google Drive
-async function streamUploadToDrive(file, filename) {
-  try {
-    const fileMetadata = {
-      name: filename,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID]
-    };
-    const bufferStream = new stream.PassThrough();
-    bufferStream.end(file.buffer);
-    const media = {
-      mimeType: file.mimetype,
-      body: bufferStream
-    };
-    const driveRes = await drive.files.create({
-      resource: fileMetadata,
-      media,
-      fields: 'id'
-    });
-    console.log(`[${new Date().toISOString()}] File uploaded to Google Drive, ID: ${driveRes.data.id}`);
-    return driveRes.data;
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error uploading file to Google Drive:`, error.message);
-    throw error;
-  }
-}
-
-// Save data to Google Sheets
+// Save data to Supabase
 async function saveData() {
   try {
-    const productValues = [
-      ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-      ...cachedData.products.map(p => [
-        p.item,
-        p.fileId,
-        p.price,
-        p.name,
-        p.desc,
-        p.img,
-        p.category,
-        p.embed,
-        p.isNew ? 'TRUE' : 'FALSE',
-        p.isArchived ? 'TRUE' : 'FALSE'
-      ])
-    ];
+    // Save products
+    await supabase.from('products').delete().neq('item', null); // Clear existing
+    if (cachedData.products.length > 0) {
+      await supabase.from('products').insert(
+        cachedData.products.map(p => ({
+          item: p.item,
+          file_id: p.fileId,
+          price: p.price,
+          name: p.name,
+          description: p.desc,
+          image: p.img,
+          category: p.category,
+          embed: p.embed,
+          is_new: p.isNew,
+          is_archived: p.isArchived
+        }))
+      );
+    }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
-      valueInputOption: 'RAW',
-      resource: { values: productValues }
-    });
+    // Save settings
+    await supabase.from('settings').delete().neq('key', null);
+    await supabase.from('settings').insert(
+      Object.entries(cachedData.settings).map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : value
+      }))
+    );
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'Sheet1!A:J',
-      valueInputOption: 'RAW',
-      resource: { values: productValues }
-    });
+    // Save categories
+    await supabase.from('categories').delete().neq('name', null);
+    if (cachedData.categories.length > 0) {
+      await supabase.from('categories').insert(
+        cachedData.categories.map(c => ({ name: c }))
+      );
+    }
 
-    const settingsForSheet = [
-      ['KEY', 'VALUE'],
-      ...Object.entries(cachedData.settings).map(([key, value]) => {
-        if (typeof value === 'object' && value !== null) {
-          return [key, JSON.stringify(value)];
-        }
-        return [key, value];
-      })
-    ];
+    // Save static pages
+    await supabase.from('static_pages').delete().neq('slug', null);
+    if (cachedData.staticPages.length > 0) {
+      await supabase.from('static_pages').insert(cachedData.staticPages);
+    }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'settings!A:B',
-      valueInputOption: 'RAW',
-      resource: { values: settingsForSheet }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'categories!A:A',
-      valueInputOption: 'RAW',
-      resource: { values: [['CATEGORY'], ...[...new Set(cachedData.categories)].map(c => [c])] }
-    });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-      range: 'staticPages!A:C',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [['TITLE', 'SLUG', 'CONTENT'], ...cachedData.staticPages.map(p => [p.title, p.slug, p.content])]
-      }
-    });
-
-    console.log(`[${new Date().toISOString()}] Data saved successfully to Google Sheets`);
+    console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
@@ -432,53 +328,13 @@ async function saveData() {
 // Delete orders older than 3 days
 async function deleteOldOrders() {
   try {
-    for (const spreadsheetId of [process.env.SPREADSHEET_ID, process.env.PRODUCTS_SHEET_ID]) {
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'orders!A:F'
-      });
-      const rows = response.data.values || [];
-      if (rows.length <= 1) {
-        console.log(`[${new Date().toISOString()}] No orders to delete in spreadsheet ${spreadsheetId}`);
-        continue;
-      }
-
-      const currentTime = new Date();
-      const threeDaysInMs = 3 * 24 * 60 * 60 * 1000;
-      const filteredRows = [rows[0]];
-
-      for (let i = 1; i < rows.length; i++) {
-        const timestampStr = rows[i][3];
-        let orderDate;
-        try {
-          orderDate = new Date(timestampStr);
-          if (isNaN(orderDate.getTime())) {
-            console.warn(`[${new Date().toISOString()}] Invalid timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
-            filteredRows.push(rows[i]);
-            continue;
-          }
-        } catch (error) {
-          console.warn(`[${new Date().toISOString()}] Error parsing timestamp for order at row ${i + 1}: ${timestampStr}, keeping order`);
-          filteredRows.push(rows[i]);
-            continue;
-        }
-
-        const ageInMs = currentTime - orderDate;
-        if (ageInMs <= threeDaysInMs) {
-          filteredRows.push(rows[i]);
-        } else {
-          console.log(`[${new Date().toISOString()}] Deleting order at row ${i + 1} in spreadsheet ${spreadsheetId}, timestamp: ${timestampStr}`);
-        }
-      }
-
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: 'orders!A:F',
-        valueInputOption: 'RAW',
-        resource: { values: filteredRows }
-      });
-      console.log(`[${new Date().toISOString()}] Old orders deleted successfully in spreadsheet ${spreadsheetId}`);
-    }
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .lt('timestamp', threeDaysAgo);
+    if (error) throw error;
+    console.log(`[${new Date().toISOString()}] Old orders deleted from Supabase`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting old orders:`, error.message);
   }
@@ -493,113 +349,40 @@ function isAuthenticated(req, res, next) {
   res.status(401).json({ success: false, error: 'Unauthorized' });
 }
 
-// Ensure Google Sheet tabs exist with correct headers
-async function ensureSheetTabs(spreadsheetId) {
-  const tabsToEnsure = {
-    'Sheet1': ['ITEM NUMBER', 'FILE ID', 'PRICE', 'NAME', 'DESCRIPTION', 'IMAGE', 'CATEGORY', 'EMBED', 'IS NEW', 'IS ARCHIVED'],
-    'settings': ['KEY', 'VALUE'],
-    'categories': ['CATEGORY'],
-    'staticPages': ['TITLE', 'SLUG', 'CONTENT'],
-    'orders': ['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED'],
-    'emails': ['EMAIL', 'SUBJECT', 'BODY']
-  };
-
-  try {
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-    const existingSheets = spreadsheet.data.sheets.map(sheet => sheet.properties.title);
-
-    for (const [sheetName, headers] of Object.entries(tabsToEnsure)) {
-      if (!existingSheets.includes(sheetName)) {
-        console.log(`[${new Date().toISOString()}] Creating missing sheet ${sheetName} in spreadsheet ${spreadsheetId}`);
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          resource: {
-            requests: [{
-              addSheet: {
-                properties: { title: sheetName }
-              }
-            }]
-          }
-        });
-
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: `${sheetName}!1:1`,
-          valueInputOption: 'RAW',
-          resource: { values: [headers] }
-        });
-        console.log(`[${new Date().toISOString()}] Added headers to ${sheetName} in spreadsheet ${spreadsheetId}: ${headers}`);
-      } else {
-        const res = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!1:1`
-        });
-        const actualHeaders = res.data.values?.[0] || [];
-        if (JSON.stringify(actualHeaders) !== JSON.stringify(headers)) {
-          console.log(`[${new Date().toISOString()}] Fixing headers for ${sheetName} in spreadsheet ${spreadsheetId}. Expected: ${headers}, Got: ${actualHeaders}`);
-          await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: `${sheetName}!1:1`,
-            valueInputOption: 'RAW',
-            resource: { values: [headers] }
-          });
-          console.log(`[${new Date().toISOString()}] Headers fixed for ${sheetName} in spreadsheet ${spreadsheetId}`);
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error ensuring sheet tabs for spreadsheet ${spreadsheetId}:`, error.message);
-    throw error;
-  }
-}
-
 // Self-check on startup
 async function selfCheck() {
   console.log(`[${new Date().toISOString()}] Starting server self-check...`);
 
   try {
-    await sheets.spreadsheets.get({ spreadsheetId: process.env.SPREADSHEET_ID });
-    console.log(`[${new Date().toISOString()}] Successfully connected to SPREADSHEET_ID`);
+    const { data, error } = await supabase.from('products').select('item').limit(1);
+    if (error) throw error;
+    console.log(`[${new Date().toISOString()}] Successfully connected to Supabase database`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to SPREADSHEET_ID:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to connect to Supabase database:`, error.message);
   }
 
   try {
-    await sheets.spreadsheets.get({ spreadsheetId: process.env.PRODUCTS_SHEET_ID });
-    console.log(`[${new Date().toISOString()}] Successfully connected to PRODUCTS_SHEET_ID`);
+    const { data, error } = await supabase.storage.from('bots').list('', { limit: 1 });
+    if (error) throw error;
+    console.log(`[${new Date().toISOString()}] Successfully connected to Supabase storage`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to PRODUCTS_SHEET_ID:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to connect to Supabase storage:`, error.message);
   }
 
-  await ensureSheetTabs(process.env.SPREADSHEET_ID);
-  await ensureSheetTabs(process.env.PRODUCTS_SHEET_ID);
-
-  try {
-    const folder = await drive.files.get({ fileId: process.env.GOOGLE_DRIVE_FOLDER_ID });
-    if (folder.data.mimeType !== 'application/vnd.google-apps.folder') {
-      throw new Error(`GOOGLE_DRIVE_FOLDER_ID (${process.env.GOOGLE_DRIVE_FOLDER_ID}) is not a folder`);
-    }
-    console.log(`[${new Date().toISOString()}] Successfully connected to Google Drive folder`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to Google Drive folder:`, error.message);
-  }
-
-  //email start
   if (!global.__TEST_EMAIL_SENT__) {
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: '✅ BotBlitz Server Status',
-      text: 'BotBlitz server is running, and email system is working correctly.'
-    });
-    global.__TEST_EMAIL_SENT__ = true;
-    console.log(`[${new Date().toISOString()}] ✅ Test email sent successfully`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ❌ Failed to send test email:`, error.message);
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.EMAIL_USER,
+        subject: '✅ BotBlitz Server Status',
+        text: 'BotBlitz server is running, and email system is working correctly.'
+      });
+      global.__TEST_EMAIL_SENT__ = true;
+      console.log(`[${new Date().toISOString()}] ✅ Test email sent successfully`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] ❌ Failed to send test email:`, error.message);
+    }
   }
-}
-//email ending 
 
   const indexPath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(indexPath)) {
@@ -650,53 +433,27 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     cachedData = req.body;
-
-    // ✅ Dynamically delete removed categories from the sheet (row-by-row)
     if (Array.isArray(cachedData.categories)) {
-      try {
-        const sheet = await sheets.spreadsheets.values.get({
-          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-          range: 'categories!A2:A', // Skip header
-        });
+      const { data: existingCategories, error: catError } = await supabase
+        .from('categories')
+        .select('name');
+      if (catError) throw catError;
 
-        const rows = sheet.data.values || [];
-        const existingCategories = rows.map(row => row[0]); // current categories in sheet
-        const newCategories = cachedData.categories; // updated categories from admin panel
+      const newCategories = cachedData.categories;
+      const deletedCategories = existingCategories
+        .map(c => c.name)
+        .filter(c => !newCategories.includes(c));
 
-        const deletedCategories = existingCategories.filter(oldCat => !newCategories.includes(oldCat));
-
-        for (const category of deletedCategories) {
-          const rowIndex = existingCategories.findIndex(c => c === category);
-          if (rowIndex !== -1) {
-            await sheets.spreadsheets.values.update({
-              spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-              range: `categories!A${rowIndex + 2}`, // +2 = header + 0-based index
-              valueInputOption: 'RAW',
-              resource: { values: [['']] } // clear the row
-            });
-            console.log(`[${new Date().toISOString()}] 🗑️ Deleted category "${category}" from sheet`);
-          }
-        }
-
-        // ✅ Then overwrite sheet with cleaned category list
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: process.env.PRODUCTS_SHEET_ID,
-          range: 'categories!A:A',
-          valueInputOption: 'RAW',
-          resource: {
-            values: [['CATEGORY'], ...newCategories.map(cat => [cat])]
-          }
-        });
-
-        console.log(`[${new Date().toISOString()}] ✅ Synced updated categories to Google Sheets.`);
-      } catch (catError) {
-        console.error(`[${new Date().toISOString()}] ❌ Failed to sync categories:`, catError.message);
+      if (deletedCategories.length > 0) {
+        await supabase
+          .from('categories')
+          .delete()
+          .in('name', deletedCategories);
+        console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
       }
     }
 
-    // ✅ Save entire data structure to Google Sheets
     await saveData();
-
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
   } catch (error) {
@@ -704,17 +461,26 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
-//end of this route
+
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
     if (!file) throw new Error('No file uploaded');
 
-    const driveData = await streamUploadToDrive(file, `${item}_${name}.${file.originalname.split('.').pop()}`);
+    const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const filename = `${item}_${name}.${file.originalname.split('.').pop()}`;
+    const { error: uploadError } = await supabase.storage
+      .from('bots')
+      .upload(fileId, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true
+      });
+    if (uploadError) throw uploadError;
+
     const product = {
       item,
-      fileId: driveData.id,
+      fileId,
       price: parseFloat(price),
       name,
       desc,
@@ -727,7 +493,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
 
     cachedData.products.push(product);
     await saveData();
-    res.json({ success: true, product });
+    res.json({ success: true, product: product });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
@@ -738,100 +504,33 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
 app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
-
-    // Step 1: Find the product in cache to get the fileId and cache index
-    const productIndex = cachedData.products.findIndex(p => p.item === item);
+    const productIndex = await cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
       console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
       return res.status(404).json({ success: false, error: 'Bot not found in cache' });
     }
     const fileId = cachedData.products[productIndex].fileId;
 
-    // Step 2: Fetch Sheet1 from both spreadsheets to verify the bot exists
-    const spreadsheetIds = [
-      { id: process.env.SPREADSHEET_ID, name: 'SPREADSHEET_ID' },
-      { id: process.env.PRODUCTS_SHEET_ID, name: 'PRODUCTS_SHEET_ID' }
-    ];
+    const { error: deleteFileError } = await supabase.storage
+      .from('bots')
+      .remove([fileId]);
+    if (deleteFileError) !== null throw deleteFileError;
 
-    const sheetData = [];
-    for (const { id, name } of spreadsheetIds) {
-      // Get the sheetId for Sheet1 dynamically
-      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: id });
-      const sheet = spreadsheet.data.sheets.find(s => s.properties.title === 'Sheet1');
-      if (!sheet) {
-        console.error(`[${new Date().toISOString()}] Sheet1 not found in spreadsheet ${name} (${id})`);
-        return res.status(500).json({ success: false, error: `Sheet1 not found in spreadsheet ${name}` });
-      }
-      const sheetId = sheet.properties.sheetId;
+    const { error: deleteProductError } = await supabase
+      .from('products')
+      .delete()
+      .eq('item', item);
+    if (deleteProductError) throw deleteProductError;
 
-      // Fetch Sheet1 data
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: id,
-        range: 'Sheet1!A:J'
-      });
-      const rows = response.data.values || [];
-      const rowIndex = rows.slice(1).findIndex(row => row[0] === item);
-      sheetData.push({ spreadsheetId: id, name, sheetId, rows, rowIndex });
-    }
-
-    // Step 3: Verify the bot exists in both sheets
-    for (const { name, rowIndex } of sheetData) {
-      if (rowIndex === -1) {
-        console.warn(`[${new Date().toISOString()}] Bot not found in ${name} Sheet1: ${item}`);
-        return res.status(404).json({ success: false, error: `Bot not found in ${name} Sheet1` });
-      }
-    }
-
-    // Step 4: Delete the file from Google Drive
-    try {
-      await drive.files.delete({ fileId });
-      console.log(`[${new Date().toISOString()}] Deleted file from Google Drive, ID: ${fileId}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error deleting file from Google Drive:`, error.message);
-      // Continue with deletion even if Google Drive deletion fails to ensure data consistency
-    }
-
-    // Step 5: Delete the bot from both sheets
-    for (const { spreadsheetId, name, sheetId, rowIndex } of sheetData) {
-      const rowToDelete = rowIndex + 1; // +1 to account for header row (0-based index)
-      try {
-        await sheets.spreadsheets.batchUpdate({
-          spreadsheetId,
-          resource: {
-            requests: [
-              {
-                deleteDimension: {
-                  range: {
-                    sheetId,
-                    dimension: 'ROWS',
-                    startIndex: rowToDelete,
-                    endIndex: rowToDelete + 1
-                  }
-                }
-              }
-            ]
-          }
-        });
-        console.log(`[${new Date().toISOString()}] Deleted bot row ${rowToDelete + 1} from ${name} Sheet1: ${item}`);
-      } catch (error) {
-        console.error(`[${new Date().toISOString()}] Failed to delete bot row from ${name} Sheet1: ${error.message}`);
-        return res.status(500).json({ success: false, error: `Failed to delete bot from ${name} Sheet1` });
-      }
-    }
-
-    // Step 6: Update the cache after successful deletion from both sheets
     cachedData.products.splice(productIndex, 1);
-
-    // Step 7: Send response only after all steps are complete
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Bot deleted successfully from both sheets: ${item}`);
+    console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to delete bot' });
   }
 });
 
-// Standalone function to send notification email
 async function sendOrderNotification(item, refCode, amount) {
   try {
     await transporter.sendMail({
@@ -840,9 +539,9 @@ async function sendOrderNotification(item, refCode, amount) {
       subject: `New Order - KES-${parseFloat(amount).toFixed(2)}`,
       text: `M-PESA Ref: ${refCode}\nItem Number: ${item}`
     });
-    console.log(`[${new Date().toISOString()}] Order notification email sent for ref code ${refCode}`);
+    console.log(`[${new Date().toISOString()}] Order notification email sent successfully for ref code ${refCode}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send order notification email for ref code ${refCode}:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error.message);
   }
 }
 
@@ -855,34 +554,28 @@ app.post('/api/submit-ref', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const existingOrder = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
+    const { data: existingOrder, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (existingOrder) {
       console.log(`[${new Date().toISOString()}] Ref code already submitted: ${refCode} for item: ${item}`);
       return res.status(400).json({ success: false, error: 'Ref code already submitted' });
     }
 
-    const orderData = [[item, refCode, amount, timestamp, 'pending', 'FALSE']];
+    const { error: insertError } = await supabase
+      .from('orders')
+      .insert({ item, ref_code: refCode, amount, timestamp, status: 'pending', downloaded: false });
+    if (insertError) throw insertError;
 
-    // Save order to SPREADSHEET_ID first
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F',
-      valueInputOption: 'RAW',
-      resource: { values: orderData }
-    });
     console.log(`[${new Date().toISOString()}] Order saved for item: ${item}, refCode: ${refCode}`);
-
-    // Respond immediately to ensure client gets success
     res.json({ success: true });
 
-    // Send email independently without awaiting
     Promise.resolve(sendOrderNotification(item, refCode, amount)).catch(err => {
-      console.error(`[${new Date().toISOString()}] Async email error (order still saved):`, err.message);
+      console.error(`[${new Date().toISOString()}] Async email error:`, err.message);
     });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
@@ -892,32 +585,20 @@ app.post('/api/submit-ref', async (req, res) => {
 
 app.get('/api/orders', isAuthenticated, async (req, res) => {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
+    const { data: orders, error } = await supabase.from('orders').select('*');
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      orders: orders.map(row => ({
+        item: row.item,
+        refCode: row.ref_code,
+        amount: row.amount,
+        timestamp: row.timestamp,
+        status: row.status,
+        downloaded: row.downloaded
+      }))
     });
-    const rows = response.data.values || [];
-    if (!rows[0] || rows[0].join(',') !== 'ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED') {
-      console.warn(`[${new Date().toISOString()}] Invalid headers in orders!A:F. Expected: ITEM,REF CODE,AMOUNT,TIMESTAMP,STATUS,DOWNLOADED, Got: ${rows[0] ? rows[0].join(',') : 'empty'}`);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'orders!A1:F1',
-        valueInputOption: 'RAW',
-        resource: { values: [['ITEM', 'REF CODE', 'AMOUNT', 'TIMESTAMP', 'STATUS', 'DOWNLOADED']] }
-      });
-      if (rows.length <= 1) {
-        return res.json({ success: true, orders: [] });
-      }
-    }
-    const orders = rows.slice(1).map(row => ({
-      item: row[0] || '',
-      refCode: row[1] || '',
-      amount: row[2] || '',
-      timestamp: row[3] || '',
-      status: row[4] || 'pending',
-      downloaded: row[5] === 'TRUE'
-    }));
-    res.json({ success: true, orders });
     console.log(`[${new Date().toISOString()}] Orders fetched successfully, count: ${orders.length}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
@@ -930,50 +611,53 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
   console.log(`[${new Date().toISOString()}] Order status request for ${item}/${refCode}`);
 
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const order = rows.slice(1).find(row => row[0] === item && row[1] === refCode);
-    if (!order) {
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (error || !order) {
       console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
-      return res.status(404).json({ success: false, error: 'Order not found. Please check the ref code or contact support.' });
+      return res.status(404).json({ success: false, error: 'Order not found' });
     }
-    const status = order[4] || 'pending';
-    const downloaded = order[5] === 'TRUE';
+
+    const status = order.status;
+    const downloaded = order.downloaded;
     let downloadLink = null;
 
     if (status === 'confirmed' && !downloaded) {
-      const product = cachedData.products.find(p => p.item === item) || await getItemDetails(item);
+      const product = cachedData.products.find(p => p.item === item);
       if (product) {
-        downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
-        const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-        rows[orderIndex + 1][5] = 'TRUE';
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: process.env.SPREADSHEET_ID,
-          range: 'orders!A:F',
-          valueInputOption: 'RAW',
-          resource: { values: rows }
-        });
+        const { data: signedUrlData, error: urlError } = await supabase.storage
+          .from('bots')
+          .createSignedUrl(product.fileId, 60); // 60-second signed URL
+        if (urlError) throw urlError;
+        downloadLink = signedUrlData.signedUrl;
+
+        await supabase
+          .from('orders')
+          .update({ downloaded: true })
+          .eq('item', item)
+          .eq('ref_code', refCode);
         console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
       } else {
-        console.error(`[${new Date().toISOString()}] Product not found in cache or Sheet1 for item: ${item}`);
-        return res.status(500).json({ success: false, error: 'Product not found. Please contact support.' });
+        console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
+        return res.status(500).json({ success: false, error: 'Product not found' });
       }
     } else if (downloaded) {
       console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
-      return res.status(403).json({ success: false, error: 'Ref code already used for download. Contact support if you need assistance.' });
+      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
     } else {
       console.log(`[${new Date().toISOString()}] Order not confirmed: ${item}/${refCode}, status: ${status}`);
-      return res.status(400).json({ success: false, error: `Order is ${status}. Please wait for confirmation or contact support.` });
+      return res.status(400).json({ success: false, error: `Order is ${status}` });
     }
 
     res.json({ success: true, status, downloadLink });
     console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to check order status. Please contact support.' });
+    console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to check order status' });
   }
 });
 
@@ -984,23 +668,22 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const rows = response.data.values || [];
-    const orderIndex = rows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-    if (orderIndex === -1) {
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('item', item)
+      .eq('ref_code', refCode)
+      .single();
+    if (error || !order) {
       console.log(`[${new Date().toISOString()}] Order not found for update: ${item}/${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
-    rows[orderIndex + 1][4] = status;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F',
-      valueInputOption: 'RAW',
-      resource: { values: rows }
-    });
+
+    await supabase
+      .from('orders')
+      .update({ status })
+      .eq('item', item)
+      .eq('ref_code', refCode);
 
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Order status updated: ${item}/${refCode} - New Status: ${status}`);
@@ -1019,35 +702,23 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const downloadLink = `${getBaseUrl(req)}/download/${product.fileId}`;
+    const { data: signedUrlData, error: urlError } = await supabase.storage
+      .from('bots')
+      .createSignedUrl(product.fileId, 60);
+    if (urlError) throw urlError;
+    const downloadLink = signedUrlData.signedUrl;
+
     const email = cachedData.settings.supportEmail;
     const subject = `Your Deriv Bot Purchase - ${item}`;
     const body = `Thank you for your purchase!\n\nItem: ${item}\nRef Code: ${refCode}\nAmount: ${amount}\n\nDownload your bot here: ${downloadLink}\n\nIf you have any issues, please contact support.`;
 
-    const emailData = [[email, subject, body]];
+    await supabase.from('emails').insert({ email, subject, body });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'emails!A:C',
-      valueInputOption: 'RAW',
-      resource: { values: emailData }
-    });
-
-    const ordersResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: 'orders!A:F'
-    });
-    const ordersRows = ordersResponse.data.values || [];
-    const orderIndex = ordersRows.slice(1).findIndex(row => row[0] === item && row[1] === refCode);
-    if (orderIndex !== -1) {
-      ordersRows.splice(orderIndex + 1, 1);
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: process.env.SPREADSHEET_ID,
-        range: 'orders!A:F',
-        valueInputOption: 'RAW',
-        resource: { values: ordersRows }
-      });
-    }
+    await supabase
+      .from('orders')
+      .delete()
+      .eq('item', item)
+      .eq('ref_code', refCode);
 
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
@@ -1065,25 +736,32 @@ app.post('/deliver-bot', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required parameters: item, price, payment_method' });
     }
 
-    const itemDetails = await getItemDetails(item);
-    if (price !== itemDetails.price) {
-      console.log(`[${new Date().toISOString()}] Price tampering detected for item ${item}: received ${price}, expected ${itemDetails.price}`);
-      return res.status(400).json({ success: false, error: 'Invalid price. Contact support.' });
+    const product = cachedData.products.find(p => p.item === item);
+    if (!product) {
+      console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    if (price !== product.price) {
+      console.log(`[${new Date().toISOString()}] Price tampering detected for item ${item}: received ${price}, expected ${product.price}`);
+      return res.status(400).json({ success: false, error: 'Invalid price' });
     }
 
-    const downloadLink = `${getBaseUrl(req)}/download/${itemDetails.fileId}`;
+    const { data: signedUrlData, error: urlError } = await supabase.storage
+      .from('bots')
+      .createSignedUrl(product.fileId, 60);
+    if (urlError) throw urlError;
+    const downloadLink = signedUrlData.signedUrl;
+
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Generated download link for item ${item}: ${downloadLink}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error delivering file for item ${req.body.item}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to generate download link. Contact support.' });
+    res.status(500).json({ success: false, error: 'Failed to generate download link' });
   }
 });
 
 app.get('/download/:fileId', async (req, res) => {
   const fileId = req.params.fileId;
-
-  // Set dynamic CORS headers for download route
   const origin = req.get('origin') || req.get('referer');
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -1097,44 +775,57 @@ app.get('/download/:fileId', async (req, res) => {
   const product = cachedData.products.find(p => p.fileId === fileId);
   if (!product) {
     console.log(`[${new Date().toISOString()}] Invalid fileId: ${fileId}`);
-    return res.status(403).json({ success: false, error: 'Invalid file ID. Contact support.' });
+    return res.status(403).json({ success: false, error: 'Invalid file ID' });
   }
 
-  console.log(`[${new Date().toISOString()}] Download request for fileId: ${fileId}`);
   try {
-    const fileMetadata = await drive.files.get({ fileId, fields: 'name, mimeType' });
-    const fileName = fileMetadata.data.name || `file-${fileId}`;
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.setHeader('Content-Type', fileMetadata.data.mimeType || 'application/octet-stream');
-    const file = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
-    file.data.pipe(res);
-    console.log(`[${new Date().toISOString()}] File download started: ${fileId} (${fileName})`);
-    file.data.on('end', () => {
-      console.log(`[${new Date().toISOString()}] File download completed: ${fileId}`);
-    });
-    file.data.on('error', (error) => {
-      console.error(`[${new Date().toISOString()}] Stream error during download of ${fileId}:`, error.message);
-      if (!res.headersSent) {
-        res.status(500).json({ success: false, error: 'Failed to stream file' });
-      }
-    });
+    const { data: fileData, error: fileError } = await supabase.storage
+      .from('bots')
+      .download(fileId);
+    if (fileError) throw fileError;
+
+    const buffer = await fileData.arrayBuffer();
+    const mimeType = fileData.type || 'application/octet-stream';
+    const filename = `bot_${fileId}.${mimeType.split('/')[1] || 'bin'}`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', mimeType);
+    res.send(Buffer.from(buffer));
+    console.log(`[${new Date().toISOString()}] File download completed: ${fileId}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: 'Failed to download file. Contact support.' });
-    }
+    res.status(500).json({ success: false, error: 'Failed to download file' });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  if (email === cachedData.settings.adminEmail && password === cachedData.settings.adminPassword) {
-    req.session.isAuthenticated = true;
-    console.log(`[${new Date().toISOString()}] User logged in successfully, session:`, req.session);
-    res.json({ success: true });
-  } else {
-    console.log(`[${new Date().toISOString()}] Failed login attempt with email: ${email}`);
-    res.status(401).json({ success: false, error: 'Invalid credentials' });
+  try {
+    const { data: adminSettings, error } = await supabase
+      .from('settings')
+      .select('value')
+      .in('key', ['adminEmail', 'adminPassword'])
+      .order('key');
+    if (error) throw error;
+
+    const adminEmail = adminSettings.find(s => s.key === 'adminEmail')?.value;
+    const adminPasswordHash = adminSettings.find(s => s.key === 'adminPassword')?.value;
+
+    if (
+      email === adminEmail &&
+      adminPasswordHash &&
+      await bcrypt.compare(password, adminPasswordHash)
+    ) {
+      req.session.isAuthenticated = true;
+      console.log(`[${new Date().toISOString()}] User logged in successfully, session:`, email);
+      res.json({ success: true });
+    } else {
+      console.log(`[${new Date().toISOString()}] Failed login attempt with email: ${email}`);
+      res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error during login:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to login' });
   }
 });
 
@@ -1163,7 +854,7 @@ app.get(['/', '/index.html'], (req, res) => {
     res.status(404).send(`
       <h1>404 - File Not Found</h1>
       <p>The requested file (index.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'index.html' and that the server is deployed correctly on Render.</p>
+      <p>Please ensure that the 'public' directory contains 'index.html' and that the server is deployed correctly.</p>
     `);
   }
 });
@@ -1178,7 +869,7 @@ app.get('/virus.html', (req, res) => {
     res.status(404).send(`
       <h1>404 - File Not Found</h1>
       <p>The requested file (virus.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly on Render.</p>
+      <p>Please ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly.</p>
     `);
   }
 });
@@ -1187,7 +878,7 @@ app.get('/:slug', async (req, res) => {
   const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
   if (!page) {
     console.log(`[${new Date().toISOString()}] Static page not found: /${req.params.slug}`);
-    return res.status(404).send('Page not found');
+    return res.status(404).send('Not found');
   }
   const htmlContent = sanitizeHtml(marked(page.content));
   res.send(`
