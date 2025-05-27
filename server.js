@@ -751,7 +751,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()]] Error confirming order:`, error.message);
+    console.error(`[${new Date().toISOString()] Error confirming order:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
