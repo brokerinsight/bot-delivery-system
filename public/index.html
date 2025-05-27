@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BotBlitz Store - Discover top trading bots for Deriv. Fast, secure payments with MPESA and instant downloads.">
-  <meta name="keywords" content="trading bots, Deriv bots, MPESA payments, BotBlitz Store, automated trading">
+  <meta name="description" content="BotBlitz Store - Discover top trading bots for Deriv. Fast, secure payments with PayHero and instant downloads.">
+  <meta name="keywords" content="trading bots, Deriv bots, PayHero payments, BotBlitz Store, automated trading">
   <meta name="robots" content="index, follow">
   <title>BotBlitz Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -21,6 +21,8 @@
       --card-bg: #ffffff;
       --accent-color: #16a34a;
       --header-bg: #ffffff;
+      --subnav-bg: #f9fafb;
+      --subnav-text: #374151;
     }
     [data-theme="dark"] {
       --bg-color: #1f2937;
@@ -28,6 +30,8 @@
       --card-bg: #374151;
       --accent-color: #22c55e;
       --header-bg: #111827;
+      --subnav-bg: #2d3748;
+      --subnav-text: #d1d5db;
     }
     body {
       background-color: var(--bg-color);
@@ -134,6 +138,82 @@
       height: 32px;
       object-fit: contain;
     }
+    #sub-nav-links {
+      background-color: var(--subnav-bg);
+      color: var(--subnav-text);
+      padding: 0.5rem 1rem;
+    }
+    #sub-nav-links a {
+      color: var(--subnav-text);
+      padding: 0.5rem 1rem;
+      text-decoration: none;
+    }
+    #sub-nav-links a:hover {
+      color: var(--accent-color);
+    }
+    #legal-dropdown {
+      background-color: var(--card-bg);
+      color: var(--text-color);
+    }
+    #legal-dropdown a {
+      color: var(--text-color);
+    }
+    #sort-select {
+      background-color: var(--card-bg);
+      color: var(--text-color);
+      border: 1px solid #d1d5db;
+      padding: 0.5rem;
+      border-radius: 0.375rem;
+    }
+    body.popup-active {
+      overflow: hidden;
+    }
+    .popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+    .popup-content {
+      background: linear-gradient(145deg, #ffffff, #f0f4f8);
+      padding: 2rem;
+      border-radius: 16px;
+      text-align: center;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+      animation: popupFadeIn 0.5s ease-out forwards;
+      max-width: 90%;
+      width: 500px;
+    }
+    @keyframes popupFadeIn {
+      from { transform: translateY(20px) scale(0.9); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .browser-popup-button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: block;
+      margin: 20px auto 0;
+    }
+    .browser-popup-button.cancel {
+      background: linear-gradient(90deg, #28a745, #34d058);
+      color: white;
+    }
+    .browser-popup-button.cancel:hover {
+      background: linear-gradient(90deg, #218838, #2cb94e);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
     @media (max-width: 640px) {
       #nav-links {
         display: none;
@@ -148,6 +228,13 @@
       #mobile-nav-links a {
         padding: 0.5rem 0;
         width: 100%;
+      }
+      #sub-nav-links {
+        display: none;
+      }
+      .create-account-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
       }
       footer {
         display: none;
@@ -191,7 +278,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </button>
-          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Deriv Account</a>
+          <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors sm:px-3 sm:py-1 sm:text-sm">Create Deriv Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -200,19 +287,17 @@
         </div>
       </div>
     </div>
-    <div class="bg-gray-50 border-t border-gray-200">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 py-2">
-        <div id="sub-nav-links" class="flex space-x-4"></div>
-        <div class="relative">
-          <button id="legal-menu-button" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Legal</button>
-          <div id="legal-dropdown" class="hidden absolute z-10 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-            <div id="legal-links" class="py-1"></div>
-          </div>
+    <div id="sub-nav-links" class="flex space-x-4 py-2" style="background-color: var(--subnav-bg); color: var(--subnav-text);">
+      <a href="/" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Home</a>
+      <div class="relative">
+        <button id="legal-menu-button" class="text-gray-500 hover:text-gray-900 text-sm font-medium">Legal</button>
+        <div id="legal-dropdown" class="hidden absolute z-10 mt-2 w-48 rounded-md shadow-lg" style="background-color: var(--card-bg); color: var(--text-color);">
+          <div id="legal-links" class="py-1"></div>
         </div>
       </div>
     </div>
     <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 shadow-lg z-30">
-      <div class="flex justify-between items-center p-4 border-b">
+      <div class="flex justify-between items-center p-4 border-b" style="background-color: var(--card-bg);">
         <h2 class="text-lg font-bold">Menu</h2>
         <button id="mobile-menu-close" class="text-gray-500">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,19 +357,40 @@
     </div>
   </div>
 
+  <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="countdown-timer" class="mb-4">
+        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <div class="flex items-center space-x-2">
+        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+      </div>
+      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://kiaratuwomaxqebxkacv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpYXJhdHV3b21heHFlYnhrYWN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgyOTU2MjgsImV4cCI6MjA2Mzg3MTYyOH0.W4topF3UQBYKSHee9uXwLKQed9j4O84VNks5s4vy84M';
     const BASE_URL = 'https://botblitz.store';
-    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
     const PAYHERO_LIPWA = 'https://app.payhero.co.ke/lipwa/2003';
     const PAYHERO_CHANNEL_ID = 2328;
+    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
 
     let products = [];
     let categories = [];
     let settings = {};
     let staticPages = [];
     let socialLinks = [];
+    let allowInAppBrowser = false;
 
     async function initSupabase() {
       const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
@@ -483,11 +589,126 @@
     }
 
     async function showPaymentModal(product) {
-      // Existing manual payment modal logic (unchanged)
-      // Add modal HTML and logic here if needed
+      const modal = document.getElementById('payment-modal');
+      document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
+      document.getElementById('mpesa-till-number').textContent = settings.mpesa_till || '4933614';
+      document.getElementById('payment-amount').textContent = `Amount: ${product.price_kes} KES`;
+      modal.classList.remove('hidden');
+      document.body.classList.add('popup-active');
+
+      let timeLeft = 10 * 60; // 10 minutes
+      const timerText = document.getElementById('timer-text');
+      const timerBar = document.getElementById('timer-bar');
+
+      const countdown = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          modal.classList.add('hidden');
+          document.body.classList.remove('popup-active');
+          window.location.href = WHATSAPP_REDIRECT;
+          return;
+        }
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const percentage = (timeLeft / (10 * 60)) * 100;
+        timerBar.style.width = `${percentage}%`;
+        timeLeft--;
+      }, 1000);
+
+      const copyTillBtn = document.getElementById('copy-till');
+      copyTillBtn.onclick = () => {
+        const tillNumber = document.getElementById('mpesa-till-number').textContent;
+        navigator.clipboard.writeText(tillNumber).then(() => {
+          copyTillBtn.textContent = 'Copied';
+          setTimeout(() => {
+            copyTillBtn.textContent = 'Copy Till';
+          }, 2000);
+        }).catch(err => {
+          const textarea = document.createElement('textarea');
+          textarea.value = tillNumber;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          copyTillBtn.textContent = 'Copied';
+          setTimeout(() => {
+            copyTillBtn.textContent = 'Copy Till';
+          }, 2000);
+        });
+      };
+
+      document.getElementById('confirm-payment').onclick = () => {
+        clearInterval(countdown);
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+        alert('Please contact support to confirm your payment.');
+        window.location.href = WHATSAPP_REDIRECT;
+      };
+
+      document.getElementById('payment-cancel').onclick = () => {
+        clearInterval(countdown);
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
     }
 
-    async function init() {
+    function isInAppBrowser() {
+      const ua = navigator.userAgent.toLowerCase();
+      console.log("User Agent:", navigator.userAgent);
+      const inAppPatterns = [
+        'tiktok', 'bytedancewebview',
+        'twitter', 'twitterandroid', 'twitterios',
+        'fbav', 'fb_iab', 'fban', 'fb4a',
+        'instagram',
+        'linkedin', 'linkedinapp',
+        'snapchat',
+        'line',
+        'zalo',
+        'pinterest',
+        'messenger', 'fb_messenger',
+        'kakaotalk',
+        'dingtalk',
+        'weixin', 'micromessenger',
+        'reddit',
+        'discord',
+        'telegram',
+        'whatsapp'
+      ];
+      const isAppBrowser = inAppPatterns.some(pattern => ua.includes(pattern));
+      const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
+      const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
+      const result = (isAppBrowser || isWebView) && !isRegularBrowser;
+      console.log('Is In-App Browser:', result);
+      return result;
+    }
+
+    function handleInAppBrowser() {
+      if (isInAppBrowser()) {
+        const popup = document.createElement("div");
+        popup.className = "popup";
+        popup.innerHTML = `
+          <div class="popup-content">
+            <h3>Open in Browser</h3>
+            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
+              For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
+            </p>
+            <button class="browser-popup-button cancel">Okay</button>
+          </div>`;
+        document.body.appendChild(popup);
+
+        popup.querySelector(".cancel").addEventListener("click", () => {
+          console.log('Okay button clicked');
+          popup.remove();
+          allowInAppBrowser = true;
+          proceedWithInit();
+        });
+      } else {
+        proceedWithInit();
+      }
+    }
+
+    async function proceedWithInit() {
       await fetchData();
       initTheme();
       renderNavLinks();
@@ -528,6 +749,10 @@
       } else {
         await renderProducts();
       }
+    }
+
+    async function init() {
+      handleInAppBrowser();
     }
 
     document.addEventListener('DOMContentLoaded', init);
