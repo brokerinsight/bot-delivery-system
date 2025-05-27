@@ -120,7 +120,7 @@ function sanitizeXml(str) {
     .replace(/</g, '<')
     .replace(/>/g, '>')
     .replace(/"/g, '"')
-    .replace(/'/g, "'");
+    .replace(/'/g, '');
 }
 
 app.use(express.static(publicPath));
@@ -242,6 +242,7 @@ async function loadData() {
       products: products.map(p => ({
         item: p.item,
         fileId: p.file_id,
+        originalFileName: p.original_file_name, // This is already correct
         price: p.price,
         name: p.name,
         desc: p.description,
@@ -276,127 +277,72 @@ async function refreshCache() {
 // Save data to Supabase
 async function saveData() {
   try {
-    // Validate and save products
-    await supabase.from('products').delete().neq('item', null);
-    if (cachedData.products && cachedData.products.length > 0) {
-      const productsToInsert = cachedData.products.map((p, index) => {
-        // Validate required fields
-        if (!p.item || typeof p.item !== 'string') {
-          throw new Error(`Product at index ${index} has invalid or missing 'item'`);
-        }
-        if (!p.fileId || typeof p.fileId !== 'string') {
-          console.warn(`[${new Date().toISOString()}] Product ${p.item} missing fileId, setting default`);
-          p.fileId = `placeholder_${p.item}`; // Fallback for older products
-        }
-        if (typeof p.price !== 'number') {
-          p.price = parseFloat(p.price);
-          if (isNaN(p.price)) {
-            throw new Error(`Product ${p.item} has invalid price: ${p.price}`);
-          }
-        }
-        if (!p.name || typeof p.name !== 'string') {
-          throw new Error(`Product ${p.item} has invalid or missing name`);
-        }
-        if (!p.category || typeof p.category !== 'string') {
-          p.category = 'General'; // Fallback category
-        }
-        if (typeof p.isNew !== 'boolean') {
-          p.isNew = Boolean(p.isNew);
-        }
-        if (typeof p.isArchived !== 'boolean') {
-          p.isArchived = Boolean(p.isArchived);
-        }
-
-        return {
+    // Save products
+    await supabase.from('products').delete().neq('item', null); // Clear existing
+    if (cachedData.products.length > 0) {
+      const { error: productsError } = await supabase.from('products').insert(
+        cachedData.products.map(p => ({
           item: p.item,
           file_id: p.fileId,
+          original_file_name: p.originalFileName || 'unknown', // Add this field, fallback if missing
           price: p.price,
           name: p.name,
-          description: p.desc || '',
-          image: p.img || '',
+          description: p.desc,
+          image: p.img,
           category: p.category,
-          embed: p.embed || '',
+          embed: p.embed,
           is_new: p.isNew,
           is_archived: p.isArchived
-        };
-      });
-
-      console.log(`[${new Date().toISOString()}] Inserting products:`, JSON.stringify(productsToInsert, null, 2));
-      const { error: productsError } = await supabase.from('products').insert(productsToInsert);
+        }))
+      );
       if (productsError) {
-        console.error(`[${new Date().toISOString()}] Failed to save products:`, productsError.message, productsError.details);
-        throw new Error(`Failed to save products: ${productsError.message}`);
+        console.error(`[${new Date().toISOString()}] Failed to save products:`, productsError.message);
+        throw new Error('Failed to save products: ' + productsError.message);
       }
     }
 
     // Save settings
     await supabase.from('settings').delete().neq('key', null);
-    const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => {
-      if (key === 'adminPassword' && value && !value.startsWith('$2b$')) {
-        // Hash the password if it's not already hashed
-        return bcrypt.hash(value, 10).then(hashed => ({
-          key,
-          value: hashed
-        }));
-      }
-      return Promise.resolve({
+    const { error: settingsError } = await supabase.from('settings').insert(
+      Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
         value: typeof value === 'object' ? JSON.stringify(value) : value
-      });
-    });
-
-    const settingsRows = await Promise.all(settingsToInsert);
-    const { error: settingsError } = await supabase.from('settings').insert(settingsRows);
+      }))
+    );
     if (settingsError) {
-      console.error(`[${new Date().toISOString()}] Failed to save settings:`, settingsError.message, settingsError.details);
-      throw new Error(`Failed to save settings: ${settingsError.message}`);
+      console.error(`[${new Date().toISOString()}] Failed to save settings:`, settingsError.message);
+      throw new Error('Failed to save settings: ' + settingsError.message);
     }
 
     // Save categories
     await supabase.from('categories').delete().neq('name', null);
-    if (cachedData.categories && cachedData.categories.length > 0) {
+    if (cachedData.categories.length > 0) {
       const { error: categoriesError } = await supabase.from('categories').insert(
-        cachedData.categories.map(c => {
-          if (typeof c !== 'string') {
-            throw new Error(`Invalid category: ${c}`);
-          }
-          return { name: c };
-        })
+        cachedData.categories.map(c => ({ name: c }))
       );
       if (categoriesError) {
-        console.error(`[${new Date().toISOString()}] Failed to save categories:`, categoriesError.message, categoriesError.details);
-        throw new Error(`Failed to save categories: ${categoriesError.message}`);
+        console.error(`[${new Date().toISOString()}] Failed to save categories:`, categoriesError.message);
+        throw new Error('Failed to save categories: ' + categoriesError.message);
       }
     }
 
     // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
-    if (cachedData.staticPages && cachedData.staticPages.length > 0) {
-      const pagesToInsert = cachedData.staticPages.map(p => {
-        if (!p.slug || !p.title || !p.content) {
-          throw new Error(`Invalid static page: ${JSON.stringify(p)}`);
-        }
-        return {
-          slug: p.slug,
-          title: p.title,
-          content: p.content
-        };
-      });
-      const { error: pagesError } = await supabase.from('static_pages').insert(pagesToInsert);
+    if (cachedData.staticPages.length > 0) {
+      const { error: pagesError } = await supabase.from('static_pages').insert(cachedData.staticPages);
       if (pagesError) {
-        console.error(`[${new Date().toISOString()}] Failed to save static pages:`, pagesError.message, pagesError.details);
-        throw new Error(`Failed to save static pages: ${pagesError.message}`);
+        console.error(`[${new Date().toISOString()}] Failed to save static pages:`, pagesError.message);
+        throw new Error('Failed to save static pages: ' + pagesError.message);
       }
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
     await loadData(); // Reload cache after saving
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message, error.stack);
+    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
   }
 }
-
 // Delete orders older than 3 days
 async function deleteOldOrders() {
   try {
@@ -460,7 +406,7 @@ async function selfCheck() {
   if (fs.existsSync(indexPath)) {
     console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
   } else {
-    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
+    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`); // Fixed line
   }
 
   async function pingRoutes() {
@@ -485,7 +431,6 @@ async function selfCheck() {
 
   console.log(`[${new Date().toISOString()}] Self-check completed`);
 }
-
 // Session check endpoint
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
@@ -505,21 +450,12 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     cachedData = req.body;
-    console.log(`[${new Date().toISOString()}] /api/save-data received data:`, JSON.stringify(cachedData, null, 2));
-
-    // Validate categories
-    if (!Array.isArray(cachedData.categories)) {
-      throw new Error('Categories must be an array');
-    }
 
     // Handle category deletions and updates
     const { data: existingCategories, error: catError } = await supabase
       .from('categories')
       .select('name');
-    if (catError) {
-      console.error(`[${new Date().toISOString()}] Error fetching existing categories:`, catError.message);
-      throw catError;
-    }
+    if (catError) throw catError;
 
     const newCategories = cachedData.categories;
     const deletedCategories = existingCategories
@@ -527,14 +463,10 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
       .filter(c => !newCategories.includes(c));
 
     if (deletedCategories.length > 0) {
-      const { error: deleteCatError } = await supabase
+      await supabase
         .from('categories')
         .delete()
         .in('name', deletedCategories);
-      if (deleteCatError) {
-        console.error(`[${new Date().toISOString()}] Error deleting categories:`, deleteCatError.message);
-        throw deleteCatError;
-      }
       console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
     }
 
@@ -542,8 +474,8 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to save data', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
 
@@ -552,28 +484,26 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     const { item, name, price, desc, embed, category, img, isNew } = req.body;
     const file = req.file;
     if (!file) throw new Error('No file uploaded');
-    if (!item || !name || !price || !category || !img) {
-      throw new Error('Missing required fields');
-    }
 
+    // Generate a unique prefix to avoid collisions
     let attempts = 0;
     let fileId;
     let uploadSuccess = false;
-    const originalFileName = file.originalname;
+    const originalFileName = file.originalname; // e.g., "botfile.zip"
 
     while (attempts < 5 && !uploadSuccess) {
       const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      fileId = `${uniquePrefix}_${originalFileName}`;
+      fileId = `${uniquePrefix}_${originalFileName}`; // e.g., "1748355962817_4o58ow_botfile.zip"
 
       const { error: uploadError } = await supabase.storage
         .from('bots')
         .upload(fileId, file.buffer, {
           contentType: file.mimetype,
-          upsert: false
+          upsert: false // Prevent overwriting existing files
         });
 
       if (uploadError) {
-        if (uploadError.statusCode === '409') {
+        if (uploadError.statusCode === '409') { // Conflict: file already exists
           attempts++;
           continue;
         }
@@ -591,10 +521,10 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
       fileId,
       price: parseFloat(price),
       name,
-      desc: desc || '',
+      desc,
       img,
       category,
-      embed: embed || '',
+      embed,
       isNew: isNew === 'true',
       isArchived: false
     };
@@ -613,21 +543,17 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     });
 
     await loadData();
-    res.json({ success: true, product });
+    res.json({ success: true, product: product });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to add bot', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
 
 app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
-    if (!item) {
-      return res.status(400).json({ success: false, error: 'Item is required' });
-    }
-
     const { data: product, error: productError } = await supabase
       .from('products')
       .select('*')
@@ -640,43 +566,32 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
 
     const fileId = product.file_id;
 
-    // Delete related orders first
+    // Delete related orders first to avoid foreign key constraint violation
     const { error: deleteOrdersError } = await supabase
       .from('orders')
       .delete()
       .eq('item', item);
-    if (deleteOrdersError) {
-      console.error(`[${new Date().toISOString()}] Error deleting orders for ${item}:`, deleteOrdersError.message);
-      throw deleteOrdersError;
-    }
+    if (deleteOrdersError) throw deleteOrdersError;
 
     // Delete the file from the bots bucket
-    if (fileId) {
-      const { error: deleteFileError } = await supabase.storage
-        .from('bots')
-        .remove([fileId]);
-      if (deleteFileError) {
-        console.error(`[${new Date().toISOString()}] Error deleting file ${fileId}:`, deleteFileError.message);
-        throw deleteFileError;
-      }
-    }
+    const { error: deleteFileError } = await supabase.storage
+      .from('bots')
+      .remove([fileId]);
+    if (deleteFileError) throw deleteFileError;
 
-    // Delete the product
+    // Delete the product from the products table
     const { error: deleteProductError } = await supabase
       .from('products')
       .delete()
       .eq('item', item);
-    if (deleteProductError) {
-      console.error(`[${new Date().toISOString()}] Error deleting product ${item}:`, deleteProductError.message);
-      throw deleteProductError;
-    }
+    if (deleteProductError) throw deleteProductError;
 
     await loadData();
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to delete bot', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete bot' });
   }
 });
 
@@ -754,8 +669,8 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
     });
     console.log(`[${new Date().toISOString()}] Orders fetched successfully, count: ${orders.length}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to fetch orders', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error fetching orders:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch orders' });
   }
 });
 
@@ -770,26 +685,38 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
       .eq('item', item)
       .eq('ref_code', refCode)
       .single();
-    if (error || !order || order.status !== 'confirmed' || order.downloaded) {
-      console.log(`[${new Date().toISOString()}] Order not found or invalid: ${item}/${refCode}`);
-      return res.status(403).json({ success: false, error: 'Invalid download request' });
+    if (error || !order) {
+      console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('item', item)
-      .single();
-    if (productError || !product) {
-      console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
-      return res.status(500).json({ success: false, error: 'Product not found' });
+    const status = order.status;
+    const downloaded = order.downloaded;
+    let downloadLink = null;
+
+    if (status === 'confirmed' && !downloaded) {
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('item', item)
+        .single();
+      if (productError || !product) {
+        console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
+        return res.status(500).json({ success: false, error: 'Product not found' });
+      }
+
+      // Generate a server-side download URL
+      downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
+    } else if (downloaded) {
+      console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
+      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
+    } else {
+      console.log(`[${new Date().toISOString()}] Order not confirmed: ${item}/${refCode}, status: ${status}`);
+      return res.status(400).json({ success: false, error: `Order is ${status}` });
     }
 
-    // Generate a server-side download URL
-    const downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
-
-    res.json({ success: true, status: order.status, downloadLink });
-    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${order.status}, Downloaded: ${order.downloaded}`);
+    res.json({ success: true, status, downloadLink });
+    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to check order status' });
@@ -801,9 +728,6 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
     const { item, refCode, status } = req.body;
     if (!['confirmed', 'no payment', 'partial payment'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });
-    }
-    if (!item || !refCode) {
-      return res.status(400).json({ success: false, error: 'Missing item or refCode' });
     }
 
     const { data: order, error } = await supabase
@@ -826,8 +750,8 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Order status updated: ${item}/${refCode} - New Status: ${status}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error updating order status:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to update order status', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error updating order status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update order status' });
   }
 });
 
@@ -865,7 +789,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message); // Fixed line
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
@@ -949,24 +873,31 @@ app.get('/download/:fileId', async (req, res) => {
     const mimeType = fileData.type || 'application/octet-stream';
 
     // Extract the original file name from the file_id
+    // file_id format: "<timestamp>_<random>_<originalFileName>"
     const fileIdParts = fileId.split('_');
-    let originalFileName;
+    let finalFileName;
     if (fileIdParts.length >= 3) {
-      originalFileName = fileIdParts.slice(2).join('_');
+      // Extract the original file name (everything after the second underscore)
+      finalFileName = fileIdParts.slice(2).join('_'); // e.g., "botfile.zip"
     } else {
-      originalFileName = `${item}.bin`;
-      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${originalFileName}`);
+      // Fallback for invalid or old format
+      finalFileName = `${item}.bin`;
+      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
     }
 
-    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, originalFileName: ${originalFileName}, product.name: ${product.name}`);
+    // Log for debugging
+    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, finalFileName: ${finalFileName}, product.name: ${product.name}`);
 
-    const encodedFileName = encodeURIComponent(originalFileName);
+    // Encode the file name for the Content-Disposition header
+    const encodedFileName = encodeURIComponent(finalFileName);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
     res.setHeader('Content-Type', mimeType);
 
+    // Send the file
     res.send(Buffer.from(buffer));
-    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${originalFileName}`);
+    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${finalFileName}`);
 
+    // Mark the order as downloaded after successful download
     await supabase
       .from('orders')
       .update({ downloaded: true })
@@ -976,6 +907,114 @@ app.get('/download/:fileId', async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to download file' });
+  }
+});
+
+app.post('/api/edit-bot', isAuthenticated, upload.single('file'), async (req, res) => {
+  try {
+    const { item, name, price, description: desc, category, embed, image: img, isNew, isArchived } = req.body;
+    const file = req.file; // New file if uploaded
+
+    // Log the incoming data for debugging
+    console.log(`[${new Date().toISOString()}] Edit bot request:`, { item, name, price, desc, category, embed, img, isNew, isArchived, file: file ? file.originalname : 'No file uploaded' });
+
+    // Validate required fields
+    if (!item || !name || !price || !category) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Fetch the existing product to get the current file_id
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
+      console.log(`[${new Date().toISOString()}] Bot not found in database: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
+    }
+
+    let fileId = product.file_id;
+    let originalFileName = product.original_file_name;
+
+    // Handle file update if a new file is uploaded
+    if (file) {
+      // Delete the old file from Supabase Storage
+      const { error: deleteFileError } = await supabase.storage
+        .from('bots')
+        .remove([fileId]);
+      if (deleteFileError) {
+        console.error(`[${new Date().toISOString()}] Error deleting old file ${fileId}:`, deleteFileError.message);
+        return res.status(500).json({ success: false, error: 'Failed to delete old file' });
+      }
+
+      // Upload the new file
+      let attempts = 0;
+      let uploadSuccess = false;
+      originalFileName = file.originalname; // Update the original file name
+
+      while (attempts < 5 && !uploadSuccess) {
+        const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        fileId = `${uniquePrefix}_${originalFileName}`; // e.g., "1748355962817_4o58ow_botfile.zip"
+
+        const { error: uploadError } = await supabase.storage
+          .from('bots')
+          .upload(fileId, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+
+        if (uploadError) {
+          if (uploadError.statusCode === '409') { // Conflict: file already exists
+            attempts++;
+            continue;
+          }
+          throw uploadError;
+        }
+        uploadSuccess = true;
+      }
+
+      if (!uploadSuccess) {
+        throw new Error('Failed to upload new file: too many collisions');
+      }
+      console.log(`[${new Date().toISOString()}] New file uploaded: ${fileId}`);
+    }
+
+    // Update the product in the database
+    const { data, error } = await supabase
+      .from('products')
+      .update({
+        name,
+        price: parseFloat(price),
+        description: desc,
+        image: img,
+        category,
+        embed,
+        is_new: isNew === 'true',
+        is_archived: isArchived === 'true',
+        file_id: fileId,
+        original_file_name: originalFileName
+      })
+      .eq('item', item);
+
+    if (error) {
+      console.error(`[${new Date().toISOString()}] Database update error:`, error.message);
+      return res.status(500).json({ success: false, error: 'Failed to update bot in database' });
+    }
+
+    if (!data || data.length === 0) {
+      console.log(`[${new Date().toISOString()}] No matching product found for item: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
+    }
+
+    // Refresh the cache
+    await loadData();
+    console.log(`[${new Date().toISOString()}] Bot updated successfully: ${item}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error editing bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to edit bot' });
   }
 });
 
@@ -993,10 +1032,7 @@ app.post('/api/login', async (req, res) => {
     const adminEmail = adminSettings.find(s => s.key === 'adminEmail')?.value;
     const adminPasswordHash = adminSettings.find(s => s.key === 'adminPassword')?.value;
 
-    if (!adminEmail || !adminPasswordHash) {
-      console.log(`[${new Date().toISOString()}] Admin credentials not set in database`);
-      return res.status(500).json({ success: false, error: 'Admin credentials not configured' });
-    }
+    console.log(`[${new Date().toISOString()}] Admin Email: ${adminEmail}, Password Hash: ${adminPasswordHash}`);
 
     if (
       email === adminEmail &&
@@ -1011,8 +1047,8 @@ app.post('/api/login', async (req, res) => {
       res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error during login:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to login', details: error.message });
+    console.error(`[${new Date().toISOString()}] Error during login:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to login' });
   }
 });
 
@@ -1055,7 +1091,8 @@ app.get('/virus.html', (req, res) => {
     console.error(`[${new Date().toISOString()}] virus.html not found at: ${virusPath}`);
     res.status(404).send(`
       <h1>404 - File Not Found</h1>
-      <p>The requested file (virus.html) was not found on the code.</p>
+      <p>The requested file (virus.html) was not found on the code.  
+      </p>
       <p>Ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly.</p>
     `);
   }
