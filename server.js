@@ -857,17 +857,20 @@ app.get('/download/:fileId', async (req, res) => {
     const mimeType = fileData.type || 'application/octet-stream';
 
     // Extract the original file name from the file_id
-    // file_id format: "<timestamp>_<random>_botfile.zip"
+    // file_id format: "<timestamp>_<random>_<originalFileName>"
     const fileIdParts = fileId.split('_');
     let finalFileName;
     if (fileIdParts.length >= 3) {
-      // New format: <timestamp>_<random>_botfile.zip
-      finalFileName = fileIdParts.slice(2).join('_'); // Rejoin parts after the second underscore
+      // Extract the original file name (everything after the second underscore)
+      finalFileName = fileIdParts.slice(2).join('_'); // e.g., "botfile.zip"
     } else {
-      // Old format: file_<timestamp>_<random> (or other unexpected formats)
+      // Fallback for invalid or old format
       finalFileName = `${item}.bin`;
-      console.warn(`[${new Date().toISOString()}] Old or invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
+      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
     }
+
+    // Log for debugging
+    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, finalFileName: ${finalFileName}, product.name: ${product.name}`);
 
     // Encode the file name for the Content-Disposition header
     const encodedFileName = encodeURIComponent(finalFileName);
