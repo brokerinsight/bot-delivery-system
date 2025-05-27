@@ -671,15 +671,8 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
         return res.status(500).json({ success: false, error: 'Product not found' });
       }
 
-      // Generate a server-side download URL (e.g., /download/<fileId>)
+      // Generate a server-side download URL
       downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
-
-      await supabase
-        .from('orders')
-        .update({ downloaded: true })
-        .eq('item', item)
-        .eq('ref_code', refCode);
-      console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
     } else if (downloaded) {
       console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
       return res.status(403).json({ success: false, error: 'Ref code already used for download' });
@@ -845,14 +838,22 @@ app.get('/download/:fileId', async (req, res) => {
     const buffer = await fileData.arrayBuffer();
     const mimeType = fileData.type || 'application/octet-stream';
 
-    // Use the original file name (assuming it's stored or derived; here, using item as a fallback)
-    const originalFileName = `${item}.bin`; // Replace with actual file name if stored in products table
+    // Use the original file name if available
+    const originalFileName = product.original_file_name || `${item}.bin`;
     res.setHeader('Content-Disposition', `attachment; filename="${originalFileName}"`);
     res.setHeader('Content-Type', mimeType);
+
+    // Send the file
     res.send(Buffer.from(buffer));
     console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${originalFileName}`);
 
-    // Mark as downloaded (optional, already handled in /api/order-status)
+    // Mark the order as downloaded after successful download
+    await supabase
+      .from('orders')
+      .update({ downloaded: true })
+      .eq('item', item)
+      .eq('ref_code', refCode);
+    console.log(`[${new Date().toISOString()}] Marked order as downloaded: ${item}/${refCode}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to download file' });
