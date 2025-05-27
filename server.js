@@ -120,7 +120,7 @@ function sanitizeXml(str) {
     .replace(/</g, '<')
     .replace(/>/g, '>')
     .replace(/"/g, '"')
-    .replace(/'/g, '');
+    .replace(/'/g, "'");
 }
 
 app.use(express.static(publicPath));
@@ -242,7 +242,6 @@ async function loadData() {
       products: products.map(p => ({
         item: p.item,
         fileId: p.file_id,
-        originalFileName: p.original_file_name, // This is already correct
         price: p.price,
         name: p.name,
         desc: p.description,
@@ -277,14 +276,12 @@ async function refreshCache() {
 // Save data to Supabase
 async function saveData() {
   try {
-    // Save products
-    await supabase.from('products').delete().neq('item', null); // Clear existing
+    await supabase.from('products').delete().neq('item', null);
     if (cachedData.products.length > 0) {
       const { error: productsError } = await supabase.from('products').insert(
         cachedData.products.map(p => ({
           item: p.item,
           file_id: p.fileId,
-          original_file_name: p.originalFileName || 'unknown', // Add this field, fallback if missing
           price: p.price,
           name: p.name,
           description: p.desc,
@@ -301,7 +298,6 @@ async function saveData() {
       }
     }
 
-    // Save settings
     await supabase.from('settings').delete().neq('key', null);
     const { error: settingsError } = await supabase.from('settings').insert(
       Object.entries(cachedData.settings).map(([key, value]) => ({
@@ -314,7 +310,6 @@ async function saveData() {
       throw new Error('Failed to save settings: ' + settingsError.message);
     }
 
-    // Save categories
     await supabase.from('categories').delete().neq('name', null);
     if (cachedData.categories.length > 0) {
       const { error: categoriesError } = await supabase.from('categories').insert(
@@ -326,7 +321,6 @@ async function saveData() {
       }
     }
 
-    // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
       const { error: pagesError } = await supabase.from('static_pages').insert(cachedData.staticPages);
@@ -337,12 +331,13 @@ async function saveData() {
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
-    await loadData(); // Reload cache after saving
+    await loadData();
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
   }
 }
+
 // Delete orders older than 3 days
 async function deleteOldOrders() {
   try {
@@ -406,7 +401,7 @@ async function selfCheck() {
   if (fs.existsSync(indexPath)) {
     console.log(`[${new Date().toISOString()}] public/index.html found at: ${indexPath}`);
   } else {
-    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`); // Fixed line
+    console.error(`[${new Date().toISOString()}] public/index.html NOT found at: ${indexPath}`);
   }
 
   async function pingRoutes() {
@@ -431,6 +426,7 @@ async function selfCheck() {
 
   console.log(`[${new Date().toISOString()}] Self-check completed`);
 }
+
 // Session check endpoint
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
@@ -485,11 +481,10 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     const file = req.file;
     if (!file) throw new Error('No file uploaded');
 
-    // Generate a unique prefix to avoid collisions
     let attempts = 0;
     let fileId;
     let uploadSuccess = false;
-    const originalFileName = file.originalname; // e.g., "botfile.zip"
+    const originalFileName = file.originalname; // Still needed for fileId
 
     while (attempts < 5 && !uploadSuccess) {
       const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -499,11 +494,11 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
         .from('bots')
         .upload(fileId, file.buffer, {
           contentType: file.mimetype,
-          upsert: false // Prevent overwriting existing files
+          upsert: false
         });
 
       if (uploadError) {
-        if (uploadError.statusCode === '409') { // Conflict: file already exists
+        if (uploadError.statusCode === '409') {
           attempts++;
           continue;
         }
@@ -588,7 +583,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
 
     await loadData();
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
+    console.log(`[${new Date().toISOString()]}] Bot deleted successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to delete bot' });
@@ -685,38 +680,26 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
       .eq('item', item)
       .eq('ref_code', refCode)
       .single();
-    if (error || !order) {
-      console.log(`[${new Date().toISOString()}] Order not found: ${item}/${refCode}`);
-      return res.status(404).json({ success: false, error: 'Order not found' });
+    if (error || !order || order.status !== 'confirmed' || order.downloaded) {
+      console.log(`[${new Date().toISOString()}] Order not found or invalid: ${item}/${refCode}`);
+      return res.status(403).json({ success: false, error: 'Invalid download request' });
     }
 
-    const status = order.status;
-    const downloaded = order.downloaded;
-    let downloadLink = null;
-
-    if (status === 'confirmed' && !downloaded) {
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .select('*')
-        .eq('item', item)
-        .single();
-      if (productError || !product) {
-        console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
-        return res.status(500).json({ success: false, error: 'Product not found' });
-      }
-
-      // Generate a server-side download URL
-      downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
-    } else if (downloaded) {
-      console.log(`[${new Date().toISOString()}] Ref code already used for download: ${item}/${refCode}`);
-      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
-    } else {
-      console.log(`[${new Date().toISOString()}] Order not confirmed: ${item}/${refCode}, status: ${status}`);
-      return res.status(400).json({ success: false, error: `Order is ${status}` });
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
+      console.error(`[${new Date().toISOString()}] Product not found for item: ${item}`);
+      return res.status(500).json({ success: false, error: 'Product not found' });
     }
 
-    res.json({ success: true, status, downloadLink });
-    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${status}, Downloaded: ${downloaded}`);
+    // Generate a server-side download URL
+    const downloadLink = `/download/${product.file_id}?item=${item}&refCode=${refCode}`;
+
+    res.json({ success: true, status: order.status, downloadLink });
+    console.log(`[${new Date().toISOString()}] Order status checked: ${item}/${refCode} - Status: ${order.status}, Downloaded: ${order.downloaded}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to check order status' });
@@ -789,7 +772,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     res.json({ success: true, downloadLink });
     console.log(`[${new Date().toISOString()}] Order confirmed for item: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message); // Fixed line
+    console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
   }
 });
@@ -875,27 +858,27 @@ app.get('/download/:fileId', async (req, res) => {
     // Extract the original file name from the file_id
     // file_id format: "<timestamp>_<random>_<originalFileName>"
     const fileIdParts = fileId.split('_');
-    let finalFileName;
+    let originalFileName;
     if (fileIdParts.length >= 3) {
       // Extract the original file name (everything after the second underscore)
-      finalFileName = fileIdParts.slice(2).join('_'); // e.g., "botfile.zip"
+      originalFileName = fileIdParts.slice(2).join('_'); // e.g., "botfile.zip"
     } else {
       // Fallback for invalid or old format
-      finalFileName = `${item}.bin`;
-      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
+      originalFileName = `${item}.bin`;
+      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${originalFileName}`);
     }
 
     // Log for debugging
-    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, finalFileName: ${finalFileName}, product.name: ${product.name}`);
+    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, originalFileName: ${originalFileName}, product.name: ${product.name}`);
 
     // Encode the file name for the Content-Disposition header
-    const encodedFileName = encodeURIComponent(finalFileName);
+    const encodedFileName = encodeURIComponent(originalFileName);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
     res.setHeader('Content-Type', mimeType);
 
     // Send the file
     res.send(Buffer.from(buffer));
-    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${finalFileName}`);
+    console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${originalFileName}`);
 
     // Mark the order as downloaded after successful download
     await supabase
@@ -907,114 +890,6 @@ app.get('/download/:fileId', async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to download file' });
-  }
-});
-
-app.post('/api/edit-bot', isAuthenticated, upload.single('file'), async (req, res) => {
-  try {
-    const { item, name, price, description: desc, category, embed, image: img, isNew, isArchived } = req.body;
-    const file = req.file; // New file if uploaded
-
-    // Log the incoming data for debugging
-    console.log(`[${new Date().toISOString()}] Edit bot request:`, { item, name, price, desc, category, embed, img, isNew, isArchived, file: file ? file.originalname : 'No file uploaded' });
-
-    // Validate required fields
-    if (!item || !name || !price || !category) {
-      return res.status(400).json({ success: false, error: 'Missing required fields' });
-    }
-
-    // Fetch the existing product to get the current file_id
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('item', item)
-      .single();
-    if (productError || !product) {
-      console.log(`[${new Date().toISOString()}] Bot not found in database: ${item}`);
-      return res.status(404).json({ success: false, error: 'Bot not found' });
-    }
-
-    let fileId = product.file_id;
-    let originalFileName = product.original_file_name;
-
-    // Handle file update if a new file is uploaded
-    if (file) {
-      // Delete the old file from Supabase Storage
-      const { error: deleteFileError } = await supabase.storage
-        .from('bots')
-        .remove([fileId]);
-      if (deleteFileError) {
-        console.error(`[${new Date().toISOString()}] Error deleting old file ${fileId}:`, deleteFileError.message);
-        return res.status(500).json({ success: false, error: 'Failed to delete old file' });
-      }
-
-      // Upload the new file
-      let attempts = 0;
-      let uploadSuccess = false;
-      originalFileName = file.originalname; // Update the original file name
-
-      while (attempts < 5 && !uploadSuccess) {
-        const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-        fileId = `${uniquePrefix}_${originalFileName}`; // e.g., "1748355962817_4o58ow_botfile.zip"
-
-        const { error: uploadError } = await supabase.storage
-          .from('bots')
-          .upload(fileId, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false
-          });
-
-        if (uploadError) {
-          if (uploadError.statusCode === '409') { // Conflict: file already exists
-            attempts++;
-            continue;
-          }
-          throw uploadError;
-        }
-        uploadSuccess = true;
-      }
-
-      if (!uploadSuccess) {
-        throw new Error('Failed to upload new file: too many collisions');
-      }
-      console.log(`[${new Date().toISOString()}] New file uploaded: ${fileId}`);
-    }
-
-    // Update the product in the database
-    const { data, error } = await supabase
-      .from('products')
-      .update({
-        name,
-        price: parseFloat(price),
-        description: desc,
-        image: img,
-        category,
-        embed,
-        is_new: isNew === 'true',
-        is_archived: isArchived === 'true',
-        file_id: fileId,
-        original_file_name: originalFileName
-      })
-      .eq('item', item);
-
-    if (error) {
-      console.error(`[${new Date().toISOString()}] Database update error:`, error.message);
-      return res.status(500).json({ success: false, error: 'Failed to update bot in database' });
-    }
-
-    if (!data || data.length === 0) {
-      console.log(`[${new Date().toISOString()}] No matching product found for item: ${item}`);
-      return res.status(404).json({ success: false, error: 'Bot not found' });
-    }
-
-    // Refresh the cache
-    await loadData();
-    console.log(`[${new Date().toISOString()}] Bot updated successfully: ${item}`);
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error editing bot:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to edit bot' });
   }
 });
 
