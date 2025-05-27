@@ -242,7 +242,7 @@ async function loadData() {
       products: products.map(p => ({
         item: p.item,
         fileId: p.file_id,
-        originalFileName: p.original_file_name, // Add to cache
+        originalFileName: p.original_file_name, // This is already correct
         price: p.price,
         name: p.name,
         desc: p.description,
