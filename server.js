@@ -578,9 +578,9 @@ app.get(['/', '/index.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serve admin.html
-app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+// Serve virus.html
+app.get('/virus.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'virus.html'));
 });
 
 // Delete old orders (3 days)
