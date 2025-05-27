@@ -504,7 +504,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
 app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   try {
     const { item } = req.body;
-    const productIndex = await cachedData.products.findIndex(p => p.item === item);
+    const productIndex = cachedData.products.findIndex(p => p.item === item);
     if (productIndex === -1) {
       console.log(`[${new Date().toISOString()}] Bot not found in cache: ${item}`);
       return res.status(404).json({ success: false, error: 'Bot not found in cache' });
@@ -514,7 +514,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
     const { error: deleteFileError } = await supabase.storage
       .from('bots')
       .remove([fileId]);
-    if (deleteFileError) !== null throw deleteFileError;
+    if (deleteFileError) throw deleteFileError;
 
     const { error: deleteProductError } = await supabase
       .from('products')
@@ -868,8 +868,9 @@ app.get('/virus.html', (req, res) => {
     console.error(`[${new Date().toISOString()}] virus.html not found at: ${virusPath}`);
     res.status(404).send(`
       <h1>404 - File Not Found</h1>
-      <p>The requested file (virus.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly.</p>
+      <p>The requested file (virus.html) was not found on the code.  
+      </p>
+      <p>Ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly.</p>
     `);
   }
 });
@@ -901,7 +902,7 @@ app.get('/:slug', async (req, res) => {
         </div>
       </nav>
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <h1 class="text-3xl font-bold text-gray-900 mb-8">${page.title}</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-8"}>${page.title}</h1>
         <div class="prose">${htmlContent}</div>
       </main>
     </body>
