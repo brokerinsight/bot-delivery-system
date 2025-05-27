@@ -583,7 +583,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
 
     await loadData();
     res.json({ success: true });
-    console.log(`[${new Date().toISOString()]}] Bot deleted successfully: ${item}`);
+    console.log(`[${new Date().toISOString()}] Bot deleted successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to delete bot' });
