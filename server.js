@@ -242,7 +242,7 @@ async function loadData() {
       products: products.map(p => ({
         item: p.item,
         fileId: p.file_id,
-        originalFileName: p.original_file_name, // Add to cache
+        originalFileName: p.original_file_name, // This is already correct
         price: p.price,
         name: p.name,
         desc: p.description,
@@ -280,10 +280,11 @@ async function saveData() {
     // Save products
     await supabase.from('products').delete().neq('item', null); // Clear existing
     if (cachedData.products.length > 0) {
-      await supabase.from('products').insert(
+      const { error: productsError } = await supabase.from('products').insert(
         cachedData.products.map(p => ({
           item: p.item,
           file_id: p.fileId,
+          original_file_name: p.originalFileName || 'unknown', // Add this field, fallback if missing
           price: p.price,
           name: p.name,
           description: p.desc,
@@ -294,29 +295,45 @@ async function saveData() {
           is_archived: p.isArchived
         }))
       );
+      if (productsError) {
+        console.error(`[${new Date().toISOString()}] Failed to save products:`, productsError.message);
+        throw new Error('Failed to save products: ' + productsError.message);
+      }
     }
 
     // Save settings
     await supabase.from('settings').delete().neq('key', null);
-    await supabase.from('settings').insert(
+    const { error: settingsError } = await supabase.from('settings').insert(
       Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
         value: typeof value === 'object' ? JSON.stringify(value) : value
       }))
     );
+    if (settingsError) {
+      console.error(`[${new Date().toISOString()}] Failed to save settings:`, settingsError.message);
+      throw new Error('Failed to save settings: ' + settingsError.message);
+    }
 
     // Save categories
     await supabase.from('categories').delete().neq('name', null);
     if (cachedData.categories.length > 0) {
-      await supabase.from('categories').insert(
+      const { error: categoriesError } = await supabase.from('categories').insert(
         cachedData.categories.map(c => ({ name: c }))
       );
+      if (categoriesError) {
+        console.error(`[${new Date().toISOString()}] Failed to save categories:`, categoriesError.message);
+        throw new Error('Failed to save categories: ' + categoriesError.message);
+      }
     }
 
     // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
-      await supabase.from('static_pages').insert(cachedData.staticPages);
+      const { error: pagesError } = await supabase.from('static_pages').insert(cachedData.staticPages);
+      if (pagesError) {
+        console.error(`[${new Date().toISOString()}] Failed to save static pages:`, pagesError.message);
+        throw new Error('Failed to save static pages: ' + pagesError.message);
+      }
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
@@ -326,7 +343,6 @@ async function saveData() {
     throw error;
   }
 }
-
 // Delete orders older than 3 days
 async function deleteOldOrders() {
   try {
@@ -857,17 +873,20 @@ app.get('/download/:fileId', async (req, res) => {
     const mimeType = fileData.type || 'application/octet-stream';
 
     // Extract the original file name from the file_id
-    // file_id format: "<timestamp>_<random>_botfile.zip"
+    // file_id format: "<timestamp>_<random>_<originalFileName>"
     const fileIdParts = fileId.split('_');
     let finalFileName;
     if (fileIdParts.length >= 3) {
-      // New format: <timestamp>_<random>_botfile.zip
-      finalFileName = fileIdParts.slice(2).join('_'); // Rejoin parts after the second underscore
+      // Extract the original file name (everything after the second underscore)
+      finalFileName = fileIdParts.slice(2).join('_'); // e.g., "botfile.zip"
     } else {
-      // Old format: file_<timestamp>_<random> (or other unexpected formats)
+      // Fallback for invalid or old format
       finalFileName = `${item}.bin`;
-      console.warn(`[${new Date().toISOString()}] Old or invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
+      console.warn(`[${new Date().toISOString()}] Invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
     }
+
+    // Log for debugging
+    console.log(`[${new Date().toISOString()}] fileId: ${fileId}, finalFileName: ${finalFileName}, product.name: ${product.name}`);
 
     // Encode the file name for the Content-Disposition header
     const encodedFileName = encodeURIComponent(finalFileName);
@@ -888,6 +907,114 @@ app.get('/download/:fileId', async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to download file' });
+  }
+});
+
+app.post('/api/edit-bot', isAuthenticated, upload.single('file'), async (req, res) => {
+  try {
+    const { item, name, price, description: desc, category, embed, image: img, isNew, isArchived } = req.body;
+    const file = req.file; // New file if uploaded
+
+    // Log the incoming data for debugging
+    console.log(`[${new Date().toISOString()}] Edit bot request:`, { item, name, price, desc, category, embed, img, isNew, isArchived, file: file ? file.originalname : 'No file uploaded' });
+
+    // Validate required fields
+    if (!item || !name || !price || !category) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Fetch the existing product to get the current file_id
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
+      console.log(`[${new Date().toISOString()}] Bot not found in database: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
+    }
+
+    let fileId = product.file_id;
+    let originalFileName = product.original_file_name;
+
+    // Handle file update if a new file is uploaded
+    if (file) {
+      // Delete the old file from Supabase Storage
+      const { error: deleteFileError } = await supabase.storage
+        .from('bots')
+        .remove([fileId]);
+      if (deleteFileError) {
+        console.error(`[${new Date().toISOString()}] Error deleting old file ${fileId}:`, deleteFileError.message);
+        return res.status(500).json({ success: false, error: 'Failed to delete old file' });
+      }
+
+      // Upload the new file
+      let attempts = 0;
+      let uploadSuccess = false;
+      originalFileName = file.originalname; // Update the original file name
+
+      while (attempts < 5 && !uploadSuccess) {
+        const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        fileId = `${uniquePrefix}_${originalFileName}`; // e.g., "1748355962817_4o58ow_botfile.zip"
+
+        const { error: uploadError } = await supabase.storage
+          .from('bots')
+          .upload(fileId, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+
+        if (uploadError) {
+          if (uploadError.statusCode === '409') { // Conflict: file already exists
+            attempts++;
+            continue;
+          }
+          throw uploadError;
+        }
+        uploadSuccess = true;
+      }
+
+      if (!uploadSuccess) {
+        throw new Error('Failed to upload new file: too many collisions');
+      }
+      console.log(`[${new Date().toISOString()}] New file uploaded: ${fileId}`);
+    }
+
+    // Update the product in the database
+    const { data, error } = await supabase
+      .from('products')
+      .update({
+        name,
+        price: parseFloat(price),
+        description: desc,
+        image: img,
+        category,
+        embed,
+        is_new: isNew === 'true',
+        is_archived: isArchived === 'true',
+        file_id: fileId,
+        original_file_name: originalFileName
+      })
+      .eq('item', item);
+
+    if (error) {
+      console.error(`[${new Date().toISOString()}] Database update error:`, error.message);
+      return res.status(500).json({ success: false, error: 'Failed to update bot in database' });
+    }
+
+    if (!data || data.length === 0) {
+      console.log(`[${new Date().toISOString()}] No matching product found for item: ${item}`);
+      return res.status(404).json({ success: false, error: 'Bot not found' });
+    }
+
+    // Refresh the cache
+    await loadData();
+    console.log(`[${new Date().toISOString()}] Bot updated successfully: ${item}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error editing bot:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to edit bot' });
   }
 });
 
