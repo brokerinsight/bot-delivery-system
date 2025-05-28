@@ -238,7 +238,7 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content // Use raw content as stored
+      content: row.content // Load raw content from DB
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -328,7 +328,7 @@ async function saveData() {
       );
     }
 
-    // Save static pages
+    // Save static pages, preserving raw content
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
       await supabase.from('static_pages').insert(cachedData.staticPages);
@@ -448,13 +448,17 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    // Preserve fileId and originalFileName from existing cache
+    // Preserve fileId and originalFileName for products, and ensure static pages content is preserved
     cachedData = {
       ...req.body,
       products: req.body.products.map(p => ({
         ...p,
         fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
         originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName
+      })),
+      staticPages: req.body.staticPages.map(page => ({
+        ...page,
+        content: page.content // Preserve raw content as sent
       }))
     };
 
