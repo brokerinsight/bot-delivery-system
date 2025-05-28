@@ -227,8 +227,8 @@ async function loadData() {
       socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
       urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
-      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsData.adminPassword || 'securepassword123',
+      adminEmail: settingsData.adminEmail || '',
+      adminPassword: settingsData.adminPassword || '',
       mpesaTill: settingsData.mpesaTill || '4933614'
     };
 
