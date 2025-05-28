@@ -965,28 +965,8 @@ app.get('/api/page/:slug', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
     return res.status(404).json({ success: false, error: 'Page not found' });
   }
-  // Normalize content to ensure actual newlines
-  const normalizedPage = {
-    ...page,
-    content: page.content.replace(/\\n/g, '\n').replace(/^"|"$/g, '')
-  };
-  res.json({ success: true, page: normalizedPage });
+  res.json({ success: true, page }); // Serve raw content as loaded
   console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
-});
-
-app.get(['/', '/index.html'], (req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  if (fs.existsSync(indexPath)) {
-    console.log(`[${new Date().toISOString()}] Serving index.html for request: ${req.url}`);
-    res.sendFile(indexPath);
-  } else {
-    console.error(`[${new Date().toISOString()}] index.html not found at: ${indexPath}`);
-    res.status(404).send(`
-      <h1>404 - File Not Found</h1>
-      <p>The requested file (index.html) was not found on the server.</p>
-      <p>Please ensure that the 'public' directory contains 'index.html' and that the server is deployed correctly.</p>
-    `);
-  }
 });
 
 app.get('/virus.html', (req, res) => {
