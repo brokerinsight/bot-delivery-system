@@ -52,6 +52,7 @@ app.use(cookieParser());
 
 // Serve static files from 'public' directory
 const publicPath = path.join(__dirname, 'public');
+
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const products = cachedData.products || [];
@@ -94,7 +95,7 @@ app.get('/sitemap.xml', async (req, res) => {
         if (product.embed && product.embed.includes('youtube.com')) {
           sitemap += `
             <video:video>
-              <video:thumbnail_loc>${product.img}</video:thumbnail_loc>
+              <video:thumbnail_loc>${sanitizeXml(product.img)}</video:thumbnail_loc>
               <video:title>${sanitizeXml(product.name || '')}</video:title>
               <video:description>${sanitizeXml(product.desc || '')}</video:description>
               <video:content_loc>${sanitizeXml(product.embed)}</video:content_loc>
@@ -116,11 +117,11 @@ app.get('/sitemap.xml', async (req, res) => {
 
 function sanitizeXml(str) {
   return String(str)
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, '');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 app.use(express.static(publicPath));
