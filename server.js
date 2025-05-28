@@ -227,6 +227,8 @@ async function loadData() {
       socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
       urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
+      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
+      adminPassword: settingsData.adminPassword || 'securepassword123',
       mpesaTill: settingsData.mpesaTill || '4933614'
     };
 
@@ -238,7 +240,7 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content // Use raw content as stored
+      content: row.content // Load content as raw
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -328,7 +330,7 @@ async function saveData() {
       );
     }
 
-    // Save static pages
+    // Save static pages, keeping content as raw
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
       await supabase.from('static_pages').insert(cachedData.staticPages);
@@ -448,14 +450,15 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    // Preserve fileId and originalFileName from existing cache
+    // Preserve fileId and originalFileName for products, save static pages as raw
     cachedData = {
       ...req.body,
       products: req.body.products.map(p => ({
         ...p,
         fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
         originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName
-      }))
+      })),
+      staticPages: req.body.staticPages // Save as raw
     };
 
     // Handle category deletions
@@ -985,7 +988,16 @@ app.get('/:slug', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Static page not found: /${req.params.slug}`);
     return res.status(404).send('Not found');
   }
-  const htmlContent = sanitizeHtml(marked(page.content));
+
+  // Normalize content at the point of delivery
+  let content = page.content
+    .replace(/\\n/g, '\n') // Normalize newlines
+    .replace(/^"|"$/g, '') // Remove leading/trailing quotes
+    .replace(/=""([^"]*)""/g, '="$1"'); // Fix escaped quotes in attributes (e.g., lang=""en"" -> lang="en")
+
+  // Convert Markdown to HTML and sanitize
+  const htmlContent = sanitizeHtml(marked(content));
+
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
