@@ -202,61 +202,57 @@ const fallbackRefCodeModal = {
 // Load data from Supabase
 async function loadData() {
   try {
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('*');
-    if (productsError) throw productsError;
+    const productRes = await supabase.from('products').select('*');
+    const products = productRes.data?.map(row => ({
+      item: row.item,
+      fileId: row.file_id,
+      originalFileName: row.original_file_name,
+      price: parseFloat(row.price),
+      name: row.name,
+      desc: row.description || '',
+      img: row.image || 'https://via.placeholder.com/300',
+      category: row.category || 'General',
+      embed: row.embed || '',
+      isNew: row.is_new || false,
+      isArchived: row.is_archived || false
+    })) || [];
 
-    const { data: categories, error: categoriesError } = await supabase
-      .from('categories')
-      .select('name');
-    if (categoriesError) throw categoriesError;
+    const settingsRes = await supabase.from('settings').select('key, value');
+    const settingsData = Object.fromEntries(settingsRes.data?.map(row => [row.key, row.value]) || []);
+    const settings = {
+      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
+      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
+      logoUrl: settingsData.logoUrl || '',
+      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
+      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
+      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
+      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
+      adminPassword: settingsData.adminPassword || 'securepassword123',
+      mpesaTill: settingsData.mpesaTill || '4933614'
+    };
 
-    const { data: settingsRows, error: settingsError } = await supabase
-      .from('settings')
-      .select('key, value');
-    if (settingsError) throw settingsError;
+    const categoriesRes = await supabase.from('categories').select('name');
+    const categories = [...new Set(categoriesRes.data?.map(row => row.name) || ['General'])];
+    console.log(`[${new Date().toISOString()}] Loaded categories (after deduplication):`, categories);
 
-    const { data: staticPages, error: pagesError } = await supabase
-      .from('static_pages')
-      .select('*');
-    if (pagesError) throw pagesError;
-
-    const settings = Object.fromEntries(
-      settingsRows.map(row => [
-        row.key,
-        row.key === 'socials' || row.key === 'urgentMessage' ? JSON.parse(row.value) : row.value
-      ])
-    );
-    settings.fallbackRate = parseFloat(settings.fallbackRate) || 130;
-    settings.mpesaTill = settings.mpesaTill || '4933614';
+    const pagesRes = await supabase.from('static_pages').select('*');
+    let staticPages = pagesRes.data?.map(row => ({
+      title: row.title,
+      slug: row.slug,
+      content: row.content.replace(/\\n/g, '\n').replace(/^"|"$/g, '') // Normalize escaped newlines and remove extra quotes
+    })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
+      console.log(`[${new Date().toISOString()}] Adding fallback for /payment-modal`);
       staticPages.push(fallbackPaymentModal);
     }
     if (!staticPages.find(page => page.slug === '/ref-code-modal')) {
+      console.log(`[${new Date().toISOString()}] Adding fallback for /ref-code-modal`);
       staticPages.push(fallbackRefCodeModal);
     }
 
-    cachedData = {
-      products: products.map(p => ({
-        item: p.item,
-        fileId: p.file_id,
-        originalFileName: p.original_file_name, // Add to cache
-        price: p.price,
-        name: p.name,
-        desc: p.description,
-        img: p.image,
-        category: p.category,
-        embed: p.embed,
-        isNew: p.is_new,
-        isArchived: p.is_archived
-      })),
-      categories: categories.map(c => c.name),
-      settings,
-      staticPages
-    };
-    console.log(`[${new Date().toISOString()}] Data loaded from Supabase`);
+    cachedData = { products, categories, settings, staticPages };
+    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase`);
     console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
@@ -333,10 +329,14 @@ async function saveData() {
       );
     }
 
-    // Save static pages
+    // Save static pages, ensuring content is a raw string
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
-      await supabase.from('static_pages').insert(cachedData.staticPages);
+      const formattedPages = cachedData.staticPages.map(page => ({
+        ...page,
+        content: page.content // Ensure content is a raw string
+      }));
+      await supabase.from('static_pages').insert(formattedPages);
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
@@ -965,7 +965,12 @@ app.get('/api/page/:slug', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
     return res.status(404).json({ success: false, error: 'Page not found' });
   }
-  res.json({ success: true, page });
+  // Normalize content to ensure actual newlines
+  const normalizedPage = {
+    ...page,
+    content: page.content.replace(/\\n/g, '\n').replace(/^"|"$/g, '')
+  };
+  res.json({ success: true, page: normalizedPage });
   console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
 });
 
