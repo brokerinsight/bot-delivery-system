@@ -201,9 +201,17 @@ const fallbackRefCodeModal = {
 };
 
 // Load data from Supabase
+// Load data from Supabase with updated product sorting
 async function loadData() {
   try {
-    const productRes = await supabase.from('products').select('*');
+    // Fetch products with sorting: is_new = true first, then by created_at DESC, with item as tiebreaker
+    const productRes = await supabase
+      .from('products')
+      .select('*')
+      .order('is_new', { ascending: false }) // Prioritize is_new = true
+      .order('created_at', { ascending: false }) // Then sort by created_at DESC (newest first)
+      .order('item', { ascending: true }); // Use item as tiebreaker (ascending)
+
     const products = productRes.data?.map(row => ({
       item: row.item,
       fileId: row.file_id,
@@ -218,6 +226,7 @@ async function loadData() {
       isArchived: row.is_archived || false
     })) || [];
 
+    // Rest of the function remains unchanged
     const settingsRes = await supabase.from('settings').select('key, value');
     const settingsData = Object.fromEntries(settingsRes.data?.map(row => [row.key, row.value]) || []);
     const settings = {
@@ -263,7 +272,6 @@ async function loadData() {
     throw error;
   }
 }
-
 // Refresh cache periodically
 async function refreshCache() {
   try {
