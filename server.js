@@ -240,7 +240,10 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content // Load content as raw
+      content: row.content
+        .replace(/\\n/g, '\n') // Normalize newlines
+        .replace(/^"|"$/g, '') // Remove leading/trailing quotes
+        .replace(/=""([^"]*)""/g, '="$1"') // Fix escaped quotes in attributes (e.g., lang=""en"" -> lang="en")
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
