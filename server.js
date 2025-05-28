@@ -227,8 +227,6 @@ async function loadData() {
       socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
       urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
-      adminEmail: settingsData.adminEmail || 'admin@kaylie254.com',
-      adminPassword: settingsData.adminPassword || 'securepassword123',
       mpesaTill: settingsData.mpesaTill || '4933614'
     };
 
@@ -240,10 +238,7 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content
-        .replace(/\\n/g, '\n') // Normalize newlines
-        .replace(/^"|"$/g, '') // Remove leading/trailing quotes
-        .replace(/=""([^"]*)""/g, '="$1"') // Fix escaped quotes in attributes (e.g., lang=""en"" -> lang="en")
+      content: row.content // Use raw content as stored
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -333,14 +328,10 @@ async function saveData() {
       );
     }
 
-    // Save static pages, ensuring content is a raw string
+    // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
-      const formattedPages = cachedData.staticPages.map(page => ({
-        ...page,
-        content: page.content // Ensure content is a raw string
-      }));
-      await supabase.from('static_pages').insert(formattedPages);
+      await supabase.from('static_pages').insert(cachedData.staticPages);
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
@@ -494,7 +485,6 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
-
 
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
