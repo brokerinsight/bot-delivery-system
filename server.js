@@ -277,24 +277,44 @@ async function refreshCache() {
 // Save data to Supabase
 async function saveData() {
   try {
-    // Save products
-    await supabase.from('products').delete().neq('item', null); // Clear existing
-    if (cachedData.products.length > 0) {
-      await supabase.from('products').insert(
-        cachedData.products.map(p => ({
-          item: p.item,
-          file_id: p.fileId,
-          price: p.price,
-          name: p.name,
-          description: p.desc,
-          image: p.img,
-          category: p.category,
-          embed: p.embed,
-          is_new: p.isNew,
-          is_archived: p.isArchived
-        }))
-      );
+    // Fetch existing products to preserve file_id and original_file_name
+    const { data: existingProducts, error: fetchError } = await supabase
+      .from('products')
+      .select('*');
+    if (fetchError) throw fetchError;
+
+    // Map incoming products, merging with existing data
+    const updatedProducts = cachedData.products.map(p => {
+      const existing = existingProducts.find(ep => ep.item === p.item);
+      return {
+        item: p.item,
+        file_id: existing?.file_id || p.fileId,
+        original_file_name: existing?.original_file_name || p.originalFileName,
+        price: p.price,
+        name: p.name,
+        description: p.desc,
+        image: p.img,
+        category: p.category,
+        embed: p.embed,
+        is_new: p.isNew,
+        is_archived: p.isArchived
+      };
+    });
+
+    // Update or insert products
+    for (const product of updatedProducts) {
+      const { error: upsertError } = await supabase
+        .from('products')
+        .upsert(product, { onConflict: 'item' });
+      if (upsertError) throw upsertError;
     }
+
+    // Delete products not in cachedData
+    const cachedItems = cachedData.products.map(p => p.item);
+    await supabase
+      .from('products')
+      .delete()
+      .not('item', 'in', `(${cachedItems.join(',')})`);
 
     // Save settings
     await supabase.from('settings').delete().neq('key', null);
@@ -320,7 +340,7 @@ async function saveData() {
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
-    await loadData(); // Reload cache after saving
+    await loadData(); // Reload cache
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
@@ -433,9 +453,17 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    cachedData = req.body;
+    // Preserve fileId and originalFileName from existing cache
+    cachedData = {
+      ...req.body,
+      products: req.body.products.map(p => ({
+        ...p,
+        fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
+        originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName
+      }))
+    };
 
-    // Handle category deletions and updates
+    // Handle category deletions
     const { data: existingCategories, error: catError } = await supabase
       .from('categories')
       .select('name');
@@ -462,6 +490,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save data' });
   }
 });
+
 
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
