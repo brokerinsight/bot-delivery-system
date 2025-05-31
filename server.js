@@ -10,10 +10,10 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
-const { createClient } = require('@supabase/supabase-js');
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js'); // Renamed
 const bcrypt = require('bcrypt');
-const RedisStore = require('connect-redis').default; // Add connect-redis for session storage
-const { createClient } = require('redis'); // Add redis client for Node.js
+const RedisStore = require('connect-redis').default;
+const { createClient: createRedisClient } = require('redis'); // Renamed
 
 dotenv.config();
 
@@ -21,10 +21,10 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Supabase client setup with service role key for RLS
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Create a Redis client for Valkey
-const redisClient = createClient({
+const redisClient = createRedisClient({
   url: `rediss://${process.env.VALKEY_USERNAME}:${process.env.VALKEY_PASSWORD}@${process.env.VALKEY_HOST}:${process.env.VALKEY_PORT}/0`
 });
 
