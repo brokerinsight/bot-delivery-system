@@ -23,7 +23,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 // Allowed domains for CORS and download links
 const ALLOWED_ORIGINS = [
-  'https://bot-delivery-system.onrender.com',
+  'https://bot-delivery-system-qlx4j.ondigitalocean.app',
   'https://botblitz.store',
   'https://www.botblitz.store'
 ];
