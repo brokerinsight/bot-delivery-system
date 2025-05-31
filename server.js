@@ -520,6 +520,9 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
+    // Log the incoming request body to debug categories
+    console.log(`[${new Date().toISOString()}] Incoming data from /api/save-data:`, JSON.stringify(req.body, null, 2));
+
     // Preserve fileId and originalFileName for products, save static pages as raw
     cachedData = {
       ...req.body,
@@ -531,16 +534,18 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
       staticPages: req.body.staticPages // Save as raw
     };
 
+    // Log the categories being processed
+    console.log(`[${new Date().toISOString()}] Categories to be saved:`, cachedData.categories);
+
     // Handle category deletions
     const { data: existingCategories, error: catError } = await supabase
       .from('categories')
       .select('name');
     if (catError) throw catError;
 
-    const newCategories = cachedData.categories;
-    const deletedCategories = existingCategories
-      .map(c => c.name)
-      .filter(c => !newCategories.includes(c));
+    const newCategories = cachedData.categories || [];
+    const existingCategoryNames = existingCategories.map(c => c.name);
+    const deletedCategories = existingCategoryNames.filter(c => !newCategories.includes(c));
 
     if (deletedCategories.length > 0) {
       await supabase
@@ -548,6 +553,15 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
         .delete()
         .in('name', deletedCategories);
       console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
+    }
+
+    // Ensure categories are added to the database
+    const addedCategories = newCategories.filter(c => !existingCategoryNames.includes(c));
+    if (addedCategories.length > 0) {
+      await supabase.from('categories').insert(
+        addedCategories.map(c => ({ name: c }))
+      );
+      console.log(`[${new Date().toISOString()}] ➕ Added categories: ${addedCategories.join(', ')}`);
     }
 
     // Hash the new password if provided
