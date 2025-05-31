@@ -550,6 +550,12 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
       console.log(`[${new Date().toISOString()}] 🗑️ Deleted categories: ${deletedCategories.join(', ')}`);
     }
 
+    // Hash the new password if provided
+    if (cachedData.settings.adminPassword) {
+      const saltRounds = 10;
+      cachedData.settings.adminPassword = await bcrypt.hash(cachedData.settings.adminPassword, saltRounds);
+    }
+
     await saveData();
     res.json({ success: true });
     console.log(`[${new Date().toISOString()}] Data saved via /api/save-data`);
@@ -1009,6 +1015,7 @@ app.post('/api/login', rateLimit, async (req, res) => {
       await bcrypt.compare(password, adminPasswordHash)
     ) {
       req.session.isAuthenticated = true;
+      req.session.email = email; // Store email in session for reference
       console.log(`[${new Date().toISOString()}] User logged in successfully, session:`, email);
       res.json({ success: true });
     } else {
@@ -1049,6 +1056,23 @@ app.get('/virus.html', (req, res) => {
       </p>
       <p>Ensure that the 'public' directory contains 'virus.html' and that the server is deployed correctly.</p>
     `);
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  try {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error(`[${new Date().toISOString()}] Error destroying session:`, err.message);
+        return res.status(500).json({ success: false, error: 'Failed to log out' });
+      }
+      res.clearCookie('sid'); // Matches the session cookie name set in session middleware
+      console.log(`[${new Date().toISOString()}] User logged out successfully, session destroyed`);
+      res.json({ success: true });
+    });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error during logout:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to log out' });
   }
 });
 
