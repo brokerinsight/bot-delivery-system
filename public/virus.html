@@ -182,29 +182,31 @@
       color: #ef4444;
     }
 
-    /* Login Page */
+    /* Full-screen login page */
 #login-page {
-  max-width: 500px;
-  margin: 0 auto;
-  background: linear-gradient(145deg, #ffffff, #f0f4f8);
-  border-radius: 16px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-#login-page:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  height: 100vh;
+  width: 100vw;
+  background-color: #f3f4f6; /* Matches bg-gray-100 */
 }
 
-/* Toggle password button */
-#toggle-password {
-  top: 2.5rem;
-  font-size: 0.9rem;
-  color: #16a34a;
-  transition: all 0.3s ease;
+/* Ensure the admin panel takes full width when visible */
+#admin-panel {
+  width: 100%;
 }
-#toggle-password:hover {
-  color: #15803d;
+
+/* Optional: Improve the look of the login form */
+#login-page .bg-white {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Hide scrollbars on login page but keep functionality */
+#login-page {
+  overflow: hidden;
+}
+
+/* Adjust toggle password button positioning */
+#toggle-password {
+  top: 2.25rem; /* Adjusted to align with the input field */
 }
     
     /* Responsive adjustments */
@@ -232,984 +234,988 @@
   </style>
 </head>
 <body class="bg-gray-100">
-  <!-- Navigation Bar -->
-  <nav class="bg-white shadow-md sticky top-0 z-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center">
-          <h1 class="text-xl font-bold text-gray-800">Admin Panel</h1>
-          <div class="ml-6 flex space-x-4 sm:space-x-8">
-            <a href="#add-bot" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium border-b-2 border-green-500">Add Bot</a>
-            <a href="#manage-bots" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Manage Bots</a>
-            <a href="#settings" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Settings</a>
-            <a href="#static-pages" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Static Pages</a>
-            <a href="#orders" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Orders</a>
-          </div>
-        </div>
+  <!-- Login Page -->
+  <div id="login-page" class="flex items-center justify-center min-h-screen">
+    <div class="bg-white rounded-lg shadow-md p-8 max-w-sm w-full">
+      <h2 class="text-2xl font-semibold text-gray-900 mb-6 text-center">Admin Login</h2>
+      <div class="mb-4">
+        <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+        <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
       </div>
+      <div class="mb-6 relative">
+        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+        <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
+        <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
+      </div>
+      <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
     </div>
-  </nav>
+  </div>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <!-- Login Page -->
-    <section id="login-page" class="section bg-white rounded-lg shadow-md p-6 mb-8">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4 text-center">Admin Login</h2>
-      <div class="max-w-sm mx-auto">
-        <div class="mb-4">
-          <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-          <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
-        </div>
-        <div class="mb-4 relative">
-          <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
-          <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
-          <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
-        </div>
-        <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
-      </div>
-    </section>
-
-    <!-- Add Bot Section -->
-    <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
-      <form id="product-form">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" id="name" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div>
-            <label for="price" class="block text-sm font-medium text-gray-700">Price ($)</label>
-            <input type="number" id="price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
-            <textarea id="desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
-            <input type="url" id="embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
-          </div>
-          <div>
-            <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
-            <select id="category" required class="mt-1 w-full p-2 border rounded-md"></select>
-          </div>
-          <div>
-            <label for="item" class="block text-sm font-medium text-gray-700">Item Number</label>
-            <input type="text" id="item" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="img" class="block text-sm font-medium text-gray-700">Image URL</label>
-            <input type="url" id="img" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="isNew" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Mark as New</span>
-            </label>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="file" class="block text-sm font-medium text-gray-700">Bot File</label>
-            <input type="file" id="file" required class="mt-1 w-full p-2 border rounded-md">
-            <div id="upload-progress" class="hidden">
-              <div id="upload-progress-bar"></div>
+  <!-- Main Admin Panel (Hidden Initially) -->
+  <div id="admin-panel" class="hidden">
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-md sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <h1 class="text-xl font-bold text-gray-800">Admin Panel</h1>
+            <div class="ml-6 flex space-x-4 sm:space-x-8">
+              <a href="#add-bot" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium border-b-2 border-green-500">Add Bot</a>
+              <a href="#manage-bots" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Manage Bots</a>
+              <a href="#settings" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Settings</a>
+              <a href="#static-pages" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Static Pages</a>
+              <a href="#orders" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">Orders</a>
             </div>
           </div>
         </div>
-        <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
-      </form>
-    </section>
+      </div>
+    </nav>
 
-    <!-- Manage Bots Section -->
-    <section id="manage-bots" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Bots</h2>
-      <ul id="bot-list" class="space-y-4"></ul>
-    </section>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <!-- Add Bot Section -->
+      <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
+        <form id="product-form">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+              <input type="text" id="name" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+              <input type="number" id="price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea id="desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
+              <input type="url" id="embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
+            </div>
+            <div>
+              <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+              <select id="category" required class="mt-1 w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+              <label for="item" class="block text-sm font-medium text-gray-700">Item Number</label>
+              <input type="text" id="item" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="img" class="block text-sm font-medium text-gray-700">Image URL</label>
+              <input type="url" id="img" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="flex items-center">
+                <input type="checkbox" id="isNew" class="mr-2">
+                <span class="text-sm font-medium text-gray-700">Mark as New</span>
+              </label>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="file" class="block text-sm font-medium text-gray-700">Bot File</label>
+              <input type="file" id="file" required class="mt-1 w-full p-2 border rounded-md">
+              <div id="upload-progress" class="hidden">
+                <div id="upload-progress-bar"></div>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Add Bot</button>
+        </form>
+      </section>
 
-    <!-- Settings Section -->
-    <section id="settings" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Settings</h2>
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Manage Categories</h3>
-        <div class="flex gap-4 mb-4">
-          <input type="text" id="new-category" class="w-full p-2 border rounded-md" placeholder="e.g., Volatility Bots">
-          <button id="add-category" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Category</button>
-        </div>
-        <ul id="category-list" class="space-y-2"></ul>
-      </div>
-      <div class="mb-6">
-        <label class="flex items-center">
-          <input type="checkbox" id="urgent-toggle" class="mr-2">
-          <span class="text-sm font-medium text-gray-700">Show Urgent Message (Pop-up on Front End)</span>
-        </label>
-        <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
-        <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
-      </div>
-      <div class="mb-6">
-        <label for="support-email" class="block text-sm font-medium text-gray-700">Support Email</label>
-        <input type="email" id="support-email" class="mt-1 w-full p-2 border rounded-md">
-        <button id="save-email" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Email</button>
-      </div>
-      <div class="mb-6">
-        <label for="copyright-text" class="block text-sm font-medium text-gray-700">Footer Copyright Text</label>
-        <input type="text" id="copyright-text" class="mt-1 w-full p-2 border rounded-md">
-        <button id="save-copyright" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Copyright</button>
-      </div>
-      <div class="mb-6">
-        <label for="logo-url" class="block text-sm font-medium text-gray-700">Logo URL</label>
-        <input type="url" id="logo-url" class="mt-1 w-full p-2 border rounded-md">
-        <button id="save-logo" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Logo</button>
-      </div>
-      <div class="mb-6">
-        <label for="mpesa-till" class="block text-sm font-medium text-gray-700">MPESA Till Number</label>
-        <input type="text" id="mpesa-till" class="mt-1 w-full p-2 border rounded-md">
-        <button id="save-mpesa-till" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Till Number</button>
-      </div>
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Social Media Links</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok</label><input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="whatsapp" class="block text-sm font-medium text-gray-700">WhatsApp</label><input type="url" id="whatsapp" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="call" class="block text-sm font-medium text-gray-700">Call</label><input type="tel" id="call" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="instagram" class="block text-sm font-medium text-gray-700">Instagram</label><input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="x" class="block text-sm font-medium text-gray-700">X</label><input type="url" id="x" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="facebook" class="block text-sm font-medium text-gray-700">Facebook</label><input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md"></div>
-          <div><label for="youtube" class="block text-sm font-medium text-gray-700">YouTube</label><input type="url" id="youtube" class="mt-1 w-full p-2 border rounded-md"></div>
-        </div>
-        <button id="save-socials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Socials</button>
-      </div>
-      <div class="mb-6">
-        <label for="fallback-rate" class="block text-sm font-medium text-gray-700">Fallback Exchange Rate (KES/USD)</label>
-        <input type="number" id="fallback-rate" step="0.01" class="mt-1 w-full p-2 border rounded-md">
-        <button id="save-fallback-rate" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Rate</button>
-      </div>
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Change Admin Credentials</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="new-email" class="block text-sm font-medium text-gray-700">New Email</label>
-            <input type="email" id="new-email" class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div>
-            <label for="new-password" class="block text-sm font-medium text-gray-700">New Password</label>
-            <input type="password" id="new-password" class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div>
-            <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
-            <input type="password" id="confirm-password" class="mt-1 w-full p-2 border rounded-md">
-          </div>
-        </div>
-        <button id="change-credentials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Change Credentials</button>
-      </div>
-    </section>
+      <!-- Manage Bots Section -->
+      <section id="manage-bots" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Bots</h2>
+        <ul id="bot-list" class="space-y-4"></ul>
+      </section>
 
-    <!-- Static Pages Section -->
-    <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
-      <p class="text-sm text-gray-600 mb-4">To edit the Payment Modal, create a page with slug <code>/payment-modal</code>. For the Ref Code Modal, use <code>/ref-code-modal</code>. Use HTML in the content field.</p>
-      <div class="mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Add New Page</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="page-title" class="block text-sm font-medium text-gray-700">Page Title</label>
-            <input type="text" id="page-title" class="mt-1 w-full p-2 border rounded-md">
+      <!-- Settings Section -->
+      <section id="settings" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Settings</h2>
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Manage Categories</h3>
+          <div class="flex gap-4 mb-4">
+            <input type="text" id="new-category" class="w-full p-2 border rounded-md" placeholder="e.g., Volatility Bots">
+            <button id="add-category" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Category</button>
           </div>
-          <div>
-            <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (e.g., /my-page)</label>
-            <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
-            <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
-          </div>
+          <ul id="category-list" class="space-y-2"></ul>
         </div>
-        <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
+        <div class="mb-6">
+          <label class="flex items-center">
+            <input type="checkbox" id="urgent-toggle" class="mr-2">
+            <span class="text-sm font-medium text-gray-700">Show Urgent Message (Pop-up on Front End)</span>
+          </label>
+          <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
+          <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
+        </div>
+        <div class="mb-6">
+          <label for="support-email" class="block text-sm font-medium text-gray-700">Support Email</label>
+          <input type="email" id="support-email" class="mt-1 w-full p-2 border rounded-md">
+          <button id="save-email" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Email</button>
+        </div>
+        <div class="mb-6">
+          <label for="copyright-text" class="block text-sm font-medium text-gray-700">Footer Copyright Text</label>
+          <input type="text" id="copyright-text" class="mt-1 w-full p-2 border rounded-md">
+          <button id="save-copyright" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Copyright</button>
+        </div>
+        <div class="mb-6">
+          <label for="logo-url" class="block text-sm font-medium text-gray-700">Logo URL</label>
+          <input type="url" id="logo-url" class="mt-1 w-full p-2 border rounded-md">
+          <button id="save-logo" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Logo</button>
+        </div>
+        <div class="mb-6">
+          <label for="mpesa-till" class="block text-sm font-medium text-gray-700">MPESA Till Number</label>
+          <input type="text" id="mpesa-till" class="mt-1 w-full p-2 border rounded-md">
+          <button id="save-mpesa-till" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Till Number</button>
+        </div>
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Social Media Links</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label for="tiktok" class="block text-sm font-medium text-gray-700">TikTok</label><input type="url" id="tiktok" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="whatsapp" class="block text-sm font-medium text-gray-700">WhatsApp</label><input type="url" id="whatsapp" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="call" class="block text-sm font-medium text-gray-700">Call</label><input type="tel" id="call" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="instagram" class="block text-sm font-medium text-gray-700">Instagram</label><input type="url" id="instagram" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="x" class="block text-sm font-medium text-gray-700">X</label><input type="url" id="x" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="facebook" class="block text-sm font-medium text-gray-700">Facebook</label><input type="url" id="facebook" class="mt-1 w-full p-2 border rounded-md"></div>
+            <div><label for="youtube" class="block text-sm font-medium text-gray-700">YouTube</label><input type="url" id="youtube" class="mt-1 w-full p-2 border rounded-md"></div>
+          </div>
+          <button id="save-socials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Socials</button>
+        </div>
+        <div class="mb-6">
+          <label for="fallback-rate" class="block text-sm font-medium text-gray-700">Fallback Exchange Rate (KES/USD)</label>
+          <input type="number" id="fallback-rate" step="0.01" class="mt-1 w-full p-2 border rounded-md">
+          <button id="save-fallback-rate" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Rate</button>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Change Admin Credentials</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="new-email" class="block text-sm font-medium text-gray-700">New Email</label>
+              <input type="email" id="new-email" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="new-password" class="block text-sm font-medium text-gray-700">New Password</label>
+              <input type="password" id="new-password" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <input type="password" id="confirm-password" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+          </div>
+          <button id="change-credentials" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Change Credentials</button>
+        </div>
+      </section>
+
+      <!-- Static Pages Section -->
+      <section id="static-pages" class="section bg-white rounded-lg shadow-md p-6 hidden">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Static Pages</h2>
+        <p class="text-sm text-gray-600 mb-4">To edit the Payment Modal, create a page with slug <code>/payment-modal</code>. For the Ref Code Modal, use <code>/ref-code-modal</code>. Use HTML in the content field.</p>
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Add New Page</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="page-title" class="block text-sm font-medium text-gray-700">Page Title</label>
+              <input type="text" id="page-title" class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="page-slug" class="block text-sm font-medium text-gray-700">Slug (e.g., /my-page)</label>
+              <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
+              <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
+            </div>
+          </div>
+          <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
+        </div>
+        <ul id="page-list" class="space-y-4"></ul>
+      </section>
+
+      <!-- Orders Section -->
+      <section id="orders" class="section bg-white rounded-lg shadow-md p-6 hidden">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Orders</h2>
+        <table id="orders-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Ref Code</th>
+              <th>Amount</th>
+              <th>Timestamp</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="order-list"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <!-- Edit Bot Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+      <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
+        <button class="close-modal" onclick="closeEditModal()">×</button>
+        <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
+        <form id="edit-form">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="edit-name" class="block text-sm font-medium text-gray-700">Name</label>
+              <input type="text" id="edit-name" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div>
+              <label for="edit-price" class="block text-sm font-medium text-gray-700">Price ($)</label>
+              <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
+              <textarea id="edit-desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
+              <input type="url" id="edit-embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
+            </div>
+            <div>
+              <label for="edit-category" class="block text-sm font-medium text-gray-700">Category</label>
+              <select id="edit-category" required class="mt-1 w-full p-2 border rounded-md"></select>
+            </div>
+            <div>
+              <label for="edit-item" class="block text-sm font-medium text-gray-700">Item Number</label>
+              <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
+              <input type="url" id="edit-img" required class="mt-1 w-full p-2 border rounded-md">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="flex items-center">
+                <input type="checkbox" id="edit-isNew" class="mr-2">
+                <span class="text-sm font-medium text-gray-700">Mark as New</span>
+              </label>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="flex items-center">
+                <input type="checkbox" id="edit-isArchived" class="mr-2">
+                <span class="text-sm font-medium text-gray-700">Archive Bot</span>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Save Changes</button>
+          <button type="button" id="edit-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+        </form>
       </div>
-      <ul id="page-list" class="space-y-4"></ul>
-    </section>
-
-    <!-- Orders Section -->
-    <section id="orders" class="section bg-white rounded-lg shadow-md p-6 hidden">
-      <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Orders</h2>
-      <table id="orders-table">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Ref Code</th>
-            <th>Amount</th>
-            <th>Timestamp</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="order-list"></tbody>
-      </table>
-    </section>
-
-  
-  <!-- Edit Bot Modal -->
-  <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
-      <button class="close-modal" onclick="closeEditModal()">×</button>
-      <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
-      <form id="edit-form">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="edit-name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" id="edit-name" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div>
-            <label for="edit-price" class="block text-sm font-medium text-gray-700">Price ($)</label>
-            <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
-            <textarea id="edit-desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
-            <input type="url" id="edit-embed" class="mt-1 w-full p-2 border rounded-md" placeholder="https://www.youtube.com/embed/VIDEO_ID">
-          </div>
-          <div>
-            <label for="edit-category" class="block text-sm font-medium text-gray-700">Category</label>
-            <select id="edit-category" required class="mt-1 w-full p-2 border rounded-md"></select>
-          </div>
-          <div>
-            <label for="edit-item" class="block text-sm font-medium text-gray-700">Item Number</label>
-            <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
-            <input type="url" id="edit-img" required class="mt-1 w-full p-2 border rounded-md">
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="edit-isNew" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Mark as New</span>
-            </label>
-          </div>
-          <div class="sm:col-span-2">
-            <label class="flex items-center">
-              <input type="checkbox" id="edit-isArchived" class="mr-2">
-              <span class="text-sm font-medium text-gray-700">Archive Bot</span>
-            </label>
-          </div>
-        </div>
-        <button type="submit" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Save Changes</button>
-        <button type="button" id="edit-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-      </form>
     </div>
   </div>
 
   <script>
-// Helper function to show button feedback
-function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
-  btn.disabled = true;
-  btn.textContent = actionText;
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }, duration);
-}
-
-let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
-let orders = [];
-
-// Fetch data from server
-async function fetchData() {
-  try {
-    const response = await fetch('/api/data', { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch data');
-    data = await response.json();
-    return true;
-  } catch (error) {
-    console.error('Error fetching data:', error);
-    alert('Failed to load data. Please try again.');
-    return false;
+  // Helper function to show button feedback
+  function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
+    btn.disabled = true;
+    btn.textContent = actionText;
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }, duration);
   }
-}
 
-// Save data to server
-async function saveData() {
-  try {
-    const response = await fetch('/api/save-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-      credentials: 'include'
-    });
-    if (!response.ok) throw new Error('Failed to save data');
-    return true;
-  } catch (error) {
-    console.error('Error saving data:', error);
-    alert('Failed to save data. Please try again.');
-    return false;
-  }
-}
+  let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
+  let orders = [];
 
-// Fetch orders
-async function fetchOrders() {
-  try {
-    const response = await fetch('/api/orders', { credentials: 'include' });
-    if (!response.ok) throw new Error('Failed to fetch orders');
-    const result = await response.json();
-    if (result.success) {
-      orders = result.orders;
-      renderOrders();
-    } else {
-      throw new Error(result.error || 'Failed to fetch orders');
+  // Fetch data from server
+  async function fetchData() {
+    try {
+      const response = await fetch('/api/data', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch data');
+      data = await response.json();
+      return true;
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      alert('Failed to load data. Please try again.');
+      return false;
     }
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    alert('Failed to load orders. Please try again.');
   }
-}
 
-// Render orders with status dropdown
-function renderOrders() {
-  const orderList = document.getElementById('order-list');
-  orderList.innerHTML = '';
-  orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  orders.forEach(order => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${order.item}</td>
-      <td>${order.refCode}</td>
-      <td>${order.amount}</td>
-      <td>${new Date(order.timestamp).toLocaleString()}</td>
-      <td>${order.status || 'pending'}</td>
-      <td>
-        <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
-          <option value="" selected disabled>Update Status</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="no payment">No Payment</option>
-          <option value="partial payment">Partial Payment</option>
-        </select>
-      </td>
-    `;
-    orderList.appendChild(row);
-  });
-
-  document.querySelectorAll('.status-select').forEach(select => {
-    select.addEventListener('change', async () => {
-      const item = select.dataset.item;
-      const refCode = select.dataset.refcode;
-      const status = select.value;
-      const originalText = select.value;
-      showButtonFeedback(select, 'Updating...', originalText);
-
-      try {
-        const response = await fetch('/api/update-order-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item, refCode, status }),
-          credentials: 'include'
-        });
-        const result = await response.json();
-        if (result.success) {
-          await fetchOrders();
-          alert(`Order status updated to "${status}"!`);
-        } else {
-          throw new Error(result.error || 'Failed to update order status');
-        }
-      } catch (error) {
-        console.error('Error updating order status:', error);
-        alert('Failed to update order status. Please try again.');
-      }
-    });
-  });
-}
-
-// Start polling for orders every 5 seconds when Orders section is active
-function startOrdersPolling() {
-  setInterval(async () => {
-    const ordersSection = document.getElementById('orders');
-    const isOrdersActive = !ordersSection.classList.contains('hidden');
-    const isEditModalOpen = !document.getElementById('edit-modal').classList.contains('hidden');
-    if (isOrdersActive && !isEditModalOpen) {
-      console.log('Polling for new orders...');
-      await fetchOrders();
-    } else {
-      console.log('Polling skipped: Orders section not active or edit modal is open');
+  // Save data to server
+  async function saveData() {
+    try {
+      const response = await fetch('/api/save-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to save data');
+      return true;
+    } catch (error) {
+      console.error('Error saving data:', error);
+      alert('Failed to save data. Please try again.');
+      return false;
     }
-  }, 5 * 1000);
-}
-
-// Navigation
-document.querySelectorAll('.nav-link').forEach(link => {
-  link.addEventListener('click', e => {
-    e.preventDefault();
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
-    link.classList.add('border-b-2', 'border-green-500');
-    document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-    document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
-    if (link.getAttribute('href') === '#orders') {
-      fetchOrders();
-    }
-  });
-});
-
-// Login handling
-async function checkSession() {
-  try {
-    const response = await fetch('/api/check-session', { credentials: 'include' });
-    const result = await response.json();
-    return result.isAuthenticated;
-  } catch (error) {
-    console.error('Error checking session:', error);
-    return false;
   }
-}
 
-document.getElementById('toggle-password').addEventListener('click', () => {
-  const passwordInput = document.getElementById('login-password');
-  const toggleBtn = document.getElementById('toggle-password');
-  if (passwordInput.type === 'password') {
-    passwordInput.type = 'text';
-    toggleBtn.textContent = 'Hide';
-  } else {
-    passwordInput.type = 'password';
-    toggleBtn.textContent = 'Show';
-  }
-});
-
-document.getElementById('login-submit').addEventListener('click', async () => {
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value.trim();
-  const btn = document.getElementById('login-submit');
-  showButtonFeedback(btn, 'Logging in...', 'Login');
-
-  try {
-    const response = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include'
-    });
-    const result = await response.json();
-    if (result.success) {
-      document.getElementById('login-page').classList.add('hidden');
-      document.getElementById('add-bot').classList.remove('hidden');
-      document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
-      initialize();
-    } else {
-      alert('Invalid credentials. Please try again.');
-    }
-  } catch (error) {
-    console.error('Error logging in:', error);
-    alert('Failed to login. Please try again.');
-  }
-});
-
-// Add bot with progress bar
-document.getElementById('product-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const formData = new FormData();
-  formData.append('item', document.getElementById('item').value.trim());
-  formData.append('name', document.getElementById('name').value.trim());
-  formData.append('price', document.getElementById('price').value);
-  formData.append('desc', document.getElementById('desc').value.trim());
-  formData.append('embed', document.getElementById('embed').value.trim());
-  formData.append('category', document.getElementById('category').value);
-  formData.append('img', document.getElementById('img').value.trim());
-  formData.append('isNew', document.getElementById('isNew').checked);
-  formData.append('file', document.getElementById('file').files[0]);
-
-  const progressBar = document.getElementById('upload-progress-bar');
-  const progressContainer = document.getElementById('upload-progress');
-  progressContainer.classList.remove('hidden');
-  progressBar.style.width = '0%';
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/add-bot', true);
-
-  xhr.upload.onprogress = event => {
-    if (event.lengthComputable) {
-      const percent = (event.loaded / event.total) * 100;
-      progressBar.style.width = `${percent}%`;
-    }
-  };
-
-  xhr.onload = async () => {
-    if (xhr.status === 200) {
-      const result = JSON.parse(xhr.responseText);
+  // Fetch orders
+  async function fetchOrders() {
+    try {
+      const response = await fetch('/api/orders', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      const result = await response.json();
       if (result.success) {
-        data.products.push(result.product);
-        await saveData();
-        renderBots();
-        document.getElementById('product-form').reset();
-        progressContainer.classList.add('hidden');
-        alert('Bot added successfully!');
+        orders = result.orders;
+        renderOrders();
       } else {
-        throw new Error('Failed to add bot');
+        throw new Error(result.error || 'Failed to fetch orders');
       }
-    } else {
-      throw new Error('Upload failed');
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      alert('Failed to load orders. Please try again.');
     }
-  };
+  }
 
-  xhr.onerror = () => {
-    progressContainer.classList.add('hidden');
-    alert('Error uploading bot. Please try again.');
-  };
+  // Render orders with status dropdown
+  function renderOrders() {
+    const orderList = document.getElementById('order-list');
+    orderList.innerHTML = '';
+    orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    orders.forEach(order => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${order.item}</td>
+        <td>${order.refCode}</td>
+        <td>${order.amount}</td>
+        <td>${new Date(order.timestamp).toLocaleString()}</td>
+        <td>${order.status || 'pending'}</td>
+        <td>
+          <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
+            <option value="" selected disabled>Update Status</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="no payment">No Payment</option>
+            <option value="partial payment">Partial Payment</option>
+          </select>
+        </td>
+      `;
+      orderList.appendChild(row);
+    });
 
-  xhr.send(formData);
-});
+    document.querySelectorAll('.status-select').forEach(select => {
+      select.addEventListener('change', async () => {
+        const item = select.dataset.item;
+        const refCode = select.dataset.refcode;
+        const status = select.value;
+        const originalText = select.value;
+        showButtonFeedback(select, 'Updating...', originalText);
 
-// Render bots
-function renderBots() {
-  const botList = document.getElementById('bot-list');
-  botList.innerHTML = '';
-  data.products.forEach(product => {
-    const li = document.createElement('li');
-    li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-    li.innerHTML = `
-      <div>
-        <h3 class="text-lg font-medium text-gray-900">${product.name}</h3>
-        <p class="text-sm text-gray-600">Item: ${product.item} | Price: $${product.price}</p>
-      </div>
-      <div class="space-x-2">
-        <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-item="${product.item}">Edit</button>
-        <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-item="${product.item}">Delete</button>
-      </div>
-    `;
-    botList.appendChild(li);
-  });
+        try {
+          const response = await fetch('/api/update-order-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item, refCode, status }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            await fetchOrders();
+            alert(`Order status updated to "${status}"!`);
+          } else {
+            throw new Error(result.error || 'Failed to update order status');
+          }
+        } catch (error) {
+          console.error('Error updating order status:', error);
+          alert('Failed to update order status. Please try again.');
+        }
+      });
+    });
+  }
 
-  document.querySelectorAll('.edit-bot').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = btn.dataset.item;
-      const product = data.products.find(p => p.item === item);
-      if (!product) {
-        alert('Bot not found. Please refresh and try again.');
-        return;
+  // Start polling for orders every 5 seconds when Orders section is active
+  function startOrdersPolling() {
+    setInterval(async () => {
+      const ordersSection = document.getElementById('orders');
+      const isOrdersActive = !ordersSection.classList.contains('hidden');
+      const isEditModalOpen = !document.getElementById('edit-modal').classList.contains('hidden');
+      if (isOrdersActive && !isEditModalOpen) {
+        console.log('Polling for new orders...');
+        await fetchOrders();
+      } else {
+        console.log('Polling skipped: Orders section not active or edit modal is open');
       }
-      document.getElementById('edit-item').value = product.item;
-      document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
-      document.getElementById('edit-name').value = product.name;
-      document.getElementById('edit-price').value = product.price;
-      document.getElementById('edit-desc').value = product.desc;
-      document.getElementById('edit-embed').value = product.embed || '';
-      document.getElementById('edit-img').value = product.img;
-      document.getElementById('edit-isNew').checked = product.isNew;
-      document.getElementById('edit-isArchived').checked = product.isArchived || false;
-      const categorySelect = document.getElementById('edit-category');
-      categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-      categorySelect.value = product.category;
-      document.getElementById('edit-modal').classList.remove('hidden');
-      document.body.classList.add('modal-active');
+    }, 5 * 1000);
+  }
+
+  // Navigation
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500'));
+      link.classList.add('border-b-2', 'border-green-500');
+      document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+      document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
+      if (link.getAttribute('href') === '#orders') {
+        fetchOrders();
+      }
     });
   });
 
-  document.querySelectorAll('.delete-bot').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const confirmation = confirm('Are you sure you want to delete this bot?');
-      if (!confirmation) return;
-      
-      showButtonFeedback(btn, 'Deleting...', 'Delete');
-      const item = btn.dataset.item;
-      try {
-        const response = await fetch('/api/delete-bot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item }),
-          credentials: 'include'
-        });
-        const result = await response.json();
+  // Login handling
+  async function checkSession() {
+    try {
+      const response = await fetch('/api/check-session', { credentials: 'include' });
+      const result = await response.json();
+      return result.isAuthenticated;
+    } catch (error) {
+      console.error('Error checking session:', error);
+      return false;
+    }
+  }
+
+  document.getElementById('toggle-password').addEventListener('click', () => {
+    const passwordInput = document.getElementById('login-password');
+    const toggleBtn = document.getElementById('toggle-password');
+    if (passwordInput.type === 'password') {
+      passwordInput.type = 'text';
+      toggleBtn.textContent = 'Hide';
+    } else {
+      passwordInput.type = 'password';
+      toggleBtn.textContent = 'Show';
+    }
+  });
+
+  document.getElementById('login-submit').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    const btn = document.getElementById('login-submit');
+    showButtonFeedback(btn, 'Logging in...', 'Login');
+
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (result.success) {
+        document.getElementById('login-page').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        document.getElementById('add-bot').classList.remove('hidden');
+        document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
+        initialize();
+      } else {
+        alert('Invalid credentials. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error logging in:', error);
+      alert('Failed to login. Please try again.');
+    }
+  });
+
+  // Add bot with progress bar
+  document.getElementById('product-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('item', document.getElementById('item').value.trim());
+    formData.append('name', document.getElementById('name').value.trim());
+    formData.append('price', document.getElementById('price').value);
+    formData.append('desc', document.getElementById('desc').value.trim());
+    formData.append('embed', document.getElementById('embed').value.trim());
+    formData.append('category', document.getElementById('category').value);
+    formData.append('img', document.getElementById('img').value.trim());
+    formData.append('isNew', document.getElementById('isNew').checked);
+    formData.append('file', document.getElementById('file').files[0]);
+
+    const progressBar = document.getElementById('upload-progress-bar');
+    const progressContainer = document.getElementById('upload-progress');
+    progressContainer.classList.remove('hidden');
+    progressBar.style.width = '0%';
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/add-bot', true);
+
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) {
+        const percent = (event.loaded / event.total) * 100;
+        progressBar.style.width = `${percent}%`;
+      }
+    };
+
+    xhr.onload = async () => {
+      if (xhr.status === 200) {
+        const result = JSON.parse(xhr.responseText);
         if (result.success) {
-          data.products = data.products.filter(p => p.item !== item);
+          data.products.push(result.product);
           await saveData();
           renderBots();
-          alert('Bot deleted successfully!');
+          document.getElementById('product-form').reset();
+          progressContainer.classList.add('hidden');
+          alert('Bot added successfully!');
         } else {
-          throw new Error(result.error || 'Failed to delete bot');
+          throw new Error('Failed to add bot');
         }
-      } catch (error) {
-        console.error('Error deleting bot:', error);
-        alert('Failed to delete bot. Please try again.');
+      } else {
+        throw new Error('Upload failed');
       }
+    };
+
+    xhr.onerror = () => {
+      progressContainer.classList.add('hidden');
+      alert('Error uploading bot. Please try again.');
+    };
+
+    xhr.send(formData);
+  });
+
+  // Render bots
+  function renderBots() {
+    const botList = document.getElementById('bot-list');
+    botList.innerHTML = '';
+    data.products.forEach(product => {
+      const li = document.createElement('li');
+      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+      li.innerHTML = `
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">${product.name}</h3>
+          <p class="text-sm text-gray-600">Item: ${product.item} | Price: $${product.price}</p>
+        </div>
+        <div class="space-x-2">
+          <button class="edit-bot bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-item="${product.item}">Edit</button>
+          <button class="delete-bot bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-item="${product.item}">Delete</button>
+        </div>
+      `;
+      botList.appendChild(li);
     });
-  });
-}
 
-// Function to close the Edit Bot modal
-function closeEditModal() {
-  document.getElementById('edit-modal').classList.add('hidden');
-  document.body.classList.remove('modal-active');
-  document.getElementById('edit-form').reset();
-}
+    document.querySelectorAll('.edit-bot').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.dataset.item;
+        const product = data.products.find(p => p.item === item);
+        if (!product) {
+          alert('Bot not found. Please refresh and try again.');
+          return;
+        }
+        document.getElementById('edit-item').value = product.item;
+        document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
+        document.getElementById('edit-name').value = product.name;
+        document.getElementById('edit-price').value = product.price;
+        document.getElementById('edit-desc').value = product.desc;
+        document.getElementById('edit-embed').value = product.embed || '';
+        document.getElementById('edit-img').value = product.img;
+        document.getElementById('edit-isNew').checked = product.isNew;
+        document.getElementById('edit-isArchived').checked = product.isArchived || false;
+        const categorySelect = document.getElementById('edit-category');
+        categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        categorySelect.value = product.category;
+        document.getElementById('edit-modal').classList.remove('hidden');
+        document.body.classList.add('modal-active');
+      });
+    });
 
-document.getElementById('edit-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const btn = e.submitter;
-  showButtonFeedback(btn, 'Saving...', 'Save Changes');
-
-  const originalItem = document.getElementById('edit-item').dataset.originalItem;
-  const newItem = document.getElementById('edit-item').value.trim();
-
-  // Check if new item number already exists (excluding the current bot being edited)
-  if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
-    alert('This item number already exists. Please use a unique item number.');
-    return;
-  }
-
-  const productIndex = data.products.findIndex(p => p.item === originalItem);
-  if (productIndex === -1) {
-    alert('Bot not found. Please try again.');
-    return;
-  }
-
-  // Update the bot data
-  data.products[productIndex] = {
-    ...data.products[productIndex],
-    item: newItem,
-    name: document.getElementById('edit-name').value.trim(),
-    price: parseFloat(document.getElementById('edit-price').value),
-    desc: document.getElementById('edit-desc').value.trim(),
-    embed: document.getElementById('edit-embed').value.trim(),
-    category: document.getElementById('edit-category').value,
-    img: document.getElementById('edit-img').value.trim(),
-    isNew: document.getElementById('edit-isNew').checked,
-    isArchived: document.getElementById('edit-isArchived').checked
-  };
-
-  const success = await saveData();
-  if (success) {
-    renderBots();
-    closeEditModal();
-    alert('Bot updated successfully!');
-  } else {
-    alert('Failed to update bot. Please try again.');
-  }
-});
-
-document.getElementById('edit-cancel').addEventListener('click', () => {
-  closeEditModal();
-});
-
-// Categories
-function renderCategories() {
-  const categoryList = document.getElementById('category-list');
-  const categorySelect = document.getElementById('category');
-  const editCategorySelect = document.getElementById('edit-category');
-  categoryList.innerHTML = '';
-  categorySelect.innerHTML = '';
-  editCategorySelect.innerHTML = '';
-  data.categories.forEach(cat => {
-    const li = document.createElement('li');
-    li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded-md';
-    li.innerHTML = `
-      <span>${cat}</span>
-      <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-category="${cat}">Delete</button>
-    `;
-    categoryList.appendChild(li);
-    categorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-    editCategorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-  });
-
-  document.querySelectorAll('.delete-category').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to delete this category?')) {
+    document.querySelectorAll('.delete-bot').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const confirmation = confirm('Are you sure you want to delete this bot?');
+        if (!confirmation) return;
+        
         showButtonFeedback(btn, 'Deleting...', 'Delete');
-        const category = btn.dataset.category;
-        data.categories = data.categories.filter(c => c !== category);
-        data.products.forEach(p => {
-          if (p.category === category) p.category = 'General';
-        });
-        await saveData();
-        renderCategories();
-        renderBots();
-      }
+        const item = btn.dataset.item;
+        try {
+          const response = await fetch('/api/delete-bot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item }),
+            credentials: 'include'
+          });
+          const result = await response.json();
+          if (result.success) {
+            data.products = data.products.filter(p => p.item !== item);
+            await saveData();
+            renderBots();
+            alert('Bot deleted successfully!');
+          } else {
+            throw new Error(result.error || 'Failed to delete bot');
+          }
+        } catch (error) {
+          console.error('Error deleting bot:', error);
+          alert('Failed to delete bot. Please try again.');
+        }
+      });
     });
-  });
-}
+  }
 
-document.getElementById('add-category').addEventListener('click', async () => {
-  const btn = document.getElementById('add-category');
-  showButtonFeedback(btn, 'Adding...', 'Add Category');
-  const newCategory = document.getElementById('new-category').value.trim();
-  if (newCategory && !data.categories.includes(newCategory)) {
-    data.categories.push(newCategory);
+  // Function to close the Edit Bot modal
+  function closeEditModal() {
+    document.getElementById('edit-modal').classList.add('hidden');
+    document.body.classList.remove('modal-active');
+    document.getElementById('edit-form').reset();
+  }
+
+  document.getElementById('edit-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.submitter;
+    showButtonFeedback(btn, 'Saving...', 'Save Changes');
+
+    const originalItem = document.getElementById('edit-item').dataset.originalItem;
+    const newItem = document.getElementById('edit-item').value.trim();
+
+    // Check if new item number already exists (excluding the current bot being edited)
+    if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
+      alert('This item number already exists. Please use a unique item number.');
+      return;
+    }
+
+    const productIndex = data.products.findIndex(p => p.item === originalItem);
+    if (productIndex === -1) {
+      alert('Bot not found. Please try again.');
+      return;
+    }
+
+    // Update the bot data
+    data.products[productIndex] = {
+      ...data.products[productIndex],
+      item: newItem,
+      name: document.getElementById('edit-name').value.trim(),
+      price: parseFloat(document.getElementById('edit-price').value),
+      desc: document.getElementById('edit-desc').value.trim(),
+      embed: document.getElementById('edit-embed').value.trim(),
+      category: document.getElementById('edit-category').value,
+      img: document.getElementById('edit-img').value.trim(),
+      isNew: document.getElementById('edit-isNew').checked,
+      isArchived: document.getElementById('edit-isArchived').checked
+    };
+
+    const success = await saveData();
+    if (success) {
+      renderBots();
+      closeEditModal();
+      alert('Bot updated successfully!');
+    } else {
+      alert('Failed to update bot. Please try again.');
+    }
+  });
+
+  document.getElementById('edit-cancel').addEventListener('click', () => {
+    closeEditModal();
+  });
+
+  // Categories
+  function renderCategories() {
+    const categoryList = document.getElementById('category-list');
+    const categorySelect = document.getElementById('category');
+    const editCategorySelect = document.getElementById('edit-category');
+    categoryList.innerHTML = '';
+    categorySelect.innerHTML = '';
+    editCategorySelect.innerHTML = '';
+    data.categories.forEach(cat => {
+      const li = document.createElement('li');
+      li.className = 'flex justify-between items-center bg-gray-50 p-2 rounded-md';
+      li.innerHTML = `
+        <span>${cat}</span>
+        <button class="delete-category bg-red-600 text-white px-2 py-1 rounded-md hover:bg-red-700" data-category="${cat}">Delete</button>
+      `;
+      categoryList.appendChild(li);
+      categorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+      editCategorySelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+    });
+
+    document.querySelectorAll('.delete-category').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete this category?')) {
+          showButtonFeedback(btn, 'Deleting...', 'Delete');
+          const category = btn.dataset.category;
+          data.categories = data.categories.filter(c => c !== category);
+          data.products.forEach(p => {
+            if (p.category === category) p.category = 'General';
+          });
+          await saveData();
+          renderCategories();
+          renderBots();
+        }
+      });
+    });
+  }
+
+  document.getElementById('add-category').addEventListener('click', async () => {
+    const btn = document.getElementById('add-category');
+    showButtonFeedback(btn, 'Adding...', 'Add Category');
+    const newCategory = document.getElementById('new-category').value.trim();
+    if (newCategory && !data.categories.includes(newCategory)) {
+      data.categories.push(newCategory);
+      await saveData();
+      renderCategories();
+      document.getElementById('new-category').value = '';
+      alert('Category added successfully!');
+    } else {
+      alert('Category already exists or is invalid.');
+    }
+  });
+
+  // Settings - Urgent Message Fix
+  const urgentToggle = document.getElementById('urgent-toggle');
+  const urgentMessage = document.getElementById('urgent-message');
+
+  function initializeUrgentMessage() {
+    if (!urgentToggle || !urgentMessage) {
+      console.error('Urgent message elements not found in DOM');
+      return;
+    }
+    urgentMessage.disabled = !data.settings.urgentMessage?.enabled;
+    urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+    urgentMessage.value = data.settings.urgentMessage?.text || '';
+  }
+
+  urgentToggle.addEventListener('change', () => {
+    if (!urgentMessage) {
+      console.error('Urgent message textarea not found');
+      return;
+    }
+    urgentMessage.disabled = !urgentToggle.checked;
+    if (!urgentMessage.disabled) {
+      urgentMessage.focus();
+    }
+  });
+
+  document.getElementById('save-urgent').addEventListener('click', async () => {
+    const btn = document.getElementById('save-urgent');
+    if (!urgentToggle || !urgentMessage) {
+      console.error('Urgent message elements not found');
+      alert('Error: Unable to save urgent message. Elements not found.');
+      return;
+    }
+    showButtonFeedback(btn, 'Saving...', 'Save Message');
+    data.settings.urgentMessage = {
+      enabled: urgentToggle.checked,
+      text: urgentMessage.value.trim()
+    };
+    const success = await saveData();
+    if (success) {
+      alert('Urgent message saved!');
+    }
+  });
+
+  document.getElementById('save-email').addEventListener('click', async () => {
+    const btn = document.getElementById('save-email');
+    showButtonFeedback(btn, 'Saving...', 'Save Email');
+    data.settings.supportEmail = document.getElementById('support-email').value.trim();
     await saveData();
-    renderCategories();
-    document.getElementById('new-category').value = '';
-    alert('Category added successfully!');
-  } else {
-    alert('Category already exists or is invalid.');
-  }
-});
-
-// Settings - Urgent Message Fix
-const urgentToggle = document.getElementById('urgent-toggle');
-const urgentMessage = document.getElementById('urgent-message');
-
-function initializeUrgentMessage() {
-  if (!urgentToggle || !urgentMessage) {
-    console.error('Urgent message elements not found in DOM');
-    return;
-  }
-  urgentMessage.disabled = !data.settings.urgentMessage?.enabled;
-  urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
-  urgentMessage.value = data.settings.urgentMessage?.text || '';
-}
-
-urgentToggle.addEventListener('change', () => {
-  if (!urgentMessage) {
-    console.error('Urgent message textarea not found');
-    return;
-  }
-  urgentMessage.disabled = !urgentToggle.checked;
-  if (!urgentMessage.disabled) {
-    urgentMessage.focus();
-  }
-});
-
-document.getElementById('save-urgent').addEventListener('click', async () => {
-  const btn = document.getElementById('save-urgent');
-  if (!urgentToggle || !urgentMessage) {
-    console.error('Urgent message elements not found');
-    alert('Error: Unable to save urgent message. Elements not found.');
-    return;
-  }
-  showButtonFeedback(btn, 'Saving...', 'Save Message');
-  data.settings.urgentMessage = {
-    enabled: urgentToggle.checked,
-    text: urgentMessage.value.trim()
-  };
-  const success = await saveData();
-  if (success) {
-    alert('Urgent message saved!');
-  }
-});
-
-document.getElementById('save-email').addEventListener('click', async () => {
-  const btn = document.getElementById('save-email');
-  showButtonFeedback(btn, 'Saving...', 'Save Email');
-  data.settings.supportEmail = document.getElementById('support-email').value.trim();
-  await saveData();
-  alert('Support email saved!');
-});
-
-document.getElementById('save-copyright').addEventListener('click', async () => {
-  const btn = document.getElementById('save-copyright');
-  showButtonFeedback(btn, 'Saving...', 'Save Copyright');
-  data.settings.copyrightText = document.getElementById('copyright-text').value.trim();
-  await saveData();
-  alert('Copyright text saved!');
-});
-
-document.getElementById('save-logo').addEventListener('click', async () => {
-  const btn = document.getElementById('save-logo');
-  showButtonFeedback(btn, 'Saving...', 'Save Logo');
-  data.settings.logoUrl = document.getElementById('logo-url').value.trim();
-  await saveData();
-  alert('Logo URL saved!');
-});
-
-document.getElementById('save-mpesa-till').addEventListener('click', async () => {
-  const btn = document.getElementById('save-mpesa-till');
-  showButtonFeedback(btn, 'Saving...', 'Save Till Number');
-  data.settings.mpesaTill = document.getElementById('mpesa-till').value.trim();
-  await saveData();
-  alert('MPESA Till Number saved!');
-});
-
-document.getElementById('save-socials').addEventListener('click', async () => {
-  const btn = document.getElementById('save-socials');
-  showButtonFeedback(btn, 'Saving...', 'Save Socials');
-  data.settings.socials = {
-    tiktok: document.getElementById('tiktok').value.trim(),
-    whatsapp: document.getElementById('whatsapp').value.trim(),
-    call: document.getElementById('call').value.trim(),
-    instagram: document.getElementById('instagram').value.trim(),
-    x: document.getElementById('x').value.trim(),
-    facebook: document.getElementById('facebook').value.trim(),
-    youtube: document.getElementById('youtube').value.trim()
-  };
-  await saveData();
-  alert('Social media links saved!');
-});
-
-document.getElementById('save-fallback-rate').addEventListener('click', async () => {
-  const btn = document.getElementById('save-fallback-rate');
-  showButtonFeedback(btn, 'Saving...', 'Save Rate');
-  data.settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
-  await saveData();
-  alert('Fallback rate saved!');
-});
-
-document.getElementById('change-credentials').addEventListener('click', async () => {
-  const btn = document.getElementById('change-credentials');
-  showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-  const newEmail = document.getElementById('new-email').value.trim();
-  const newPassword = document.getElementById('new-password').value.trim();
-  const confirmPassword = document.getElementById('confirm-password').value.trim();
-  if (newPassword !== confirmPassword) {
-    alert('Passwords do not match!');
-    return;
-  }
-  if (newEmail) data.settings.adminEmail = newEmail;
-  if (newPassword) data.settings.adminPassword = newPassword;
-  await saveData();
-  alert('Credentials updated! Please login again.');
-  document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-  document.getElementById('login-page').classList.remove('hidden');
-});
-
-// Static Pages
-function renderPages() {
-  const pageList = document.getElementById('page-list');
-  pageList.innerHTML = '';
-  data.staticPages.forEach(page => {
-    const li = document.createElement('li');
-    li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-    li.innerHTML = `
-      <div>
-        <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
-        <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
-      </div>
-      <div class="space-x-2">
-        <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
-        <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
-      </div>
-    `;
-    pageList.appendChild(li);
+    alert('Support email saved!');
   });
 
-  document.querySelectorAll('.edit-page').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const slug = btn.dataset.slug;
-      const page = data.staticPages.find(p => p.slug === slug);
-      if (!page) {
-        alert('Page not found. Please refresh and try again.');
+  document.getElementById('save-copyright').addEventListener('click', async () => {
+    const btn = document.getElementById('save-copyright');
+    showButtonFeedback(btn, 'Saving...', 'Save Copyright');
+    data.settings.copyrightText = document.getElementById('copyright-text').value.trim();
+    await saveData();
+    alert('Copyright text saved!');
+  });
+
+  document.getElementById('save-logo').addEventListener('click', async () => {
+    const btn = document.getElementById('save-logo');
+    showButtonFeedback(btn, 'Saving...', 'Save Logo');
+    data.settings.logoUrl = document.getElementById('logo-url').value.trim();
+    await saveData();
+    alert('Logo URL saved!');
+  });
+
+  document.getElementById('save-mpesa-till').addEventListener('click', async () => {
+    const btn = document.getElementById('save-mpesa-till');
+    showButtonFeedback(btn, 'Saving...', 'Save Till Number');
+    data.settings.mpesaTill = document.getElementById('mpesa-till').value.trim();
+    await saveData();
+    alert('MPESA Till Number saved!');
+  });
+
+  document.getElementById('save-socials').addEventListener('click', async () => {
+    const btn = document.getElementById('save-socials');
+    showButtonFeedback(btn, 'Saving...', 'Save Socials');
+    data.settings.socials = {
+      tiktok: document.getElementById('tiktok').value.trim(),
+      whatsapp: document.getElementById('whatsapp').value.trim(),
+      call: document.getElementById('call').value.trim(),
+      instagram: document.getElementById('instagram').value.trim(),
+      x: document.getElementById('x').value.trim(),
+      facebook: document.getElementById('facebook').value.trim(),
+      youtube: document.getElementById('youtube').value.trim()
+    };
+    await saveData();
+    alert('Social media links saved!');
+  });
+
+  document.getElementById('save-fallback-rate').addEventListener('click', async () => {
+    const btn = document.getElementById('save-fallback-rate');
+    showButtonFeedback(btn, 'Saving...', 'Save Rate');
+    data.settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
+    await saveData();
+    alert('Fallback rate saved!');
+  });
+
+  document.getElementById('change-credentials').addEventListener('click', async () => {
+    const btn = document.getElementById('change-credentials');
+    showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+    const newEmail = document.getElementById('new-email').value.trim();
+    const newPassword = document.getElementById('new-password').value.trim();
+    const confirmPassword = document.getElementById('confirm-password').value.trim();
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match!');
+      return;
+    }
+    if (newEmail) data.settings.adminEmail = newEmail;
+    if (newPassword) data.settings.adminPassword = newPassword;
+    await saveData();
+    alert('Credentials updated! Please login again.');
+    document.getElementById('admin-panel').classList.add('hidden');
+    document.getElementById('login-page').classList.remove('hidden');
+  });
+
+  // Static Pages
+  function renderPages() {
+    const pageList = document.getElementById('page-list');
+    pageList.innerHTML = '';
+    data.staticPages.forEach(page => {
+      const li = document.createElement('li');
+      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+      li.innerHTML = `
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
+          <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
+        </div>
+        <div class="space-x-2">
+          <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
+          <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
+        </div>
+      `;
+      pageList.appendChild(li);
+    });
+
+    document.querySelectorAll('.edit-page').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slug = btn.dataset.slug;
+        const page = data.staticPages.find(p => p.slug === slug);
+        if (!page) {
+          alert('Page not found. Please refresh and try again.');
+          return;
+        }
+        document.getElementById('page-title').value = page.title;
+        document.getElementById('page-slug').value = page.slug;
+        document.getElementById('page-content').value = page.content;
+        document.getElementById('add-page').textContent = 'Save Changes';
+        document.getElementById('add-page').dataset.editSlug = slug;
+        document.getElementById('page-slug').dataset.originalSlug = slug; // Store original slug for comparison
+      });
+    });
+
+    document.querySelectorAll('.delete-page').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete this page?')) {
+          showButtonFeedback(btn, 'Deleting...', 'Delete');
+          const slug = btn.dataset.slug;
+          data.staticPages = data.staticPages.filter(p => p.slug !== slug);
+          await saveData();
+          renderPages();
+          alert('Page deleted successfully!');
+        }
+      });
+    });
+  }
+
+  document.getElementById('add-page').addEventListener('click', async function() {
+    const btn = this;
+    const pageTitle = document.getElementById('page-title').value.trim();
+    const pageSlug = document.getElementById('page-slug').value.trim();
+    const pageContent = document.getElementById('page-content').value.trim();
+
+    if (!pageTitle || !pageSlug || !pageContent) {
+      alert('Please fill in all fields.');
+      return;
+    }
+
+    const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
+
+    // Check for duplicate slug if adding a new page or if the slug has changed while editing
+    if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
+      if (data.staticPages.some(page => page.slug === pageSlug)) {
+        alert('A page with this slug already exists. Please use a different slug.');
         return;
       }
-      document.getElementById('page-title').value = page.title;
-      document.getElementById('page-slug').value = page.slug;
-      document.getElementById('page-content').value = page.content;
-      document.getElementById('add-page').textContent = 'Save Changes';
-      document.getElementById('add-page').dataset.editSlug = slug;
-      document.getElementById('page-slug').dataset.originalSlug = slug; // Store original slug for comparison
-    });
-  });
+    }
 
-  document.querySelectorAll('.delete-page').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to delete this page?')) {
-        showButtonFeedback(btn, 'Deleting...', 'Delete');
-        const slug = btn.dataset.slug;
-        data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-        await saveData();
+    if (btn.dataset.editSlug) {
+      // Editing an existing page
+      showButtonFeedback(btn, 'Saving...', 'Save Changes');
+      data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug); // Remove the old page
+      data.staticPages.push({
+        title: pageTitle,
+        slug: pageSlug,
+        content: pageContent
+      });
+      const success = await saveData();
+      if (success) {
         renderPages();
-        alert('Page deleted successfully!');
+        alert('Page updated successfully!');
+        btn.textContent = 'Add Page';
+        delete btn.dataset.editSlug;
+        delete document.getElementById('page-slug').dataset.originalSlug;
+      } else {
+        alert('Failed to update page. Please try again.');
+        return;
       }
-    });
+    } else {
+      // Adding a new page
+      showButtonFeedback(btn, 'Adding...', 'Add Page');
+      data.staticPages.push({
+        title: pageTitle,
+        slug: pageSlug,
+        content: pageContent
+      });
+      const success = await saveData();
+      if (success) {
+        renderPages();
+        alert('Page added successfully!');
+      } else {
+        alert('Failed to add page. Please try again.');
+        return;
+      }
+    }
+
+    document.getElementById('page-title').value = '';
+    document.getElementById('page-slug').value = '';
+    document.getElementById('page-content').value = '';
   });
-}
 
-document.getElementById('add-page').addEventListener('click', async function() {
-  const btn = this;
-  const pageTitle = document.getElementById('page-title').value.trim();
-  const pageSlug = document.getElementById('page-slug').value.trim();
-  const pageContent = document.getElementById('page-content').value.trim();
-
-  if (!pageTitle || !pageSlug || !pageContent) {
-    alert('Please fill in all fields.');
-    return;
-  }
-
-  const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
-
-  // Check for duplicate slug if adding a new page or if the slug has changed while editing
-  if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
-    if (data.staticPages.some(page => page.slug === pageSlug)) {
-      alert('A page with this slug already exists. Please use a different slug.');
+  // Initialize
+  async function initialize() {
+    const isAuthenticated = await checkSession();
+    if (!isAuthenticated) {
+      document.getElementById('admin-panel').classList.add('hidden');
+      document.getElementById('login-page').classList.remove('hidden');
       return;
     }
-  }
 
-  if (btn.dataset.editSlug) {
-    // Editing an existing page
-    showButtonFeedback(btn, 'Saving...', 'Save Changes');
-    data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug); // Remove the old page
-    data.staticPages.push({
-      title: pageTitle,
-      slug: pageSlug,
-      content: pageContent
-    });
-    const success = await saveData();
+    document.getElementById('login-page').classList.add('hidden');
+    document.getElementById('admin-panel').classList.remove('hidden');
+    document.getElementById('add-bot').classList.remove('hidden');
+    document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
+
+    const success = await fetchData();
     if (success) {
+      renderBots();
+      renderCategories();
       renderPages();
-      alert('Page updated successfully!');
-      btn.textContent = 'Add Page';
-      delete btn.dataset.editSlug;
-      delete document.getElementById('page-slug').dataset.originalSlug;
-    } else {
-      alert('Failed to update page. Please try again.');
-      return;
-    }
-  } else {
-    // Adding a new page
-    showButtonFeedback(btn, 'Adding...', 'Add Page');
-    data.staticPages.push({
-      title: pageTitle,
-      slug: pageSlug,
-      content: pageContent
-    });
-    const success = await saveData();
-    if (success) {
-      renderPages();
-      alert('Page added successfully!');
-    } else {
-      alert('Failed to add page. Please try again.');
-      return;
+      document.getElementById('support-email').value = data.settings.supportEmail || '';
+      document.getElementById('copyright-text').value = data.settings.copyrightText || '';
+      document.getElementById('logo-url').value = data.settings.logoUrl || '';
+      document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
+      document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
+      document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
+      initializeUrgentMessage();
+      document.getElementById('fallback-rate').value = data.settings.fallbackRate || '';
+      Object.keys(data.settings.socials || {}).forEach(key => {
+        document.getElementById(key).value = data.settings.socials[key] || '';
+      });
+      startOrdersPolling();
     }
   }
 
-  document.getElementById('page-title').value = '';
-  document.getElementById('page-slug').value = '';
-  document.getElementById('page-content').value = '';
-});
-
-// Initialize
-async function initialize() {
-  const isAuthenticated = await checkSession();
-  if (!isAuthenticated) {
-    document.querySelector('nav').classList.add('hidden');
-    document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-    document.getElementById('login-page').classList.remove('hidden');
-    return;
-  }
-
-  document.querySelector('nav').classList.remove('hidden');
-  document.getElementById('add-bot').classList.remove('hidden');
-  document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
-
-  const success = await fetchData();
-  if (success) {
-    renderBots();
-    renderCategories();
-    renderPages();
-    document.getElementById('support-email').value = data.settings.supportEmail || '';
-    document.getElementById('copyright-text').value = data.settings.copyrightText || '';
-    document.getElementById('logo-url').value = data.settings.logoUrl || '';
-    document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
-    document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
-    document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
-    initializeUrgentMessage();
-    document.getElementById('fallback-rate').value = data.settings.fallbackRate || '';
-    Object.keys(data.settings.socials || {}).forEach(key => {
-      document.getElementById(key).value = data.settings.socials[key] || '';
-    });
-    startOrdersPolling();
-  }
-}
-
-initialize();
-</script>
+  initialize();
+  </script>
   
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328b0f2484553bc',t:'MTc0NTAyNjc5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328b0f2484553bc',t:'MTc0NTAyNjc5OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
