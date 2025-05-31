@@ -520,9 +520,6 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    // Log the incoming request body to debug categories
-    console.log(`[${new Date().toISOString()}] Incoming data from /api/save-data:`, JSON.stringify(req.body, null, 2));
-
     // Preserve fileId and originalFileName for products, save static pages as raw
     cachedData = {
       ...req.body,
