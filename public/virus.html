@@ -251,8 +251,25 @@
   </nav>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Login Page -->
+    <section id="login-page" class="section bg-white rounded-lg shadow-md p-6 mb-8">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4 text-center">Admin Login</h2>
+      <div class="max-w-sm mx-auto">
+        <div class="mb-4">
+          <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+          <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
+        </div>
+        <div class="mb-4 relative">
+          <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+          <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
+          <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
+        </div>
+        <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
+      </div>
+    </section>
+
     <!-- Add Bot Section -->
-    <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8">
+    <section id="add-bot" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">Add New Bot</h2>
       <form id="product-form">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -427,24 +444,7 @@
         <tbody id="order-list"></tbody>
       </table>
     </section>
-  </main>
 
-  <!-- Login Page -->
-<section id="login-page" class="section bg-white rounded-lg shadow-md p-6 mb-8">
-  <h2 class="text-xl font-semibold text-gray-900 mb-4 text-center">Admin Login</h2>
-  <div class="max-w-sm mx-auto">
-    <div class="mb-4">
-      <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-      <input type="email" id="login-email" class="mt-1 w-full p-2 border rounded-md" required>
-    </div>
-    <div class="mb-4 relative">
-      <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
-      <input type="password" id="login-password" class="mt-1 w-full p-2 border rounded-md" required>
-      <button type="button" id="toggle-password" class="absolute right-2 top-9 text-gray-500">Show</button>
-    </div>
-    <button id="login-submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Login</button>
-  </div>
-</section>
   
   <!-- Edit Bot Modal -->
   <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -1174,10 +1174,15 @@ document.getElementById('add-page').addEventListener('click', async function() {
 async function initialize() {
   const isAuthenticated = await checkSession();
   if (!isAuthenticated) {
+    document.querySelector('nav').classList.add('hidden');
     document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
     document.getElementById('login-page').classList.remove('hidden');
     return;
   }
+
+  document.querySelector('nav').classList.remove('hidden');
+  document.getElementById('add-bot').classList.remove('hidden');
+  document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
 
   const success = await fetchData();
   if (success) {
