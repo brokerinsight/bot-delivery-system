@@ -5,14 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Bot Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#16a34a">
-  <meta name="description" content="Explore trading bots at Deriv Bot Store. Find automated solutions for your trading needs.">
-  <meta name="keywords" content="trading bots, Deriv, automation, MPESA">
-  <meta property="og:title" content="Deriv Bot Store">
-  <meta property="og:description" content="Explore trading bots at Deriv Bot Store. Find automated solutions for your trading needs.">
-  <meta property="og:image" content="/favicon.png">
-  <meta property="og:type" content="website">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
@@ -442,17 +434,6 @@
     #status-retry:hover {
       background: linear-gradient(90deg, #1d4ed8, #2563eb);
     }
-    button:focus, a:focus, input:focus {
-      outline: 2px solid #16a34a;
-      outline-offset: 2px;
-    }
-    .animate-spin {
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
     @media (max-width: 768px) {
       #details-modal .modal-content {
         flex-direction: column;
@@ -555,10 +536,10 @@
         </div>
         <div class="flex items-center space-x-4">
           <div class="hidden sm:block search-container">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input id="search-bar" type="search" placeholder="Search bots by name..." class="p-2 rounded-md border" aria-label="Search for trading bots">
+            <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
           </div>
           <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
@@ -590,10 +571,10 @@
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
     <div class="search-container">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
-      <input id="mobile-search-bar" type="search" placeholder="Search bots by name..." class="w-full p-3 rounded-md border" aria-label="Search for trading bots">
+      <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
     </div>
   </div>
 
@@ -601,10 +582,9 @@
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
       </div>
     </div>
-    <div id="loading-spinner" class="hidden animate-spin h-8 w-8 border-4 border-t-transparent border-green-600 rounded-full mx-auto my-4"></div>
   </main>
 
   <footer class="bg-white shadow-inner mt-12 py-6">
@@ -623,10 +603,54 @@
     </div>
   </div>
 
+  <script>
+    // Define handleCookiePopup before calling it
+    function handleCookiePopup() {
+      const cookiePopup = document.getElementById('cookie-popup-container');
+      const acceptButton = document.getElementById('cookie-accept');
+      
+      // Check if cookies have already been accepted
+      const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+      const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+      const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+      const now = Date.now();
+
+      // If cookies are accepted and the 3-day period hasn't passed, keep the popup hidden
+      if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none'; // Ensure it's hidden
+        return;
+      }
+
+      // If we reach here, show the popup
+      cookiePopup.classList.remove('hidden');
+      cookiePopup.style.display = 'flex'; // Ensure it's visible
+      document.body.classList.add('popup-active');
+
+      // Remove any existing event listeners to avoid duplicates
+      acceptButton.removeEventListener('click', handleAcceptClick);
+      
+      // Define the click handler
+      function handleAcceptClick() {
+        localStorage.setItem('cookiesAccepted', 'true');
+        localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+        cookiePopup.classList.add('hidden');
+        cookiePopup.style.display = 'none';
+        document.body.classList.remove('popup-active');
+      }
+
+      // Add the event listener
+      acceptButton.addEventListener('click', handleAcceptClick);
+    }
+
+    // Call handleCookiePopup immediately after the popup container is parsed
+    handleCookiePopup();
+  </script>
+
   <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="modal-content flex flex-col md:flex-row relative">
-      <button id="details-close" class="close-btn" aria-label="Close product details modal">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <button id="details-close" class="close-btn">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
@@ -709,60 +733,8 @@
     </div>
   </div>
 
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
   <script>
-    // Define handleCookiePopup before calling it
-    function handleCookiePopup() {
-      const cookiePopup = document.getElementById('cookie-popup-container');
-      const acceptButton = document.getElementById('cookie-accept');
-      
-      // Check if cookies have already been accepted
-      const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
-      const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
-      const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-      const now = Date.now();
-
-      // If cookies are accepted and the 3-day period hasn't passed, keep the popup hidden
-      if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
-        cookiePopup.classList.add('hidden');
-        cookiePopup.style.display = 'none'; // Ensure it's hidden
-        return;
-      }
-
-      // If we reach here, show the popup
-      cookiePopup.classList.remove('hidden');
-      cookiePopup.style.display = 'flex'; // Ensure it's visible
-      document.body.classList.add('popup-active');
-
-      // Remove any existing event listeners to avoid duplicates
-      acceptButton.removeEventListener('click', handleAcceptClick);
-      
-      // Define the click handler
-      function handleAcceptClick() {
-        localStorage.setItem('cookiesAccepted', 'true');
-        localStorage.setItem('cookiePopupLastShown', Date.now().toString());
-        cookiePopup.classList.add('hidden');
-        cookiePopup.style.display = 'none';
-        document.body.classList.remove('popup-active');
-      }
-
-      // Add the event listener
-      acceptButton.addEventListener('click', handleAcceptClick);
-    }
-
-    // Call handleCookiePopup immediately after the popup container is parsed
-    handleCookiePopup();
-
-    // PWA Service Worker Registration
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(registration => {
-          console.log('Service Worker registered with scope:', registration.scope);
-        }).catch(error => {
-          console.error('Service Worker registration failed:', error);
-        });
-      });
-    }
-
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
     const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app';
     let products = [];
@@ -863,15 +835,8 @@
           document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
           link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
           document.getElementById('mobile-menu').classList.remove('open');
-          updateTitle(category);
         });
       });
-    }
-
-    function updateTitle(category) {
-      const baseTitle = 'Deriv Bot Store';
-      const categoryTitle = category === 'all' ? '' : `${category.charAt(0).toUpperCase() + category.slice(1)} Bots`;
-      document.title = categoryTitle ? `${categoryTitle} | ${baseTitle}` : baseTitle;
     }
 
     function formatDescription(desc) {
@@ -905,111 +870,106 @@
     }
 
     async function renderProducts(category = 'all', search = '') {
-      const grid = document.getElementById('product-grid');
-      const loadingMessage = document.getElementById('loading-message');
-      const loadingSpinner = document.getElementById('loading-spinner');
-      
-      loadingMessage.classList.add('hidden');
-      loadingSpinner.classList.remove('hidden');
-      grid.innerHTML = '';
+  const grid = document.getElementById('product-grid');
+  const loadingMessage = document.getElementById('loading-message');
+  if (loadingMessage) {
+    loadingMessage.classList.add('hidden');
+  } else {
+    console.warn('Loading message element not found.');
+  }
+  grid.innerHTML = '';
+  let filteredProducts = products;
+  if (category !== 'all') {
+    filteredProducts = products.filter(p => p.category === category);
+  }
+  if (search) {
+    const searchTerm = search.toLowerCase();
+    filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
+  }
+  // Remove reverse() to preserve server-side sorting
+  if (!filteredProducts.length) {
+    grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
+    return;
+  }
+  filteredProducts.forEach(product => {
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
+    card.innerHTML = `
+      <div class="relative">
+        <div class="product-image-container">
+          <img src="${product.img}" alt="${product.name}" class="thumbnail-image">
+        </div>
+        ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
+      </div>
+      <div class="p-6">
+        <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
+        <p class="mt-2 text-gray-600 text-sm truncate-3-lines">${product.desc}</p>
+        <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
+        <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
+        <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
 
-      let filteredProducts = products;
-      if (category !== 'all') {
-        filteredProducts = products.filter(p => p.category === category);
-      }
-      if (search) {
-        const searchTerm = search.toLowerCase();
-        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
-      }
+  document.querySelectorAll('.view-details').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const item = btn.dataset.item;
+      const product = products.find(p => p.item === item);
+      const rate = await getExchangeRate();
+      const kesPrice = (product.price * rate).toFixed(2);
 
-      if (!filteredProducts.length) {
-        grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
-        loadingSpinner.classList.add('hidden');
-        return;
-      }
-
-      filteredProducts.forEach(product => {
-        const card = document.createElement('div');
-        card.className = 'bg-white rounded-lg shadow-md hover:scale-105 transition-all';
-        card.innerHTML = `
-          <div class="relative">
-            <div class="product-image-container">
-              <img src="${product.img}" alt="${product.name}" class="thumbnail-image">
-            </div>
-            ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
-          </div>
-          <div class="p-6">
-            <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
-            <p class="mt-2 text-gray-600 text-sm truncate-3-lines">${product.desc}</p>
-            <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
-            <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
-            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
+      document.getElementById('details-thumbnail').src = product.img;
+      document.getElementById('details-name').textContent = product.name;
+      document.getElementById('details-item-name').textContent = product.item;
+      document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
+      const embedDiv = document.getElementById('details-embed');
+      if (product.embed) {
+        embedDiv.innerHTML = `
+          <div class="embed-container">
+            <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
           </div>
         `;
-        grid.appendChild(card);
-      });
+      } else {
+        embedDiv.innerHTML = '';
+      }
 
-      loadingSpinner.classList.add('hidden');
+      const modal = document.getElementById('details-modal');
+      modal.classList.remove('hidden');
+      document.body.classList.add('popup-active');
 
-      document.querySelectorAll('.view-details').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const item = btn.dataset.item;
-          const product = products.find(p => p.item === item);
-          const rate = await getExchangeRate();
-          const kesPrice = (product.price * rate).toFixed(2);
+      const buyNowBtn = document.getElementById('details-buy-now');
+      buyNowBtn.dataset.item = item;
+      buyNowBtn.dataset.kesPrice = kesPrice;
+      buyNowBtn.onclick = () => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+        showPaymentModal(product, kesPrice);
+        const confirmPaymentBtn = document.getElementById('confirm-payment');
+        confirmPaymentBtn.dataset.item = item;
+        confirmPaymentBtn.dataset.kesPrice = kesPrice;
+        const submitRefCodeBtn = document.getElementById('submit-ref-code');
+        submitRefCodeBtn.dataset.item = item;
+        submitRefCodeBtn.dataset.kesPrice = kesPrice;
+      };
 
-          document.getElementById('details-thumbnail').src = product.img;
-          document.getElementById('details-thumbnail').alt = `Image of ${product.name}`;
-          document.getElementById('details-name').textContent = product.name;
-          document.getElementById('details-item-name').textContent = product.item;
-          document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
-          const embedDiv = document.getElementById('details-embed');
-          if (product.embed) {
-            embedDiv.innerHTML = `
-              <div class="embed-container">
-                <iframe src="${product.embed}" frameborder="0" allowfullscreen title="Video for ${product.name}"></iframe>
-              </div>
-            `;
-          } else {
-            embedDiv.innerHTML = '';
-          }
+      const testPayBtn = document.getElementById('details-test-pay');
+      testPayBtn.classList.toggle('hidden', !TEST_MODE);
+      testPayBtn.dataset.item = item;
+      testPayBtn.dataset.kesPrice = kesPrice;
+      testPayBtn.onclick = () => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+        initiateTestPayment(product, product.price);
+      };
 
-          const modal = document.getElementById('details-modal');
-          modal.classList.remove('hidden');
-          document.body.classList.add('popup-active');
-
-          const buyNowBtn = document.getElementById('details-buy-now');
-          buyNowBtn.dataset.item = item;
-          buyNowBtn.dataset.kesPrice = kesPrice;
-          buyNowBtn.onclick = () => {
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-            showPaymentModal(product, kesPrice);
-            const confirmPaymentBtn = document.getElementById('confirm-payment');
-            confirmPaymentBtn.dataset.item = item;
-            confirmPaymentBtn.dataset.kesPrice = kesPrice;
-            const submitRefCodeBtn = document.getElementById('submit-ref-code');
-            submitRefCodeBtn.dataset.item = item;
-            submitRefCodeBtn.dataset.kesPrice = kesPrice;
-          };
-
-          const testPayBtn = document.getElementById('details-test-pay');
-          testPayBtn.classList.toggle('hidden', !TEST_MODE);
-          testPayBtn.dataset.item = item;
-          testPayBtn.dataset.kesPrice = kesPrice;
-          testPayBtn.onclick = () => {
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-            initiateTestPayment(product, product.price);
-          };
-
-          document.getElementById('details-close').onclick = () => {
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-          };
-        });
-      });
-    }
+      document.getElementById('details-close').onclick = () => {
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
+    });
+  });
+}
 
     function debounce(func, wait) {
       let timeout;
@@ -1618,7 +1578,9 @@
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else document.attachEvent('onreadystatechange',function(){if('loading'!==document.readyState)c()})}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+</script>
 </body>
 </html>
