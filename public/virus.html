@@ -1044,23 +1044,44 @@
   });
 
   document.getElementById('change-credentials').addEventListener('click', async () => {
-    const btn = document.getElementById('change-credentials');
-    showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-    const newEmail = document.getElementById('new-email').value.trim();
-    const newPassword = document.getElementById('new-password').value.trim();
-    const confirmPassword = document.getElementById('confirm-password').value.trim();
-    if (newPassword !== confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-    if (newEmail) data.settings.adminEmail = newEmail;
-    if (newPassword) data.settings.adminPassword = newPassword;
-    await saveData();
-    alert('Credentials updated! Please login again.');
-    document.getElementById('admin-panel').classList.add('hidden');
-    document.getElementById('login-page').classList.remove('hidden');
-  });
+  const btn = document.getElementById('change-credentials');
+  showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+  const newEmail = document.getElementById('new-email').value.trim();
+  const newPassword = document.getElementById('new-password').value.trim();
+  const confirmPassword = document.getElementById('confirm-password').value.trim();
+  if (newPassword !== confirmPassword) {
+    alert('Passwords do not match!');
+    return;
+  }
+  if (newEmail) data.settings.adminEmail = newEmail;
+  if (newPassword) data.settings.adminPassword = newPassword;
+  const saveSuccess = await saveData();
+  if (!saveSuccess) {
+    alert('Failed to update credentials. Please try again.');
+    return;
+  }
 
+  // Destroy the session cookie by calling the logout endpoint
+  try {
+    const response = await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const result = await response.json();
+    if (!result.success) {
+      console.error('Failed to destroy session cookie:', result.error);
+      alert('Credentials updated, but failed to log out. Please log in again manually.');
+    }
+  } catch (error) {
+    console.error('Error during logout:', error);
+    alert('Credentials updated, but failed to log out. Please log in again manually.');
+  }
+
+  alert('Credentials updated! Please login again.');
+  document.getElementById('admin-panel').classList.add('hidden');
+  document.getElementById('login-page').classList.remove('hidden');
+});
+    
   // Static Pages
   function renderPages() {
     const pageList = document.getElementById('page-list');
