@@ -12,6 +12,8 @@ const fs = require('fs');
 const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
+const RedisStore = require('connect-redis').default; // Add connect-redis for session storage
+const { createClient } = require('redis'); // Add redis client for Node.js
 
 dotenv.config();
 
@@ -20,6 +22,23 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Supabase client setup with service role key for RLS
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+// Create a Redis client for Valkey
+const redisClient = createClient({
+  url: `rediss://${process.env.VALKEY_USERNAME}:${process.env.VALKEY_PASSWORD}@${process.env.VALKEY_HOST}:${process.env.VALKEY_PORT}/0`
+});
+
+// Handle Redis client connection errors
+redisClient.on('error', (err) => {
+  console.error(`[${new Date().toISOString()}] Redis Client Error:`, err.message);
+});
+
+// Connect to Redis (Valkey)
+redisClient.connect().then(() => {
+  console.log(`[${new Date().toISOString()}] Connected to Valkey successfully`);
+}).catch((err) => {
+  console.error(`[${new Date().toISOString()}] Failed to connect to Valkey:`, err.message);
+});
 
 // Allowed domains for CORS and download links
 const ALLOWED_ORIGINS = [
@@ -127,9 +146,9 @@ function sanitizeXml(str) {
 app.use(express.static(publicPath));
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
 
-// Session middleware with MemoryStore
+// Session middleware with RedisStore (replacing MemoryStore)
 app.use(session({
-  store: new session.MemoryStore(),
+  store: new RedisStore({ client: redisClient }), // Use RedisStore with the Redis client
   name: 'sid',
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -208,9 +227,9 @@ async function loadData() {
     const productRes = await supabase
       .from('products')
       .select('*')
-      .order('is_new', { ascending: false }) // Prioritize is_new = true
-      .order('created_at', { ascending: false }) // Then sort by created_at DESC (newest first)
-      .order('item', { ascending: true }); // Use item as tiebreaker (ascending)
+      .order('is_new', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('item', { ascending: true });
 
     const products = productRes.data?.map(row => ({
       item: row.item,
@@ -226,7 +245,6 @@ async function loadData() {
       isArchived: row.is_archived || false
     })) || [];
 
-    // Rest of the function remains unchanged
     const settingsRes = await supabase.from('settings').select('key, value');
     const settingsData = Object.fromEntries(settingsRes.data?.map(row => [row.key, row.value]) || []);
     const settings = {
@@ -250,9 +268,9 @@ async function loadData() {
       title: row.title,
       slug: row.slug,
       content: row.content
-        .replace(/\\n/g, '\n') // Normalize newlines
-        .replace(/^"|"$/g, '') // Remove leading/trailing quotes
-        .replace(/=""([^"]*)""/g, '="$1"') // Fix escaped quotes in attributes (e.g., lang=""en"" -> lang="en")
+        .replace(/\\n/g, '\n')
+        .replace(/^"|"$/g, '')
+        .replace(/=""([^"]*)""/g, '="$1"')
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -265,18 +283,27 @@ async function loadData() {
     }
 
     cachedData = { products, categories, settings, staticPages };
-    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase`);
+    // Cache in Valkey with a 15-minute TTL (900 seconds)
+    await redisClient.set('cachedData', JSON.stringify(cachedData), { EX: 900 });
+    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Valkey`);
     console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
     throw error;
   }
 }
+
 // Refresh cache periodically
 async function refreshCache() {
   try {
-    await loadData();
-    console.log(`[${new Date().toISOString()}] Cache refreshed successfully`);
+    const cached = await redisClient.get('cachedData');
+    if (cached) {
+      cachedData = JSON.parse(cached);
+      console.log(`[${new Date().toISOString()}] Cache refreshed from Valkey`);
+    } else {
+      await loadData();
+      console.log(`[${new Date().toISOString()}] Cache refreshed from Supabase and stored in Valkey`);
+    }
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error refreshing cache:`, error.message);
   }
@@ -448,11 +475,43 @@ app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
 });
 
+async function rateLimit(req, res, next) {
+  const ip = req.ip || req.connection.remoteAddress;
+  const key = `rate-limit:${ip}`;
+  const limit = 100; // 100 requests
+  const window = 15 * 60; // 15 minutes in seconds
+
+  try {
+    const requests = await redisClient.get(key);
+    if (requests && parseInt(requests) >= limit) {
+      return res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
+    }
+
+    if (!requests) {
+      await redisClient.set(key, 1, { EX: window });
+    } else {
+      await redisClient.incr(key);
+    }
+    next();
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Rate limiting error:`, error.message);
+    next(); // Fallback to allow request if Valkey fails
+  }
+}
+
+
 // API Routes
 app.get('/api/data', async (req, res) => {
   try {
+    const cached = await redisClient.get('cachedData');
+    if (cached) {
+      cachedData = JSON.parse(cached);
+      console.log(`[${new Date().toISOString()}] Served /api/data from Valkey cache`);
+    } else {
+      await loadData();
+      console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Valkey`);
+    }
     res.json(cachedData);
-    console.log(`[${new Date().toISOString()}] Served /api/data successfully`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch data' });
@@ -630,7 +689,7 @@ async function sendOrderNotification(item, refCode, amount) {
   }
 }
 
-app.post('/api/submit-ref', async (req, res) => {
+app.post('/api/submit-ref', rateLimit, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
     const { data: product, error: productError } = await supabase
@@ -928,7 +987,7 @@ app.get('/download/:fileId', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', rateLimit, async (req, res) => {
   const { email, password } = req.body;
   try {
     const { data: adminSettings, error } = await supabase
