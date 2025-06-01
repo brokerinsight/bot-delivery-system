@@ -934,7 +934,18 @@
       document.getElementById('details-thumbnail').src = product.img;
       document.getElementById('details-name').textContent = product.name;
       document.getElementById('details-item-name').textContent = product.item;
-      document.getElementById('details-desc').innerHTML = formatDescription(product.desc).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>'); // Style links in blue
+      
+      // Use innerHTML to render the description with HTML tags
+      const descContainer = document.getElementById('details-desc');
+      descContainer.innerHTML = product.desc;
+
+      // Style all <a> tags within the description to be blue
+      const links = descContainer.querySelectorAll('a');
+      links.forEach(link => {
+        link.style.color = 'blue';
+        link.style.textDecoration = 'underline';
+      });
+
       const embedDiv = document.getElementById('details-embed');
       if (product.embed) {
         embedDiv.innerHTML = `
