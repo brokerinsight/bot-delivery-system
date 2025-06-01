@@ -280,6 +280,41 @@
   border-color: #16a34a;
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
 }
+
+    /* Code Block Styling for Quill Editor and Static Pages */
+.ql-code-block {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid #ddd;
+}
+
+.ql-editor pre {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid #ddd;
+}
+
+/* Ensure code blocks render properly in static pages */
+#page-content-editor pre {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border: 1px solid #ddd;
+}
     
   </style>
 </head>
@@ -1047,7 +1082,7 @@
     console.warn('Element #urgent-message-editor not found in DOM.');
   }
 
-  // Initialize Quill for Static Page Content
+  // Initialize Quill for Static Page Content with Code Block
   if (document.getElementById('page-content-editor')) {
     setTimeout(() => {
       const pageContentQuill = new Quill('#page-content-editor', {
@@ -1057,9 +1092,15 @@
             [{ 'header': [1, 2, 3, false] }],
             ['bold', 'italic', 'underline'],
             ['link', 'image'],
+            ['blockquote', 'code-block'], // Added code-block to toolbar
             [{ 'list': 'ordered' }, { 'list': 'bullet' }],
             ['clean']
-          ]
+          ],
+          syntax: {
+            highlight: function(text) {
+              return text; // No syntax highlighting for raw HTML, just pass through
+            }
+          }
         },
         placeholder: 'Enter page content (Markdown or HTML)...',
       });
@@ -1071,6 +1112,12 @@
   } else {
     console.warn('Element #page-content-editor not found in DOM.');
   }
+
+  // Register custom code block blot (optional, ensures proper rendering)
+  const CodeBlock = Quill.import('blots/block/embed');
+  CodeBlock.tagName = 'PRE';
+  CodeBlock.className = 'ql-code-block';
+  Quill.register(CodeBlock, true);
 } 
     
   // Categories
