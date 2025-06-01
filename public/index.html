@@ -1567,38 +1567,60 @@
 
         // Clean Quill.js content
         let cleanedContent = page.content
-          .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
-          .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
           .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
           .trim();
 
         const contentContainer = document.getElementById('static-page-content');
         contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
 
+        // Reset modal container styles to avoid interference
+        contentContainer.style.margin = '0';
+        contentContainer.style.padding = '0';
+        contentContainer.style.fontSize = '16px'; // Base font size for consistency
+
         // Style Quill.js content, respecting original formatting
         const paragraphs = contentContainer.querySelectorAll('p');
         paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word'; // Maintain word breaking
+          p.style.wordBreak = 'break-word';
+          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
+          p.style.lineHeight = '1.6'; // Improve readability
+        });
+
+        // Preserve <p><br></p> as a blank line
+        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+        blankParagraphs.forEach(p => {
+          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
+          p.style.margin = '0';
         });
 
         const headers = contentContainer.querySelectorAll('h1, h2, h3');
         headers.forEach(h => {
-          h.style.fontWeight = '600'; // Apply consistent weight, let Quill.js HTML define size
+          h.style.fontWeight = '600';
+          // Define font sizes to match typical Quill.js rendering
+          if (h.tagName.toLowerCase() === 'h1') {
+            h.style.fontSize = '1.75rem'; // 28px
+          } else if (h.tagName.toLowerCase() === 'h2') {
+            h.style.fontSize = '1.5rem'; // 24px
+          } else if (h.tagName.toLowerCase() === 'h3') {
+            h.style.fontSize = '1.25rem'; // 20px
+          }
+          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
         });
 
         const unorderedLists = contentContainer.querySelectorAll('ul');
         unorderedLists.forEach(ul => {
           ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none'; // Remove default bullets
+          ul.style.listStyleType = 'none';
+          ul.style.margin = '1rem 0'; // Spacing around lists
         });
 
         const orderedLists = contentContainer.querySelectorAll('ol');
         orderedLists.forEach(ol => {
           ol.style.paddingLeft = '1.5rem';
-          // Preserve Quill.js list-style-type (e.g., decimal, lower-roman, upper-alpha)
           if (!ol.style.listStyleType) {
             ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
           }
+          ol.style.margin = '1rem 0'; // Spacing around lists
         });
 
         const listItems = contentContainer.querySelectorAll('li');
@@ -1609,8 +1631,8 @@
           }
           li.style.position = 'relative';
           li.style.paddingLeft = '1.5rem';
+          li.style.marginBottom = '0.5rem'; // Spacing between list items
 
-          // Add custom bullet for unordered list items
           if (li.parentNode.tagName.toLowerCase() === 'ul') {
             li.style.listStyleType = 'none';
             li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
@@ -1619,7 +1641,7 @@
 
         const boldText = contentContainer.querySelectorAll('strong, b');
         boldText.forEach(b => {
-          b.style.fontWeight = 'bold'; // Apply bold only to explicit <strong> or <b> tags
+          b.style.fontWeight = 'bold';
         });
 
         const italicText = contentContainer.querySelectorAll('em, i');
@@ -1644,6 +1666,7 @@
           bq.style.borderLeft = '4px solid #ccc';
           bq.style.paddingLeft = '1rem';
           bq.style.color = '#666';
+          bq.style.margin = '1rem 0';
         });
 
         const codeElements = contentContainer.querySelectorAll('code');
@@ -1659,6 +1682,7 @@
           img.style.maxWidth = '100%';
           img.style.height = 'auto';
           img.style.borderRadius = '8px';
+          img.style.margin = '1rem 0';
         });
 
         modal.classList.remove('hidden');
@@ -1702,38 +1726,60 @@
 
         // Clean Quill.js content
         let cleanedContent = page.content
-          .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
-          .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
           .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
           .trim();
 
         const contentContainer = document.getElementById('static-page-content');
         contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
 
+        // Reset modal container styles to avoid interference
+        contentContainer.style.margin = '0';
+        contentContainer.style.padding = '0';
+        contentContainer.style.fontSize = '16px'; // Base font size for consistency
+
         // Style Quill.js content, respecting original formatting
         const paragraphs = contentContainer.querySelectorAll('p');
         paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word'; // Maintain word breaking
+          p.style.wordBreak = 'break-word';
+          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
+          p.style.lineHeight = '1.6'; // Improve readability
+        });
+
+        // Preserve <p><br></p> as a blank line
+        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+        blankParagraphs.forEach(p => {
+          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
+          p.style.margin = '0';
         });
 
         const headers = contentContainer.querySelectorAll('h1, h2, h3');
         headers.forEach(h => {
-          h.style.fontWeight = '600'; // Apply consistent weight, let Quill.js HTML define size
+          h.style.fontWeight = '600';
+          // Define font sizes to match typical Quill.js rendering
+          if (h.tagName.toLowerCase() === 'h1') {
+            h.style.fontSize = '1.75rem'; // 28px
+          } else if (h.tagName.toLowerCase() === 'h2') {
+            h.style.fontSize = '1.5rem'; // 24px
+          } else if (h.tagName.toLowerCase() === 'h3') {
+            h.style.fontSize = '1.25rem'; // 20px
+          }
+          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
         });
 
         const unorderedLists = contentContainer.querySelectorAll('ul');
         unorderedLists.forEach(ul => {
           ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none'; // Remove default bullets
+          ul.style.listStyleType = 'none';
+          ul.style.margin = '1rem 0'; // Spacing around lists
         });
 
         const orderedLists = contentContainer.querySelectorAll('ol');
         orderedLists.forEach(ol => {
           ol.style.paddingLeft = '1.5rem';
-          // Preserve Quill.js list-style-type (e.g., decimal, lower-roman, upper-alpha)
           if (!ol.style.listStyleType) {
             ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
           }
+          ol.style.margin = '1rem 0'; // Spacing around lists
         });
 
         const listItems = contentContainer.querySelectorAll('li');
@@ -1744,8 +1790,8 @@
           }
           li.style.position = 'relative';
           li.style.paddingLeft = '1.5rem';
+          li.style.marginBottom = '0.5rem'; // Spacing between list items
 
-          // Add custom bullet for unordered list items
           if (li.parentNode.tagName.toLowerCase() === 'ul') {
             li.style.listStyleType = 'none';
             li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
@@ -1754,7 +1800,7 @@
 
         const boldText = contentContainer.querySelectorAll('strong, b');
         boldText.forEach(b => {
-          b.style.fontWeight = 'bold'; // Apply bold only to explicit <strong> or <b> tags
+          b.style.fontWeight = 'bold';
         });
 
         const italicText = contentContainer.querySelectorAll('em, i');
@@ -1779,6 +1825,7 @@
           bq.style.borderLeft = '4px solid #ccc';
           bq.style.paddingLeft = '1rem';
           bq.style.color = '#666';
+          bq.style.margin = '1rem 0';
         });
 
         const codeElements = contentContainer.querySelectorAll('code');
@@ -1794,6 +1841,7 @@
           img.style.maxWidth = '100%';
           img.style.height = 'auto';
           img.style.borderRadius = '8px';
+          img.style.margin = '1rem 0';
         });
 
         modal.classList.remove('hidden');
