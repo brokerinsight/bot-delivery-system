@@ -808,26 +808,22 @@
     }
 
     async function fetchModalContent() {
-  const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
-  const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
-  if (paymentModalContent) {
-    const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
-    paymentModalDiv.innerHTML = paymentModalContent.content; // Use raw HTML
-  }
-  if (refCodeModalContent) {
-    const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
-    refCodeModalDiv.innerHTML = refCodeModalContent.content; // Use raw HTML
-  }
-  const staticPageContent = document.getElementById('static-page-content');
-  if (staticPageContent) {
-    staticPages.forEach(page => {
-      const staticPageModal = document.getElementById('static-page-modal');
-      if (staticPageModal) {
-        staticPageContent.innerHTML = page.content; // Use raw HTML for static pages
+      const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
+      const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+      if (typeof sanitizeHtml !== 'function') {
+        console.error('sanitizeHtml is not available. Skipping modal content rendering.');
+        return;
       }
-    });
-  }
-}
+      if (paymentModalContent) {
+        const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
+        paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
+      }
+      if (refCodeModalContent) {
+        const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
+        refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
+      }
+    }
+
     function renderNavLinks() {
       const navLinks = document.getElementById('nav-links');
       const mobileNavLinks = document.getElementById('mobile-nav-links');
@@ -851,10 +847,35 @@
     }
 
     function formatDescription(desc) {
-  // Return raw HTML with a 250-character excerpt
-  const excerpt = desc.length > 250 ? desc.substring(0, 250) + '...' : desc;
-  return excerpt;
-}
+      const lines = desc.split('\n').filter(line => line.trim() !== '');
+      let html = '';
+      let inList = false;
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+          }
+          const content = line.replace(/^(✅|🚀|🧠)\s*/, '');
+          html += `<li>${content}</li>`;
+        } else {
+          if (inList) {
+            html += '</ul>';
+            inList = false;
+          }
+          html += `<p>${line}</p>`;
+        }
+      });
+
+      if (inList) {
+        html += '</ul>';
+      }
+
+      return html;
+    }
+
     async function renderProducts(category = 'all', search = '') {
   const grid = document.getElementById('product-grid');
   const loadingMessage = document.getElementById('loading-message');
@@ -872,6 +893,7 @@
     const searchTerm = search.toLowerCase();
     filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
   }
+  // Remove reverse() to preserve server-side sorting
   if (!filteredProducts.length) {
     grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
     return;
@@ -888,7 +910,7 @@
       </div>
       <div class="p-6">
         <h3 class="text-lg font-semibold text-gray-900">${product.name}</h3>
-        <div class="mt-2 text-gray-600 text-sm truncate-3-lines" id="desc-${product.item}">${formatDescription(product.desc)}</div>
+        <p class="mt-2 text-gray-600 text-sm truncate-3-lines">${product.desc}</p>
         <p class="mt-2 text-green-600 font-bold">$${product.price}</p>
         <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
         <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" data-item="${product.item}">View Details</button>
@@ -907,7 +929,7 @@
       document.getElementById('details-thumbnail').src = product.img;
       document.getElementById('details-name').textContent = product.name;
       document.getElementById('details-item-name').textContent = product.item;
-      document.getElementById('details-desc').innerHTML = product.desc; // Use raw HTML
+      document.getElementById('details-desc').innerHTML = formatDescription(product.desc);
       const embedDiv = document.getElementById('details-embed');
       if (product.embed) {
         embedDiv.innerHTML = `
@@ -1420,16 +1442,17 @@
     }
 
     function showUrgentMessage() {
-  const urgentMessage = document.getElementById('urgent-message');
-  const urgentText = document.getElementById('urgent-text');
-  if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
-    urgentText.innerHTML = settings.urgentMessage.text; // Use innerHTML for HTML rendering
-    urgentMessage.classList.remove('hidden');
-  }
-  document.getElementById('urgent-close').onclick = () => {
-    urgentMessage.classList.add('hidden');
-  };
-}
+      const urgentMessage = document.getElementById('urgent-message');
+      const urgentText = document.getElementById('urgent-text');
+      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+        urgentText.textContent = settings.urgentMessage.text;
+        urgentMessage.classList.remove('hidden');
+      }
+      document.getElementById('urgent-close').onclick = () => {
+        urgentMessage.classList.add('hidden');
+      };
+    }
+
     async function checkPaymentCookie() {
       const cookies = document.cookie.split(';');
       const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
