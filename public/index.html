@@ -67,6 +67,18 @@
       height: 1.25rem;
       color: #6b7280;
     }
+    #details-desc {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+  hyphens: auto;
+}
+
+#details-desc strong {
+  display: inline !important; /* Override any block behavior */
+}
     #mobile-menu {
       transform: translateX(-100%);
       transition: transform 0.3s ease-in-out;
