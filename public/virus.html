@@ -302,13 +302,12 @@
   position: relative;
   overflow: visible;
 }
-
 .ql-formats {
   display: inline-flex;
   align-items: center;
   margin-right: 0.5rem;
 }
-
+    
 .ql-formats button,
 .ql-formats select {
   margin: 0 0.25rem;
@@ -317,23 +316,37 @@
   background: none;
   cursor: pointer;
   vertical-align: middle;
+  transition: background 0.2s ease;
 }
-
+    
 .ql-formats button:hover,
 .ql-formats select:hover {
   background: #e5e7eb;
   border-radius: 4px;
 }
-
-.ql-formats select {
+    
+.ql-formats select.ql-code-language {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjYgOSAxMiAxNSA18IDkiPjwvcG9seWxpbmU+PC9zdmc+') no-repeat right 0.5rem center;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjYgOSAxMiAxNSA18IDkiPjwvcG9seWxpbmU+PC9zdmc+');
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
   background-size: 1rem;
-  padding-right: 1.5rem;
 }
 
+  .ql-formats select.ql-code-language:focus {
+  outline: none;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1);
+}
+    
 .ql-picker-options {
   z-index: 30;
   background: #fff;
@@ -342,8 +355,18 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   max-height: 200px;
   overflow-y: auto;
+  font-size: 0.875rem;
 }
 
+.ql-picker-item {
+  padding: 0.5rem;
+  color: #374151;
+}
+
+.ql-picker-item:hover {
+  background: #f0f4f8;
+}
+    
 /* Code Block Styling with Syntax Highlighting */
 .ql-editor pre,
 .ql-code-block {
@@ -356,13 +379,13 @@
   margin-bottom: 1rem;
   border: 1px solid #ddd;
 }
-
+    
 /* Highlight.js styles for syntax highlighting */
 pre code.hljs {
   background: transparent;
   padding: 0;
 }
-
+    
 /* Ensure code blocks render properly in static pages */
 #page-content-editor pre {
   background-color: #f5f5f5;
@@ -576,44 +599,43 @@ pre code.hljs {
   <div class="ql-editor-container">
     <!-- Custom Toolbar for Static Page Editor -->
     <div id="page-content-toolbar" class="toolbar">
-      <span class="ql-formats">
-        <select class="ql-header" defaultValue="">
-          <option value="1">Heading 1</option>
-          <option value="2">Heading 2</option>
-          <option value="3">Heading 3</option>
-          <option selected>Normal</option>
-        </select>
-      </span>
-      <span class="ql-formats">
-        <button class="ql-bold"></button>
-        <button class="ql-italic"></button>
-        <button class="ql-underline"></button>
-      </span>
-      <span class="ql-formats">
-        <button class="ql-link"></button>
-        <button class="ql-image"></button>
-      </span>
-      <span class="ql-formats">
-        <button class="ql-blockquote"></button>
-        <button class="ql-code-block"></button>
-        <select class="ql-code-language">
-  <option value="plaintext" selected>Plain Text</option>
-  <option value="html">HTML</option>
-  <option value="javascript">JavaScript</option>
-  <option value="css">CSS</option>
-  <option value="python">Python</option>
-  <option value="sql">SQL</option>
-</select>
-        </select>
-      </span>
-      <span class="ql-formats">
-        <button class="ql-list" value="ordered"></button>
-        <button class="ql-list" value="bullet"></button>
-      </span>
-      <span class="ql-formats">
-        <button class="ql-clean"></button>
-      </span>
-    </div>
+  <span class="ql-formats">
+    <select class="ql-header" defaultValue="">
+      <option value="1">Heading 1</option>
+      <option value="2">Heading 2</option>
+      <option value="3">Heading 3</option>
+      <option selected>Normal</option>
+    </select>
+  </span>
+  <span class="ql-formats">
+    <button class="ql-bold"></button>
+    <button class="ql-italic"></button>
+    <button class="ql-underline"></button>
+  </span>
+  <span class="ql-formats">
+    <button class="ql-link"></button>
+    <button class="ql-image"></button>
+  </span>
+  <span class="ql-formats">
+    <button class="ql-blockquote"></button>
+    <button class="ql-code-block"></button>
+    <select class="ql-code-language">
+      <option value="plaintext" selected>Plain Text</option>
+      <option value="html">HTML</option>
+      <option value="javascript">JavaScript</option>
+      <option value="css">CSS</option>
+      <option value="python">Python</option>
+      <option value="sql">SQL</option>
+    </select>
+  </span>
+  <span class="ql-formats">
+    <button class="ql-list" value="ordered"></button>
+    <button class="ql-list" value="bullet"></button>
+  </span>
+  <span class="ql-formats">
+    <button class="ql-clean"></button>
+  </span>
+</div>
     <div id="page-content-editor" class="mt-1 w-full border rounded-md"></div>
   </div>
   <input type="hidden" id="page-content" name="page-content">
@@ -1229,6 +1251,7 @@ pre code.hljs {
                     }
                   }
                 }
+                quill.focus();
               }
             }
           }
@@ -1262,6 +1285,11 @@ pre code.hljs {
             .filter(cls => !cls.startsWith('ql-') && !cls.startsWith('language-') && cls !== 'hljs')
             .join(' ');
         });
+
+        // If the content is only a <pre> block, extract its content
+        if (tempDiv.childElementCount === 1 && tempDiv.firstElementChild.tagName === 'PRE') {
+          return tempDiv.firstElementChild.textContent || tempDiv.firstElementChild.innerText;
+        }
 
         return tempDiv.innerHTML;
       }
