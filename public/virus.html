@@ -332,15 +332,15 @@
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 4px;
-  padding: 0.25rem 1.5rem 0.25rem 0.5rem;
-  font-size: 0.875rem;
+  padding: 0.5rem 1.5rem 0.5rem 0.75rem; /* Increased padding */
+  font-size: 1rem; /* Increased font size */
   color: #374151;
   background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjYgOSAxMiAxNSA18IDkiPjwvcG9seWxpbmU+PC9zdmc+');
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
   background-size: 1rem;
+  min-width: 150px; /* Increased minimum width */
 }
-
   .ql-formats select.ql-code-language:focus {
   outline: none;
   border-color: #16a34a;
@@ -355,9 +355,10 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   max-height: 200px;
   overflow-y: auto;
-  font-size: 0.875rem;
+  font-size: 1rem; /* Match the select font size */
+  min-width: 150px; /* Ensure options match the dropdown width */
 }
-
+    
 .ql-picker-item {
   padding: 0.5rem;
   color: #374151;
@@ -1206,6 +1207,7 @@ pre code.hljs {
   // Initialize Quill for Static Page Content with Custom Toolbar
   if (document.getElementById('page-content-editor')) {
     setTimeout(() => {
+      console.log('Initializing page-content-editor');
       const pageContentQuill = new Quill('#page-content-editor', {
         theme: 'snow',
         modules: {
@@ -1231,6 +1233,7 @@ pre code.hljs {
                 }
 
                 if (currentBlot && currentBlot.statics.blotName === 'code-block') {
+                  // Update the language of the existing code block
                   const preElement = currentBlot.domNode;
                   preElement.classList.remove(...Array.from(preElement.classList).filter(cls => cls.startsWith('language-')));
                   preElement.classList.add(`language-${value}`);
@@ -1238,6 +1241,7 @@ pre code.hljs {
                     hljs.highlightElement(preElement);
                   }
                 } else {
+                  // Create a new code block if none exists
                   quill.format('code-block', true);
                   const [newLine] = quill.getLine(position);
                   let newBlot = newLine;
@@ -1273,7 +1277,7 @@ pre code.hljs {
             const codeContent = Array.from(codeLines)
               .map(line => line.textContent || line.innerText)
               .join('\n');
-            pre.textContent = codeContent;
+            pre.textContent = codeContent; // Use textContent to avoid re-encoding
             container.replaceWith(pre);
           }
         });
@@ -1286,12 +1290,9 @@ pre code.hljs {
             .join(' ');
         });
 
-        // If the content is only a <pre> block, extract its content
-        if (tempDiv.childElementCount === 1 && tempDiv.firstElementChild.tagName === 'PRE') {
-          return tempDiv.firstElementChild.textContent || tempDiv.firstElementChild.innerText;
-        }
-
-        return tempDiv.innerHTML;
+        // Extract raw content without adding extra quotes
+        const content = tempDiv.innerHTML.trim();
+        return content.replace(/""/g, '"'); // Replace any double quotes with single quotes
       }
 
       // Update hidden input with cleaned content
