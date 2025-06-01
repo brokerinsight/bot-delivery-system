@@ -945,6 +945,7 @@
       let cleanedDesc = product.desc
         .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
         .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
+        .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
         .trim();
       
       // Handle headers (h1, h2, h3) from Quill.js
@@ -975,12 +976,17 @@
       const listItems = descContainer.querySelectorAll('li');
       listItems.forEach(li => {
         li.style.marginBottom = '0.5rem';
+        // Handle indentation
+        const indentLevel = li.className.match(/ql-indent-(\d+)/);
+        if (indentLevel) {
+          li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+        }
       });
 
       // Style text formatting from Quill.js toolbar
       const boldText = descContainer.querySelectorAll('strong, b');
       boldText.forEach(b => {
-        b.style.fontWeight = '600';
+        b.style.fontWeight = 'bold'; // Use browser's bold for consistency
       });
 
       const italicText = descContainer.querySelectorAll('em, i');
@@ -998,7 +1004,25 @@
       links.forEach(link => {
         link.style.color = 'blue';
         link.style.textDecoration = 'underline';
-        link.setAttribute('target', '_blank'); // Ensure links open in new tab
+        link.setAttribute('target', '_blank');
+      });
+
+      // Style blockquotes
+      const blockquotes = descContainer.querySelectorAll('blockquote');
+      blockquotes.forEach(bq => {
+        bq.style.borderLeft = '4px solid #ccc';
+        bq.style.paddingLeft = '1rem';
+        bq.style.margin = '1rem 0';
+        bq.style.color = '#666';
+      });
+
+      // Style inline code
+      const codeElements = descContainer.querySelectorAll('code');
+      codeElements.forEach(code => {
+        code.style.backgroundColor = '#f4f4f4';
+        code.style.padding = '2px 4px';
+        code.style.borderRadius = '4px';
+        code.style.fontFamily = 'monospace';
       });
 
       // Handle images (if added via Quill.js)
@@ -1057,6 +1081,7 @@
     });
   });
 }
+    
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
