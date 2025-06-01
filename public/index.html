@@ -1565,51 +1565,44 @@
         const modal = document.getElementById('static-page-modal');
         document.getElementById('static-page-title').textContent = page.title;
 
-        // Clean and render static page content with Quill.js formatting
+        // Clean Quill.js content
         let cleanedContent = page.content
           .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
           .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
           .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
           .trim();
 
-        // Handle headers (h1, h2, h3) from Quill.js
-        cleanedContent = cleanedContent.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
-                                      .replace(/<\/h\d>/g, '</h$1>');
-
         const contentContainer = document.getElementById('static-page-content');
         contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
 
-        // Style Quill.js content for better alignment and readability
+        // Style Quill.js content, respecting original formatting
         const paragraphs = contentContainer.querySelectorAll('p');
         paragraphs.forEach(p => {
-          p.style.marginBottom = '1rem';
-          p.style.lineHeight = '1.6';
-          p.style.wordBreak = 'break-word';
+          p.style.wordBreak = 'break-word'; // Maintain word breaking
         });
 
         const headers = contentContainer.querySelectorAll('h1, h2, h3');
         headers.forEach(h => {
-          h.style.fontWeight = '600';
-          h.style.marginBottom = '0.75rem';
+          h.style.fontWeight = '600'; // Apply consistent weight, let Quill.js HTML define size
         });
 
         const unorderedLists = contentContainer.querySelectorAll('ul');
         unorderedLists.forEach(ul => {
-          ul.style.marginBottom = '1rem';
           ul.style.paddingLeft = '1.5rem';
           ul.style.listStyleType = 'none'; // Remove default bullets
         });
 
         const orderedLists = contentContainer.querySelectorAll('ol');
         orderedLists.forEach(ol => {
-          ol.style.marginBottom = '1rem';
           ol.style.paddingLeft = '1.5rem';
-          ol.style.listStyleType = 'decimal'; // Ensure ordered lists show numbers
+          // Preserve Quill.js list-style-type (e.g., decimal, lower-roman, upper-alpha)
+          if (!ol.style.listStyleType) {
+            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+          }
         });
 
         const listItems = contentContainer.querySelectorAll('li');
         listItems.forEach(li => {
-          li.style.marginBottom = '0.5rem';
           const indentLevel = li.className.match(/ql-indent-(\d+)/);
           if (indentLevel) {
             li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
@@ -1626,7 +1619,7 @@
 
         const boldText = contentContainer.querySelectorAll('strong, b');
         boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
+          b.style.fontWeight = 'bold'; // Apply bold only to explicit <strong> or <b> tags
         });
 
         const italicText = contentContainer.querySelectorAll('em, i');
@@ -1650,7 +1643,6 @@
         blockquotes.forEach(bq => {
           bq.style.borderLeft = '4px solid #ccc';
           bq.style.paddingLeft = '1rem';
-          bq.style.margin = '1rem 0';
           bq.style.color = '#666';
         });
 
@@ -1666,7 +1658,6 @@
         images.forEach(img => {
           img.style.maxWidth = '100%';
           img.style.height = 'auto';
-          img.style.marginBottom = '1rem';
           img.style.borderRadius = '8px';
         });
 
@@ -1701,7 +1692,7 @@
     .forEach(page => {
       const a = document.createElement('a');
       a.href = '#';
-      a.className = "text-gray-500 hover:text-green-600 text-sm";
+      a.className = 'text-gray-500 hover:text-green-600 text-sm';
       a.textContent = page.title;
       a.dataset.slug = page.slug;
       a.addEventListener('click', e => {
@@ -1709,51 +1700,44 @@
         const modal = document.getElementById('static-page-modal');
         document.getElementById('static-page-title').textContent = page.title;
 
-        // Clean and render static page content with Quill.js formatting
+        // Clean Quill.js content
         let cleanedContent = page.content
           .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
           .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
           .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
           .trim();
 
-        // Handle headers (h1, h2, h3) from Quill.js
-        cleanedContent = cleanedContent.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
-                                      .replace(/<\/h\d>/g, '</h$1>');
-
         const contentContainer = document.getElementById('static-page-content');
         contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
 
-        // Style Quill.js content for better alignment and readability
+        // Style Quill.js content, respecting original formatting
         const paragraphs = contentContainer.querySelectorAll('p');
         paragraphs.forEach(p => {
-          p.style.marginBottom = '1rem';
-          p.style.lineHeight = '1.6';
-          p.style.wordBreak = 'break-word';
+          p.style.wordBreak = 'break-word'; // Maintain word breaking
         });
 
         const headers = contentContainer.querySelectorAll('h1, h2, h3');
         headers.forEach(h => {
-          h.style.fontWeight = '600';
-          h.style.marginBottom = '0.75rem';
+          h.style.fontWeight = '600'; // Apply consistent weight, let Quill.js HTML define size
         });
 
         const unorderedLists = contentContainer.querySelectorAll('ul');
         unorderedLists.forEach(ul => {
-          ul.style.marginBottom = '1rem';
           ul.style.paddingLeft = '1.5rem';
           ul.style.listStyleType = 'none'; // Remove default bullets
         });
 
         const orderedLists = contentContainer.querySelectorAll('ol');
         orderedLists.forEach(ol => {
-          ol.style.marginBottom = '1rem';
           ol.style.paddingLeft = '1.5rem';
-          ol.style.listStyleType = 'decimal'; // Ensure ordered lists show numbers
+          // Preserve Quill.js list-style-type (e.g., decimal, lower-roman, upper-alpha)
+          if (!ol.style.listStyleType) {
+            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+          }
         });
 
         const listItems = contentContainer.querySelectorAll('li');
         listItems.forEach(li => {
-          li.style.marginBottom = '0.5rem';
           const indentLevel = li.className.match(/ql-indent-(\d+)/);
           if (indentLevel) {
             li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
@@ -1770,7 +1754,7 @@
 
         const boldText = contentContainer.querySelectorAll('strong, b');
         boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
+          b.style.fontWeight = 'bold'; // Apply bold only to explicit <strong> or <b> tags
         });
 
         const italicText = contentContainer.querySelectorAll('em, i');
@@ -1794,7 +1778,6 @@
         blockquotes.forEach(bq => {
           bq.style.borderLeft = '4px solid #ccc';
           bq.style.paddingLeft = '1rem';
-          bq.style.margin = '1rem 0';
           bq.style.color = '#666';
         });
 
@@ -1810,7 +1793,6 @@
         images.forEach(img => {
           img.style.maxWidth = '100%';
           img.style.height = 'auto';
-          img.style.marginBottom = '1rem';
           img.style.borderRadius = '8px';
         });
 
