@@ -596,12 +596,14 @@ pre code.hljs {
       <span class="ql-formats">
         <button class="ql-blockquote"></button>
         <button class="ql-code-block"></button>
-        <select class="ql-code-language" title="Select Code Language">
-          <option value="plaintext" selected>Plain Text</option>
-          <option value="html">HTML</option>
-          <option value="javascript">JavaScript</option>
-          <option value="css">CSS</option>
-          <option value="python">Python</option>
+        <select class="ql-code-language">
+  <option value="plaintext" selected>Plain Text</option>
+  <option value="html">HTML</option>
+  <option value="javascript">JavaScript</option>
+  <option value="css">CSS</option>
+  <option value="python">Python</option>
+  <option value="sql">SQL</option>
+</select>
         </select>
       </span>
       <span class="ql-formats">
@@ -1191,10 +1193,13 @@ pre code.hljs {
               'code-language': function(value) {
                 const quill = this.quill;
                 const range = quill.getSelection();
-                let position = range ? range.index : 0;
+                if (!range) {
+                  quill.setSelection(quill.getLength(), 0);
+                  return;
+                }
 
-                // Find the current block
-                const [line, offset] = quill.getLine(position);
+                let position = range.index;
+                const [line] = quill.getLine(position);
                 if (!line) return;
 
                 // Check if we're inside a code block
@@ -1204,25 +1209,20 @@ pre code.hljs {
                 }
 
                 if (currentBlot && currentBlot.statics.blotName === 'code-block') {
-                  // We're inside a code block, update its language
                   const preElement = currentBlot.domNode;
                   preElement.classList.remove(...Array.from(preElement.classList).filter(cls => cls.startsWith('language-')));
-                  if (value !== 'plaintext') {
-                    preElement.classList.add(`language-${value}`);
-                    if (typeof hljs !== 'undefined') {
-                      hljs.highlightElement(preElement);
-                    }
+                  preElement.classList.add(`language-${value}`);
+                  if (typeof hljs !== 'undefined') {
+                    hljs.highlightElement(preElement);
                   }
                 } else {
-                  // If not inside a code block, toggle code-block format and then apply language
                   quill.format('code-block', true);
-                  // Re-fetch the current block after formatting
                   const [newLine] = quill.getLine(position);
                   let newBlot = newLine;
                   while (newBlot && newBlot.statics.blotName !== 'code-block') {
                     newBlot = newBlot.parent;
                   }
-                  if (newBlot && value !== 'plaintext') {
+                  if (newBlot) {
                     newBlot.domNode.classList.add(`language-${value}`);
                     if (typeof hljs !== 'undefined') {
                       hljs.highlightElement(newBlot.domNode);
@@ -1236,14 +1236,46 @@ pre code.hljs {
         placeholder: 'Enter page content (Markdown or HTML)...',
       });
 
-      // Apply syntax highlighting to existing code blocks on load
+      // Helper function to clean Quill content for saving
+      function cleanQuillContent(html) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+
+        // Process code blocks: Convert <div class="ql-code-block"> to a single <pre>
+        const codeBlockContainers = tempDiv.querySelectorAll('.ql-code-block-container');
+        codeBlockContainers.forEach(container => {
+          const codeLines = container.querySelectorAll('.ql-code-block');
+          if (codeLines.length > 0) {
+            const pre = document.createElement('pre');
+            const codeContent = Array.from(codeLines)
+              .map(line => line.textContent || line.innerText)
+              .join('\n');
+            pre.textContent = codeContent;
+            container.replaceWith(pre);
+          }
+        });
+
+        // Remove Quill and highlight.js classes
+        tempDiv.querySelectorAll('[class*="ql-"]').forEach(el => {
+          el.className = el.className
+            .split(' ')
+            .filter(cls => !cls.startsWith('ql-') && !cls.startsWith('language-') && cls !== 'hljs')
+            .join(' ');
+        });
+
+        return tempDiv.innerHTML;
+      }
+
+      // Update hidden input with cleaned content
       pageContentQuill.on('text-change', () => {
-        document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
-        // Re-highlight all code blocks after content changes
+        const rawContent = pageContentQuill.root.innerHTML;
+        const cleanedContent = cleanQuillContent(rawContent);
+        document.getElementById('page-content').value = cleanedContent;
+
+        // Re-highlight code blocks in the editor
         if (typeof hljs !== 'undefined') {
           const codeBlocks = pageContentQuill.root.querySelectorAll('pre');
           codeBlocks.forEach(block => {
-            // Ensure the block has a language class; default to 'plaintext' if none
             if (!block.classList.contains('language-plaintext') && !Array.from(block.classList).some(cls => cls.startsWith('language-'))) {
               block.classList.add('language-plaintext');
             }
