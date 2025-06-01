@@ -6,16 +6,22 @@
   <title>Admin Panel - Deriv Bot Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-  <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-  <!-- Include Highlight.js for syntax highlighting -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-  <!-- Register languages for Highlight.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/html.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <!-- Highlight.js for syntax highlighting (load before Quill) -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/html.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script>
+  hljs.configure({
+    languages: ['html', 'javascript', 'css', 'python', 'sql', 'plaintext']
+  });
+</script>
+
+<!-- Quill v1.3.7 -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
   <style>
    
     #add-page, #cancel-page-edit {
@@ -133,10 +139,10 @@
       border-radius: 8px;
       transition: all 0.3s ease;
     }
-    #category-list li:hover {
-      transform:Save Changes
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    }
+   #category-list li:hover {
+  transform: translateY(-2px); /* Fix: Use a valid transform value */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
     /* Orders table styling */
     #orders-table {
       width: 100%;
@@ -1277,7 +1283,7 @@ pre code.hljs {
             const codeContent = Array.from(codeLines)
               .map(line => line.textContent || line.innerText)
               .join('\n');
-            pre.textContent = codeContent; // Use textContent to avoid re-encoding
+            pre.textContent = codeContent;
             container.replaceWith(pre);
           }
         });
@@ -1292,14 +1298,52 @@ pre code.hljs {
 
         // Extract raw content without adding extra quotes
         const content = tempDiv.innerHTML.trim();
-        return content.replace(/""/g, '"'); // Replace any double quotes with single quotes
+        return content.replace(/""/g, '"'); // Fix double quotes
       }
 
-      // Update hidden input with cleaned content
+      // Helper function to wrap content in full HTML
+      function wrapContentInFullHTML(content, pageTitle) {
+        return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${pageTitle} - Deriv Bot Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <nav class="bg-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="prose prose-lg text-gray-700">
+      ${content}
+    </div>
+  </main>
+  <footer class="bg-gray-800 text-white py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p>© 2025 Deriv Bot Store. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>
+`.trim();
+      }
+
+      // Update hidden input with cleaned and wrapped content
       pageContentQuill.on('text-change', () => {
         const rawContent = pageContentQuill.root.innerHTML;
         const cleanedContent = cleanQuillContent(rawContent);
-        document.getElementById('page-content').value = cleanedContent;
+        const pageTitle = document.getElementById('page-title').value.trim() || 'Untitled Page';
+        const fullHTML = wrapContentInFullHTML(cleanedContent, pageTitle);
+        document.getElementById('page-content').value = fullHTML;
 
         // Re-highlight code blocks in the editor
         if (typeof hljs !== 'undefined') {
@@ -1549,13 +1593,32 @@ pre code.hljs {
         alert('Page not found. Please refresh and try again.');
         return;
       }
+
+      // Extract content from within <div class="prose">
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = page.content;
+      const proseContent = tempDiv.querySelector('main .prose')?.innerHTML || '<p></p>';
+
       document.getElementById('page-title').value = page.title;
       document.getElementById('page-slug').value = page.slug;
-      window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
+      window.pageContentQuill.root.innerHTML = proseContent;
       document.getElementById('add-page').textContent = 'Save Changes';
       document.getElementById('add-page').dataset.editSlug = slug;
       document.getElementById('page-slug').dataset.originalSlug = slug;
-      document.getElementById('cancel-page-edit').classList.remove('hidden'); // Show Cancel button
+      document.getElementById('cancel-page-edit').classList.remove('hidden');
+
+      // Highlight code blocks after loading content
+      setTimeout(() => {
+        if (typeof hljs !== 'undefined') {
+          const codeBlocks = window.pageContentQuill.root.querySelectorAll('pre');
+          codeBlocks.forEach(block => {
+            if (!block.classList.contains('language-plaintext') && !Array.from(block.classList).some(cls => cls.startsWith('language-'))) {
+              block.classList.add('language-plaintext');
+            }
+            hljs.highlightElement(block);
+          });
+        }
+      }, 100);
     });
   });
 
@@ -1567,13 +1630,13 @@ pre code.hljs {
         data.staticPages = data.staticPages.filter(p => p.slug !== slug);
         await saveData();
         renderPages();
-        resetPageForm(); // Reset form after deletion
+        resetPageForm();
         alert('Page deleted successfully!');
       }
     });
   });
 }
-
+        
   // Reset the page form state
 function resetPageForm() {
   document.getElementById('page-title').value = '';
