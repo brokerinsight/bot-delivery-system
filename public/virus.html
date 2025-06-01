@@ -8,6 +8,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+  <!-- Include Highlight.js for syntax highlighting -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <!-- Register languages for Highlight.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/html.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
   <style>
    
     #add-page, #cancel-page-edit {
@@ -281,7 +289,63 @@
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
 }
 
-    /* Code Block Styling for Quill Editor and Static Pages */
+    /* Toolbar Styling for Proper Alignment */
+.ql-toolbar {
+  display: flex;
+  align-items: center;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-bottom: none;
+  border-radius: 0.375rem 0.375rem 0 0;
+  padding: 0.5rem;
+  z-index: 15;
+  position: relative;
+  overflow: visible;
+}
+
+.ql-formats {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+}
+
+.ql-formats button,
+.ql-formats select {
+  margin: 0 0.25rem;
+  padding: 0.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.ql-formats button:hover,
+.ql-formats select:hover {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.ql-formats select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwb2x5bGluZSBwb2ludHM9IjYgOSAxMiAxNSA18IDkiPjwvcG9seWxpbmU+PC9zdmc+') no-repeat right 0.5rem center;
+  background-size: 1rem;
+  padding-right: 1.5rem;
+}
+
+.ql-picker-options {
+  z-index: 30;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Code Block Styling with Syntax Highlighting */
+.ql-editor pre,
 .ql-code-block {
   background-color: #f5f5f5;
   padding: 1rem;
@@ -293,15 +357,10 @@
   border: 1px solid #ddd;
 }
 
-.ql-editor pre {
-  background-color: #f5f5f5;
-  padding: 1rem;
-  border-radius: 4px;
-  font-family: 'Courier New', Courier, monospace;
-  white-space: pre-wrap;
-  overflow-x: auto;
-  margin-bottom: 1rem;
-  border: 1px solid #ddd;
+/* Highlight.js styles for syntax highlighting */
+pre code.hljs {
+  background: transparent;
+  padding: 0;
 }
 
 /* Ensure code blocks render properly in static pages */
@@ -513,12 +572,50 @@
               <input type="text" id="page-slug" class="mt-1 w-full p-2 border rounded-md" placeholder="/my-page">
             </div>
             <div class="sm:col-span-2">
-              <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
-              <div class="ql-editor-container">
-  <div id="page-content-editor" class="mt-1 w-full border rounded-md"></div>
+  <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
+  <div class="ql-editor-container">
+    <!-- Custom Toolbar for Static Page Editor -->
+    <div id="page-content-toolbar" class="toolbar">
+      <span class="ql-formats">
+        <select class="ql-header" defaultValue="">
+          <option value="1">Heading 1</option>
+          <option value="2">Heading 2</option>
+          <option value="3">Heading 3</option>
+          <option selected>Normal</option>
+        </select>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-bold"></button>
+        <button class="ql-italic"></button>
+        <button class="ql-underline"></button>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-link"></button>
+        <button class="ql-image"></button>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-blockquote"></button>
+        <button class="ql-code-block"></button>
+        <select class="ql-code-language" title="Select Code Language">
+          <option value="plaintext" selected>Plain Text</option>
+          <option value="html">HTML</option>
+          <option value="javascript">JavaScript</option>
+          <option value="css">CSS</option>
+          <option value="python">Python</option>
+        </select>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-list" value="ordered"></button>
+        <button class="ql-list" value="bullet"></button>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-clean"></button>
+      </span>
+    </div>
+    <div id="page-content-editor" class="mt-1 w-full border rounded-md"></div>
+  </div>
+  <input type="hidden" id="page-content" name="page-content">
 </div>
-              <input type="hidden" id="page-content" name="page-content">
-            </div>
           </div>
           <div class="mt-4 flex space-x-2">
         <button id="add-page" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
@@ -1027,7 +1124,7 @@
       descQuill.on('text-change', () => {
         document.getElementById('desc').value = descQuill.root.innerHTML;
       });
-    }, 100); // Delay to ensure DOM is ready
+    }, 100);
   } else {
     console.warn('Element #desc-editor not found in DOM.');
   }
@@ -1082,38 +1179,64 @@
     console.warn('Element #urgent-message-editor not found in DOM.');
   }
 
-  // Initialize Quill for Static Page Content with Code Block
+  // Initialize Quill for Static Page Content with Custom Toolbar
   if (document.getElementById('page-content-editor')) {
     setTimeout(() => {
       const pageContentQuill = new Quill('#page-content-editor', {
         theme: 'snow',
         modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            ['link', 'image'],
-            ['blockquote', 'code-block'], // Added code-block to toolbar
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-          ],
-          syntax: {
-            highlight: function(text) {
-              return text; // No syntax highlighting for raw HTML, just pass through
+          toolbar: {
+            container: '#page-content-toolbar',
+            handlers: {
+              'code-language': function(value) {
+                // Custom handler for language selection
+                const range = this.quill.getSelection();
+                if (range) {
+                  const [blot] = this.quill.getLeaf(range.index);
+                  if (blot && blot.parent.domNode.tagName === 'PRE') {
+                    // Update the language class on the <pre> tag
+                    blot.parent.domNode.classList.remove(...Array.from(blot.parent.domNode.classList).filter(cls => cls.startsWith('language-')));
+                    if (value !== 'plaintext') {
+                      blot.parent.domNode.classList.add(`language-${value}`);
+                      // Re-highlight the code block
+                      if (typeof hljs !== 'undefined') {
+                        hljs.highlightElement(blot.parent.domNode);
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },
         placeholder: 'Enter page content (Markdown or HTML)...',
       });
+
+      // Apply syntax highlighting to existing code blocks on load
       pageContentQuill.on('text-change', () => {
         document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+        // Re-highlight code blocks after content changes
+        if (typeof hljs !== 'undefined') {
+          pageContentQuill.root.querySelectorAll('pre').forEach(block => {
+            hljs.highlightElement(block);
+          });
+        }
       });
+
+      // Initial highlighting for pre-existing content
+      if (typeof hljs !== 'undefined') {
+        pageContentQuill.root.querySelectorAll('pre').forEach(block => {
+          hljs.highlightElement(block);
+        });
+      }
+
       window.pageContentQuill = pageContentQuill;
     }, 100);
   } else {
     console.warn('Element #page-content-editor not found in DOM.');
   }
 
-  // Register custom code block blot (optional, ensures proper rendering)
+  // Register custom code block blot
   const CodeBlock = Quill.import('blots/block/embed');
   CodeBlock.tagName = 'PRE';
   CodeBlock.className = 'ql-code-block';
