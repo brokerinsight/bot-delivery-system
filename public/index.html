@@ -1593,11 +1593,18 @@
           h.style.marginBottom = '0.75rem';
         });
 
-        const lists = contentContainer.querySelectorAll('ul, ol');
-        lists.forEach(list => {
-          list.style.marginBottom = '1rem';
-          list.style.paddingLeft = '1.5rem';
-          list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
+        const unorderedLists = contentContainer.querySelectorAll('ul');
+        unorderedLists.forEach(ul => {
+          ul.style.marginBottom = '1rem';
+          ul.style.paddingLeft = '1.5rem';
+          ul.style.listStyleType = 'none'; // Remove default bullets
+        });
+
+        const orderedLists = contentContainer.querySelectorAll('ol');
+        orderedLists.forEach(ol => {
+          ol.style.marginBottom = '1rem';
+          ol.style.paddingLeft = '1.5rem';
+          ol.style.listStyleType = 'decimal'; // Ensure ordered lists show numbers
         });
 
         const listItems = contentContainer.querySelectorAll('li');
@@ -1609,6 +1616,12 @@
           }
           li.style.position = 'relative';
           li.style.paddingLeft = '1.5rem';
+
+          // Add custom bullet for unordered list items
+          if (li.parentNode.tagName.toLowerCase() === 'ul') {
+            li.style.listStyleType = 'none';
+            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+          }
         });
 
         const boldText = contentContainer.querySelectorAll('strong, b');
@@ -1724,11 +1737,18 @@
           h.style.marginBottom = '0.75rem';
         });
 
-        const lists = contentContainer.querySelectorAll('ul, ol');
-        lists.forEach(list => {
-          list.style.marginBottom = '1rem';
-          list.style.paddingLeft = '1.5rem';
-          list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
+        const unorderedLists = contentContainer.querySelectorAll('ul');
+        unorderedLists.forEach(ul => {
+          ul.style.marginBottom = '1rem';
+          ul.style.paddingLeft = '1.5rem';
+          ul.style.listStyleType = 'none'; // Remove default bullets
+        });
+
+        const orderedLists = contentContainer.querySelectorAll('ol');
+        orderedLists.forEach(ol => {
+          ol.style.marginBottom = '1rem';
+          ol.style.paddingLeft = '1.5rem';
+          ol.style.listStyleType = 'decimal'; // Ensure ordered lists show numbers
         });
 
         const listItems = contentContainer.querySelectorAll('li');
@@ -1740,6 +1760,12 @@
           }
           li.style.position = 'relative';
           li.style.paddingLeft = '1.5rem';
+
+          // Add custom bullet for unordered list items
+          if (li.parentNode.tagName.toLowerCase() === 'ul') {
+            li.style.listStyleType = 'none';
+            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+          }
         });
 
         const boldText = contentContainer.querySelectorAll('strong, b');
