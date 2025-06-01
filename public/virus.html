@@ -1189,19 +1189,43 @@ pre code.hljs {
             container: '#page-content-toolbar',
             handlers: {
               'code-language': function(value) {
-                // Custom handler for language selection
-                const range = this.quill.getSelection();
-                if (range) {
-                  const [blot] = this.quill.getLeaf(range.index);
-                  if (blot && blot.parent.domNode.tagName === 'PRE') {
-                    // Update the language class on the <pre> tag
-                    blot.parent.domNode.classList.remove(...Array.from(blot.parent.domNode.classList).filter(cls => cls.startsWith('language-')));
-                    if (value !== 'plaintext') {
-                      blot.parent.domNode.classList.add(`language-${value}`);
-                      // Re-highlight the code block
-                      if (typeof hljs !== 'undefined') {
-                        hljs.highlightElement(blot.parent.domNode);
-                      }
+                const quill = this.quill;
+                const range = quill.getSelection();
+                let position = range ? range.index : 0;
+
+                // Find the current block
+                const [line, offset] = quill.getLine(position);
+                if (!line) return;
+
+                // Check if we're inside a code block
+                let currentBlot = line;
+                while (currentBlot && currentBlot.statics.blotName !== 'code-block') {
+                  currentBlot = currentBlot.parent;
+                }
+
+                if (currentBlot && currentBlot.statics.blotName === 'code-block') {
+                  // We're inside a code block, update its language
+                  const preElement = currentBlot.domNode;
+                  preElement.classList.remove(...Array.from(preElement.classList).filter(cls => cls.startsWith('language-')));
+                  if (value !== 'plaintext') {
+                    preElement.classList.add(`language-${value}`);
+                    if (typeof hljs !== 'undefined') {
+                      hljs.highlightElement(preElement);
+                    }
+                  }
+                } else {
+                  // If not inside a code block, toggle code-block format and then apply language
+                  quill.format('code-block', true);
+                  // Re-fetch the current block after formatting
+                  const [newLine] = quill.getLine(position);
+                  let newBlot = newLine;
+                  while (newBlot && newBlot.statics.blotName !== 'code-block') {
+                    newBlot = newBlot.parent;
+                  }
+                  if (newBlot && value !== 'plaintext') {
+                    newBlot.domNode.classList.add(`language-${value}`);
+                    if (typeof hljs !== 'undefined') {
+                      hljs.highlightElement(newBlot.domNode);
                     }
                   }
                 }
@@ -1215,9 +1239,14 @@ pre code.hljs {
       // Apply syntax highlighting to existing code blocks on load
       pageContentQuill.on('text-change', () => {
         document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
-        // Re-highlight code blocks after content changes
+        // Re-highlight all code blocks after content changes
         if (typeof hljs !== 'undefined') {
-          pageContentQuill.root.querySelectorAll('pre').forEach(block => {
+          const codeBlocks = pageContentQuill.root.querySelectorAll('pre');
+          codeBlocks.forEach(block => {
+            // Ensure the block has a language class; default to 'plaintext' if none
+            if (!block.classList.contains('language-plaintext') && !Array.from(block.classList).some(cls => cls.startsWith('language-'))) {
+              block.classList.add('language-plaintext');
+            }
             hljs.highlightElement(block);
           });
         }
@@ -1225,7 +1254,11 @@ pre code.hljs {
 
       // Initial highlighting for pre-existing content
       if (typeof hljs !== 'undefined') {
-        pageContentQuill.root.querySelectorAll('pre').forEach(block => {
+        const codeBlocks = pageContentQuill.root.querySelectorAll('pre');
+        codeBlocks.forEach(block => {
+          if (!block.classList.contains('language-plaintext') && !Array.from(block.classList).some(cls => cls.startsWith('language-'))) {
+            block.classList.add('language-plaintext');
+          }
           hljs.highlightElement(block);
         });
       }
@@ -1235,12 +1268,6 @@ pre code.hljs {
   } else {
     console.warn('Element #page-content-editor not found in DOM.');
   }
-
-  // Register custom code block blot
-  const CodeBlock = Quill.import('blots/block/embed');
-  CodeBlock.tagName = 'PRE';
-  CodeBlock.className = 'ql-code-block';
-  Quill.register(CodeBlock, true);
 } 
     
   // Categories
