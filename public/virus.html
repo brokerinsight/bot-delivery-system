@@ -6,6 +6,8 @@
   <title>Admin Panel - Deriv Bot Store</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
   <style>
     /* Prevent background scrolling when modals are active */
     body.modal-active {
@@ -231,6 +233,24 @@
         padding: 1.5rem;
       }
     }
+
+    /* Quill Editor Styling */
+.ql-container {
+  min-height: 120px;
+  border-radius: 0 0 0.375rem 0.375rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+.ql-toolbar {
+  border-radius: 0.375rem 0.375rem 0 0;
+  border: 1px solid #d1d5db;
+  border-bottom: none;
+  background: #f9fafb;
+}
+.ql-container:focus-within {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+}
   </style>
 </head>
 <body class="bg-gray-100">
@@ -287,7 +307,8 @@
             </div>
             <div class="sm:col-span-2">
               <label for="desc" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea id="desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+              <div id="desc-editor" class="mt-1 w-full border rounded-md"></div>
+              <input type="hidden" id="desc" name="desc">
             </div>
             <div class="sm:col-span-2">
               <label for="embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
@@ -345,7 +366,8 @@
             <input type="checkbox" id="urgent-toggle" class="mr-2">
             <span class="text-sm font-medium text-gray-700">Show Urgent Message (Pop-up on Front End)</span>
           </label>
-          <textarea id="urgent-message" class="mt-2 w-full p-2 border rounded-md" placeholder="Enter urgent message..."></textarea>
+          <div id="urgent-message-editor" class="mt-2 w-full border rounded-md"></div>
+          <input type="hidden" id="urgent-message" name="urgent-message">
           <button id="save-urgent" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Message</button>
         </div>
         <div class="mb-6">
@@ -423,7 +445,8 @@
             </div>
             <div class="sm:col-span-2">
               <label for="page-content" class="block text-sm font-medium text-gray-700">Content (Markdown or HTML)</label>
-              <textarea id="page-content" class="mt-1 w-full p-2 border rounded-md" rows="6"></textarea>
+              <div id="page-content-editor" class="mt-1 w-full border rounded-md"></div>
+              <input type="hidden" id="page-content" name="page-content">
             </div>
           </div>
           <button id="add-page" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Add Page</button>
@@ -467,7 +490,8 @@
             </div>
             <div class="sm:col-span-2">
               <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea id="edit-desc" required class="mt-1 w-full p-2 border rounded-md"></textarea>
+              <div id="edit-desc-editor" class="mt-1 w-full border rounded-md"></div>
+              <input type="hidden" id="edit-desc" name="edit-desc">
             </div>
             <div class="sm:col-span-2">
               <label for="edit-embed" class="block text-sm font-medium text-gray-700">Embed Link (Optional, e.g., YouTube)</label>
@@ -713,7 +737,7 @@
     formData.append('item', document.getElementById('item').value.trim());
     formData.append('name', document.getElementById('name').value.trim());
     formData.append('price', document.getElementById('price').value);
-    formData.append('desc', document.getElementById('desc').value.trim());
+    formData.append('desc', document.getElementById('desc').value); // No trim, as it's HTML
     formData.append('embed', document.getElementById('embed').value.trim());
     formData.append('category', document.getElementById('category').value);
     formData.append('img', document.getElementById('img').value.trim());
@@ -793,7 +817,7 @@
         document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
         document.getElementById('edit-name').value = product.name;
         document.getElementById('edit-price').value = product.price;
-        document.getElementById('edit-desc').value = product.desc;
+        window.editDescQuill.root.innerHTML = product.desc || '<p></p>';
         document.getElementById('edit-embed').value = product.embed || '';
         document.getElementById('edit-img').value = product.img;
         document.getElementById('edit-isNew').checked = product.isNew;
@@ -870,7 +894,7 @@
       item: newItem,
       name: document.getElementById('edit-name').value.trim(),
       price: parseFloat(document.getElementById('edit-price').value),
-      desc: document.getElementById('edit-desc').value.trim(),
+      desc: document.getElementById('edit-desc').value, // No trim, as it's HTML
       embed: document.getElementById('edit-embed').value.trim(),
       category: document.getElementById('edit-category').value,
       img: document.getElementById('edit-img').value.trim(),
@@ -892,6 +916,98 @@
     closeEditModal();
   });
 
+   function initializeQuillEditors() {
+  // Initialize Quill for Add Bot Description
+  const descQuill = new Quill('#desc-editor', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        ['link', 'image'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['clean']
+      ]
+    },
+    placeholder: 'Enter bot description...',
+  });
+
+  // Sync Quill content with hidden input for form submission
+  descQuill.on('text-change', () => {
+    document.getElementById('desc').value = descQuill.root.innerHTML;
+  });
+
+     // Initialize Quill for Edit Bot Description
+  const editDescQuill = new Quill('#edit-desc-editor', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        ['link', 'image'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['clean']
+      ]
+    },
+    placeholder: 'Enter bot description...',
+  });
+
+  // Sync Quill content with hidden input for form submission
+  editDescQuill.on('text-change', () => {
+    document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
+  });
+
+  // Store editDescQuill for use in edit modal
+  window.editDescQuill = editDescQuill;
+
+     // Initialize Quill for Urgent Message
+  const urgentQuill = new Quill('#urgent-message-editor', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        ['link'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['clean']
+      ]
+    },
+    placeholder: 'Enter urgent message...',
+  });
+
+  // Sync Quill content with hidden input for form submission
+  urgentQuill.on('text-change', () => {
+    document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
+  });
+
+  // Store urgentQuill for use in initialization
+  window.urgentQuill = urgentQuill;
+     
+Initialize Quill for Static Page Content
+  const pageContentQuill = new Quill('#page-content-editor', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline'],
+        ['link', 'image'],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        ['clean']
+      ]
+    },
+    placeholder: 'Enter page content (Markdown or HTML)...',
+  });
+
+  // Sync Quill content with hidden input for form submission
+  pageContentQuill.on('text-change', () => {
+    document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+  });
+
+  // Store pageContentQuill for use in edit page
+  window.pageContentQuill = pageContentQuill;
+     
+} 
+    
   // Categories
   function renderCategories() {
     const categoryList = document.getElementById('category-list');
@@ -949,26 +1065,26 @@
   const urgentMessage = document.getElementById('urgent-message');
 
   function initializeUrgentMessage() {
-    if (!urgentToggle || !urgentMessage) {
-      console.error('Urgent message elements not found in DOM');
-      return;
-    }
-    urgentMessage.disabled = !data.settings.urgentMessage?.enabled;
-    urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
-    urgentMessage.value = data.settings.urgentMessage?.text || '';
+  if (!urgentToggle || !window.urgentQuill) {
+    console.error('Urgent message elements or Quill editor not found');
+    return;
   }
+  urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+  window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
+  window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
+}
 
   urgentToggle.addEventListener('change', () => {
-    if (!urgentMessage) {
-      console.error('Urgent message textarea not found');
-      return;
-    }
-    urgentMessage.disabled = !urgentToggle.checked;
-    if (!urgentMessage.disabled) {
-      urgentMessage.focus();
-    }
-  });
-
+  if (!window.urgentQuill) {
+    console.error('Urgent message Quill editor not found');
+    return;
+  }
+  window.urgentQuill.enable(urgentToggle.checked);
+  if (urgentToggle.checked) {
+    window.urgentQuill.focus();
+  }
+});
+    
   document.getElementById('save-urgent').addEventListener('click', async () => {
     const btn = document.getElementById('save-urgent');
     if (!urgentToggle || !urgentMessage) {
@@ -979,7 +1095,7 @@
     showButtonFeedback(btn, 'Saving...', 'Save Message');
     data.settings.urgentMessage = {
       enabled: urgentToggle.checked,
-      text: urgentMessage.value.trim()
+      text: document.getElementById('urgent-message').value
     };
     const success = await saveData();
     if (success) {
@@ -1112,7 +1228,7 @@
         }
         document.getElementById('page-title').value = page.title;
         document.getElementById('page-slug').value = page.slug;
-        document.getElementById('page-content').value = page.content;
+        window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
         document.getElementById('add-page').textContent = 'Save Changes';
         document.getElementById('add-page').dataset.editSlug = slug;
         document.getElementById('page-slug').dataset.originalSlug = slug; // Store original slug for comparison
@@ -1137,7 +1253,7 @@
     const btn = this;
     const pageTitle = document.getElementById('page-title').value.trim();
     const pageSlug = document.getElementById('page-slug').value.trim();
-    const pageContent = document.getElementById('page-content').value.trim();
+    const pageContent = document.getElementById('page-content').value;
 
     if (!pageTitle || !pageSlug || !pageContent) {
       alert('Please fill in all fields.');
@@ -1216,6 +1332,7 @@
       renderBots();
       renderCategories();
       renderPages();
+      initializeQuillEditors();
       document.getElementById('support-email').value = data.settings.supportEmail || '';
       document.getElementById('copyright-text').value = data.settings.copyrightText || '';
       document.getElementById('logo-url').value = data.settings.logoUrl || '';
