@@ -1442,17 +1442,16 @@
     }
 
     function showUrgentMessage() {
-      const urgentMessage = document.getElementById('urgent-message');
-      const urgentText = document.getElementById('urgent-text');
-      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
-        urgentText.textContent = settings.urgentMessage.text;
-        urgentMessage.classList.remove('hidden');
-      }
-      document.getElementById('urgent-close').onclick = () => {
-        urgentMessage.classList.add('hidden');
-      };
-    }
-
+  const urgentMessage = document.getElementById('urgent-message');
+  const urgentText = document.getElementById('urgent-text');
+  if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+    urgentText.innerHTML = settings.urgentMessage.text; // Use innerHTML for HTML rendering
+    urgentMessage.classList.remove('hidden');
+  }
+  document.getElementById('urgent-close').onclick = () => {
+    urgentMessage.classList.add('hidden');
+  };
+}
     async function checkPaymentCookie() {
       const cookies = document.cookie.split(';');
       const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
