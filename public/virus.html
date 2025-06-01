@@ -571,42 +571,6 @@
   </div>
 
   <script>
-  // Define the static page template
-  const STATIC_PAGE_TEMPLATE = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title} - Deriv Bot Store</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 font-sans">
-  <nav class="bg-white shadow-lg">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center">
-          <a href="/" class="text-2xl font-extrabold text-gray-900">Deriv Bot Store</a>
-        </div>
-      </div>
-    </div>
-  </nav>
-
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-    <section class="space-y-8">
-      {content}
-    </section>
-  </main>
-
-  <footer class="bg-gray-900 text-white py-8">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-      <p class="text-sm">© 2025 Deriv Bot Store. All rights reserved.</p>
-    </div>
-  </footer>
-</body>
-</html>
-`;
-
   // Helper function to show button feedback
   function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
     btn.disabled = true;
@@ -993,122 +957,122 @@
     closeEditModal();
   });
 
-  function initializeQuillEditors() {
-    if (typeof Quill === 'undefined') {
-      console.error('Quill library is not loaded. Please check the Quill script inclusion.');
-      return;
-    }
-
-    // Remove any stray <textarea> elements that might have the same IDs
-    const idsToClean = ['desc', 'edit-desc', 'urgent-message', 'page-content'];
-    idsToClean.forEach(id => {
-      const textarea = document.querySelector(`textarea[id="${id}"]`);
-      if (textarea) {
-        console.warn(`Found stray <textarea> with id "${id}". Removing it.`);
-        textarea.remove();
-      }
-    });
-
-    // Initialize Quill for Add Bot Description
-    if (document.getElementById('desc-editor')) {
-      setTimeout(() => {
-        const descQuill = new Quill('#desc-editor', {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline'],
-              ['link', 'image'],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              ['clean']
-            ]
-          },
-          placeholder: 'Enter bot description...',
-        });
-        descQuill.on('text-change', () => {
-          document.getElementById('desc').value = descQuill.root.innerHTML;
-        });
-      }, 100); // Delay to ensure DOM is ready
-    } else {
-      console.warn('Element #desc-editor not found in DOM.');
-    }
-
-    // Initialize Quill for Edit Bot Description
-    if (document.getElementById('edit-desc-editor')) {
-      setTimeout(() => {
-        const editDescQuill = new Quill('#edit-desc-editor', {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline'],
-              ['link', 'image'],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              ['clean']
-            ]
-          },
-          placeholder: 'Enter bot description...',
-        });
-        editDescQuill.on('text-change', () => {
-          document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
-        });
-        window.editDescQuill = editDescQuill;
-      }, 100);
-    } else {
-      console.warn('Element #edit-desc-editor not found in DOM.');
-    }
-
-    // Initialize Quill for Urgent Message
-    if (document.getElementById('urgent-message-editor')) {
-      setTimeout(() => {
-        const urgentQuill = new Quill('#urgent-message-editor', {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline'],
-              ['link'],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              ['clean']
-            ]
-          },
-          placeholder: 'Enter urgent message...',
-        });
-        urgentQuill.on('text-change', () => {
-          document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
-        });
-        window.urgentQuill = urgentQuill;
-      }, 100);
-    } else {
-      console.warn('Element #urgent-message-editor not found in DOM.');
-    }
-
-    // Initialize Quill for Static Page Content
-    if (document.getElementById('page-content-editor')) {
-      setTimeout(() => {
-        const pageContentQuill = new Quill('#page-content-editor', {
-          theme: 'snow',
-          modules: {
-            toolbar: [
-              [{ 'header': [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline'],
-              ['link', 'image'],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              ['clean']
-            ]
-          },
-          placeholder: 'Enter page content (Markdown or HTML)...',
-        });
-        pageContentQuill.on('text-change', () => {
-          document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
-        });
-        window.pageContentQuill = pageContentQuill;
-      }, 100);
-    } else {
-      console.warn('Element #page-content-editor not found in DOM.');
-    }
+   function initializeQuillEditors() {
+  if (typeof Quill === 'undefined') {
+    console.error('Quill library is not loaded. Please check the Quill script inclusion.');
+    return;
   }
 
+  // Remove any stray <textarea> elements that might have the same IDs
+  const idsToClean = ['desc', 'edit-desc', 'urgent-message', 'page-content'];
+  idsToClean.forEach(id => {
+    const textarea = document.querySelector(`textarea[id="${id}"]`);
+    if (textarea) {
+      console.warn(`Found stray <textarea> with id "${id}". Removing it.`);
+      textarea.remove();
+    }
+  });
+
+  // Initialize Quill for Add Bot Description
+  if (document.getElementById('desc-editor')) {
+    setTimeout(() => {
+      const descQuill = new Quill('#desc-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link', 'image'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter bot description...',
+      });
+      descQuill.on('text-change', () => {
+        document.getElementById('desc').value = descQuill.root.innerHTML;
+      });
+    }, 100); // Delay to ensure DOM is ready
+  } else {
+    console.warn('Element #desc-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Edit Bot Description
+  if (document.getElementById('edit-desc-editor')) {
+    setTimeout(() => {
+      const editDescQuill = new Quill('#edit-desc-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link', 'image'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter bot description...',
+      });
+      editDescQuill.on('text-change', () => {
+        document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
+      });
+      window.editDescQuill = editDescQuill;
+    }, 100);
+  } else {
+    console.warn('Element #edit-desc-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Urgent Message
+  if (document.getElementById('urgent-message-editor')) {
+    setTimeout(() => {
+      const urgentQuill = new Quill('#urgent-message-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter urgent message...',
+      });
+      urgentQuill.on('text-change', () => {
+        document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
+      });
+      window.urgentQuill = urgentQuill;
+    }, 100);
+  } else {
+    console.warn('Element #urgent-message-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Static Page Content
+  if (document.getElementById('page-content-editor')) {
+    setTimeout(() => {
+      const pageContentQuill = new Quill('#page-content-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link', 'image'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter page content (Markdown or HTML)...',
+      });
+      pageContentQuill.on('text-change', () => {
+        document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+      });
+      window.pageContentQuill = pageContentQuill;
+    }, 100);
+  } else {
+    console.warn('Element #page-content-editor not found in DOM.');
+  }
+} 
+    
   // Categories
   function renderCategories() {
     const categoryList = document.getElementById('category-list');
@@ -1166,26 +1130,26 @@
   const urgentMessage = document.getElementById('urgent-message');
 
   function initializeUrgentMessage() {
-    if (!urgentToggle || !window.urgentQuill) {
-      console.error('Urgent message elements or Quill editor not found');
-      return;
-    }
-    urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
-    window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
-    window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
+  if (!urgentToggle || !window.urgentQuill) {
+    console.error('Urgent message elements or Quill editor not found');
+    return;
   }
+  urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+  window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
+  window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
+}
 
   urgentToggle.addEventListener('change', () => {
-    if (!window.urgentQuill) {
-      console.error('Urgent message Quill editor not found');
-      return;
-    }
-    window.urgentQuill.enable(urgentToggle.checked);
-    if (urgentToggle.checked) {
-      window.urgentQuill.focus();
-    }
-  });
-
+  if (!window.urgentQuill) {
+    console.error('Urgent message Quill editor not found');
+    return;
+  }
+  window.urgentQuill.enable(urgentToggle.checked);
+  if (urgentToggle.checked) {
+    window.urgentQuill.focus();
+  }
+});
+    
   document.getElementById('save-urgent').addEventListener('click', async () => {
     const btn = document.getElementById('save-urgent');
     if (!urgentToggle || !urgentMessage) {
@@ -1261,179 +1225,169 @@
   });
 
   document.getElementById('change-credentials').addEventListener('click', async () => {
-    const btn = document.getElementById('change-credentials');
-    showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-    const newEmail = document.getElementById('new-email').value.trim();
-    const newPassword = document.getElementById('new-password').value.trim();
-    const confirmPassword = document.getElementById('confirm-password').value.trim();
-    if (newPassword !== confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-    if (newEmail) data.settings.adminEmail = newEmail;
-    if (newPassword) data.settings.adminPassword = newPassword;
-    const saveSuccess = await saveData();
-    if (!saveSuccess) {
-      alert('Failed to update credentials. Please try again.');
-      return;
-    }
+  const btn = document.getElementById('change-credentials');
+  showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+  const newEmail = document.getElementById('new-email').value.trim();
+  const newPassword = document.getElementById('new-password').value.trim();
+  const confirmPassword = document.getElementById('confirm-password').value.trim();
+  if (newPassword !== confirmPassword) {
+    alert('Passwords do not match!');
+    return;
+  }
+  if (newEmail) data.settings.adminEmail = newEmail;
+  if (newPassword) data.settings.adminPassword = newPassword;
+  const saveSuccess = await saveData();
+  if (!saveSuccess) {
+    alert('Failed to update credentials. Please try again.');
+    return;
+  }
 
-    // Destroy the session cookie by calling the logout endpoint
-    try {
-      const response = await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-      const result = await response.json();
-      if (!result.success) {
-        console.error('Failed to destroy session cookie:', result.error);
-        alert('Credentials updated, but failed to log out. Please log in again manually.');
-      }
-    } catch (error) {
-      console.error('Error during logout:', error);
+  // Destroy the session cookie by calling the logout endpoint
+  try {
+    const response = await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    const result = await response.json();
+    if (!result.success) {
+      console.error('Failed to destroy session cookie:', result.error);
       alert('Credentials updated, but failed to log out. Please log in again manually.');
     }
+  } catch (error) {
+    console.error('Error during logout:', error);
+    alert('Credentials updated, but failed to log out. Please log in again manually.');
+  }
 
-    alert('Credentials updated! Please login again.');
-    document.getElementById('admin-panel').classList.add('hidden');
-    document.getElementById('login-page').classList.remove('hidden');
-  });
-
+  alert('Credentials updated! Please login again.');
+  document.getElementById('admin-panel').classList.add('hidden');
+  document.getElementById('login-page').classList.remove('hidden');
+});
+    
   // Static Pages
   function renderPages() {
-    const pageList = document.getElementById('page-list');
-    pageList.innerHTML = '';
-    data.staticPages.forEach(page => {
-      const li = document.createElement('li');
-      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-      li.innerHTML = `
-        <div>
-          <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
-          <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
-        </div>
-        <div class="space-x-2">
-          <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
-          <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
-        </div>
-      `;
-      pageList.appendChild(li);
-    });
+  const pageList = document.getElementById('page-list');
+  pageList.innerHTML = '';
+  data.staticPages.forEach(page => {
+    const li = document.createElement('li');
+    li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+    li.innerHTML = `
+      <div>
+        <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
+        <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
+      </div>
+      <div class="space-x-2">
+        <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
+        <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
+      </div>
+    `;
+    pageList.appendChild(li);
+  });
 
-    document.querySelectorAll('.edit-page').forEach(btn => {
-      btn.addEventListener('click', () => {
+  document.querySelectorAll('.edit-page').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slug = btn.dataset.slug;
+      const page = data.staticPages.find(p => p.slug === slug);
+      if (!page) {
+        alert('Page not found. Please refresh and try again.');
+        return;
+      }
+      document.getElementById('page-title').value = page.title;
+      document.getElementById('page-slug').value = page.slug;
+      window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
+      document.getElementById('add-page').textContent = 'Save Changes';
+      document.getElementById('add-page').dataset.editSlug = slug;
+      document.getElementById('page-slug').dataset.originalSlug = slug;
+      document.getElementById('cancel-page-edit').classList.remove('hidden'); // Show Cancel button
+    });
+  });
+
+  document.querySelectorAll('.delete-page').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to delete this page?')) {
+        showButtonFeedback(btn, 'Deleting...', 'Delete');
         const slug = btn.dataset.slug;
-        const page = data.staticPages.find(p => p.slug === slug);
-        if (!page) {
-          alert('Page not found. Please refresh and try again.');
-          return;
-        }
-        // Extract content from the full HTML (strip template)
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(page.content, 'text/html');
-        const sectionContent = doc.querySelector('section.space-y-8')?.innerHTML || '<p></p>';
-        document.getElementById('page-title').value = page.title;
-        document.getElementById('page-slug').value = page.slug;
-        window.pageContentQuill.root.innerHTML = sectionContent;
-        document.getElementById('add-page').textContent = 'Save Changes';
-        document.getElementById('add-page').dataset.editSlug = slug;
-        document.getElementById('page-slug').dataset.originalSlug = slug;
-        document.getElementById('cancel-page-edit').classList.remove('hidden'); // Show Cancel button
-      });
+        data.staticPages = data.staticPages.filter(p => p.slug !== slug);
+        await saveData();
+        renderPages();
+        resetPageForm(); // Reset form after deletion
+        alert('Page deleted successfully!');
+      }
     });
-
-    document.querySelectorAll('.delete-page').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete this page?')) {
-          showButtonFeedback(btn, 'Deleting...', 'Delete');
-          const slug = btn.dataset.slug;
-          data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-          await saveData();
-          renderPages();
-          resetPageForm(); // Reset form after deletion
-          alert('Page deleted successfully!');
-        }
-      });
-    });
-  }
+  });
+}
 
   // Reset the page form state
-  function resetPageForm() {
-    document.getElementById('page-title').value = '';
-    document.getElementById('page-slug').value = '';
-    document.getElementById('page-content').value = '';
-    window.pageContentQuill.root.innerHTML = '<p></p>';
-    const addPageBtn = document.getElementById('add-page');
-    addPageBtn.textContent = 'Add Page';
-    delete addPageBtn.dataset.editSlug;
-    delete document.getElementById('page-slug').dataset.originalSlug;
-    document.getElementById('cancel-page-edit').classList.add('hidden');
+function resetPageForm() {
+  document.getElementById('page-title').value = '';
+  document.getElementById('page-slug').value = '';
+  document.getElementById('page-content').value = '';
+  window.pageContentQuill.root.innerHTML = '<p></p>';
+  const addPageBtn = document.getElementById('add-page');
+  addPageBtn.textContent = 'Add Page';
+  delete addPageBtn.dataset.editSlug;
+  delete document.getElementById('page-slug').dataset.originalSlug;
+  document.getElementById('cancel-page-edit').classList.add('hidden');
+}
+
+document.getElementById('add-page').addEventListener('click', async function() {
+  const btn = this;
+  const pageTitle = document.getElementById('page-title').value.trim();
+  const pageSlug = document.getElementById('page-slug').value.trim();
+  const pageContent = document.getElementById('page-content').value;
+
+  if (!pageTitle || !pageSlug || !pageContent) {
+    alert('Please fill in all fields.');
+    return;
   }
 
-  document.getElementById('add-page').addEventListener('click', async function() {
-    const btn = this;
-    const pageTitle = document.getElementById('page-title').value.trim();
-    const pageSlug = document.getElementById('page-slug').value.trim();
-    const pageContent = document.getElementById('page-content').value;
+  const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
 
-    if (!pageTitle || !pageSlug || !pageContent) {
-      alert('Please fill in all fields.');
+  if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
+    if (data.staticPages.some(page => page.slug === pageSlug)) {
+      alert('A page with this slug already exists. Please use a different slug.');
       return;
     }
+  }
 
-    const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
-
-    if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
-      if (data.staticPages.some(page => page.slug === pageSlug)) {
-        alert('A page with this slug already exists. Please use a different slug.');
-        return;
-      }
-    }
-
-    // Apply template to content
-    const fullContent = STATIC_PAGE_TEMPLATE
-      .replace('{title}', pageTitle)
-      .replace('{content}', pageContent);
-
-    if (btn.dataset.editSlug) {
-      showButtonFeedback(btn, 'Saving...', 'Save Changes');
-      data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug);
-      data.staticPages.push({
-        title: pageTitle,
-        slug: pageSlug,
-        content: fullContent
-      });
-      const success = await saveData();
-      if (success) {
-        renderPages();
-        resetPageForm();
-        alert('Page updated successfully!');
-      } else {
-        alert('Failed to update page. Please try again.');
-        return;
-      }
+  if (btn.dataset.editSlug) {
+    showButtonFeedback(btn, 'Saving...', 'Save Changes');
+    data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug);
+    data.staticPages.push({
+      title: pageTitle,
+      slug: pageSlug,
+      content: pageContent
+    });
+    const success = await saveData();
+    if (success) {
+      renderPages();
+      resetPageForm();
+      alert('Page updated successfully!');
     } else {
-      showButtonFeedback(btn, 'Adding...', 'Add Page');
-      data.staticPages.push({
-        title: pageTitle,
-        slug: pageSlug,
-        content: fullContent
-      });
-      const success = await saveData();
-      if (success) {
-        renderPages();
-        resetPageForm();
-        alert('Page added successfully!');
-      } else {
-        alert('Failed to add page. Please try again.');
-        return;
-      }
+      alert('Failed to update page. Please try again.');
+      return;
     }
-  });
+  } else {
+    showButtonFeedback(btn, 'Adding...', 'Add Page');
+    data.staticPages.push({
+      title: pageTitle,
+      slug: pageSlug,
+      content: pageContent
+    });
+    const success = await saveData();
+    if (success) {
+      renderPages();
+      resetPageForm();
+      alert('Page added successfully!');
+    } else {
+      alert('Failed to add page. Please try again.');
+      return;
+    }
+  }
+});
 
-  document.getElementById('cancel-page-edit').addEventListener('click', () => {
-    resetPageForm();
-  });
-
+document.getElementById('cancel-page-edit').addEventListener('click', () => {
+  resetPageForm();
+});
   // Initialize
   async function initialize() {
     const isAuthenticated = await checkSession();
@@ -1470,7 +1424,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', initialize);
-</script>
+  </script>
   
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
