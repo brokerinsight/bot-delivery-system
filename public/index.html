@@ -379,6 +379,11 @@
       overflow: hidden;
       transition: all 0.3s ease;
     }
+#details-desc h1 { font-size: 20px; }
+#details-desc h2 { font-size: 16px; }
+#details-desc h3 { font-size: 12px; }
+#details-desc img { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+    
     #product-grid .bg-white:hover {
       transform: translateY(-5px);
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
@@ -916,7 +921,7 @@
       <div class="p-6 flex-1">
         <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
         <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
-        <p class="mt-2 text-green-600 font-bold">$ ${product.price.toFixed(2)} </p>
+        <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
         <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
         <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
       </div>
@@ -935,15 +940,74 @@
       document.getElementById('details-name').textContent = product.name;
       document.getElementById('details-item-name').textContent = product.item;
       
-      // Use innerHTML to render the description with HTML tags
+      // Render description with Quill.js HTML structure
       const descContainer = document.getElementById('details-desc');
-      descContainer.innerHTML = product.desc;
+      let cleanedDesc = product.desc
+        .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
+        .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
+        .trim();
+      
+      // Handle headers (h1, h2, h3) from Quill.js
+      cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
+                              .replace(/<\/h\d>/g, '</h$1>');
+      
+      descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
 
-      // Style all <a> tags within the description to be blue
+      // Style Quill.js content for better readability
+      const paragraphs = descContainer.querySelectorAll('p');
+      paragraphs.forEach(p => {
+        p.style.marginBottom = '1rem';
+        p.style.lineHeight = '1.6';
+      });
+
+      const headers = descContainer.querySelectorAll('h1, h2, h3');
+      headers.forEach(h => {
+        h.style.fontWeight = '600';
+        h.style.marginBottom = '0.75rem';
+      });
+
+      const lists = descContainer.querySelectorAll('ul, ol');
+      lists.forEach(list => {
+        list.style.marginBottom = '1rem';
+        list.style.paddingLeft = '1.5rem';
+      });
+
+      const listItems = descContainer.querySelectorAll('li');
+      listItems.forEach(li => {
+        li.style.marginBottom = '0.5rem';
+      });
+
+      // Style text formatting from Quill.js toolbar
+      const boldText = descContainer.querySelectorAll('strong, b');
+      boldText.forEach(b => {
+        b.style.fontWeight = '600';
+      });
+
+      const italicText = descContainer.querySelectorAll('em, i');
+      italicText.forEach(i => {
+        i.style.fontStyle = 'italic';
+      });
+
+      const underlineText = descContainer.querySelectorAll('u');
+      underlineText.forEach(u => {
+        u.style.textDecoration = 'underline';
+      });
+
+      // Style links from Quill.js
       const links = descContainer.querySelectorAll('a');
       links.forEach(link => {
         link.style.color = 'blue';
         link.style.textDecoration = 'underline';
+        link.setAttribute('target', '_blank'); // Ensure links open in new tab
+      });
+
+      // Handle images (if added via Quill.js)
+      const images = descContainer.querySelectorAll('img');
+      images.forEach(img => {
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.marginBottom = '1rem';
+        img.style.borderRadius = '8px';
       });
 
       const embedDiv = document.getElementById('details-embed');
