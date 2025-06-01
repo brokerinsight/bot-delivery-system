@@ -1532,91 +1532,275 @@
     }
 
     function updateFooter() {
-      document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
-      document.getElementById('support-email').textContent = settings.supportEmail;
-      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+  document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
+  document.getElementById('support-email').textContent = settings.supportEmail;
+  document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
 
-      const socialLinks = document.getElementById('social-links');
-      socialLinks.innerHTML = '';
-      if (settings.socials) {
-        Object.entries(settings.socials).forEach(([platform, url]) => {
-          if (url) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.className = 'text-gray-500 hover:text-green-600';
-            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-            socialLinks.appendChild(a);
-          }
-        });
+  const socialLinks = document.getElementById('social-links');
+  socialLinks.innerHTML = '';
+  if (settings.socials) {
+    Object.entries(settings.socials).forEach(([platform, url]) => {
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.className = 'text-gray-500 hover:text-green-600';
+        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+        socialLinks.appendChild(a);
       }
+    });
+  }
 
-      const staticLinks = document.getElementById('static-links');
-      staticLinks.innerHTML = '';
-      staticPages
-        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-        .forEach(page => {
-          const a = document.createElement('a');
-          a.href = '#';
-          a.className = 'text-gray-500 hover:text-green-600';
-          a.textContent = page.title;
-          a.dataset.slug = page.slug;
-          a.addEventListener('click', e => {
-            e.preventDefault();
-            const modal = document.getElementById('static-page-modal');
-            document.getElementById('static-page-title').textContent = page.title;
-            document.getElementById('static-page-content').innerHTML = page.content;
-            modal.classList.remove('hidden');
-            document.body.classList.add('popup-active');
-          });
-          staticLinks.appendChild(a);
+  const staticLinks = document.getElementById('static-links');
+  staticLinks.innerHTML = '';
+  staticPages
+    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+    .forEach(page => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = 'text-gray-500 hover:text-green-600';
+      a.textContent = page.title;
+      a.dataset.slug = page.slug;
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const modal = document.getElementById('static-page-modal');
+        document.getElementById('static-page-title').textContent = page.title;
+
+        // Clean and render static page content with Quill.js formatting
+        let cleanedContent = page.content
+          .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
+          .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
+          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
+          .trim();
+
+        // Handle headers (h1, h2, h3) from Quill.js
+        cleanedContent = cleanedContent.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
+                                      .replace(/<\/h\d>/g, '</h$1>');
+
+        const contentContainer = document.getElementById('static-page-content');
+        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+
+        // Style Quill.js content for better alignment and readability
+        const paragraphs = contentContainer.querySelectorAll('p');
+        paragraphs.forEach(p => {
+          p.style.marginBottom = '1rem';
+          p.style.lineHeight = '1.6';
+          p.style.wordBreak = 'break-word';
         });
 
-      document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
-      document.getElementById('mobile-support-email').textContent = settings.supportEmail;
-      document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+        const headers = contentContainer.querySelectorAll('h1, h2, h3');
+        headers.forEach(h => {
+          h.style.fontWeight = '600';
+          h.style.marginBottom = '0.75rem';
+        });
 
-      const mobileSocialLinks = document.getElementById('mobile-social-links');
-      mobileSocialLinks.innerHTML = '';
-      if (settings.socials) {
-        Object.entries(settings.socials).forEach(([platform, url]) => {
-          if (url) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.className = 'text-gray-500 hover:text-green-600 text-sm';
-            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-            mobileSocialLinks.appendChild(a);
+        const lists = contentContainer.querySelectorAll('ul, ol');
+        lists.forEach(list => {
+          list.style.marginBottom = '1rem';
+          list.style.paddingLeft = '1.5rem';
+          list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
+        });
+
+        const listItems = contentContainer.querySelectorAll('li');
+        listItems.forEach(li => {
+          li.style.marginBottom = '0.5rem';
+          const indentLevel = li.className.match(/ql-indent-(\d+)/);
+          if (indentLevel) {
+            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
           }
+          li.style.position = 'relative';
+          li.style.paddingLeft = '1.5rem';
         });
+
+        const boldText = contentContainer.querySelectorAll('strong, b');
+        boldText.forEach(b => {
+          b.style.fontWeight = 'bold';
+        });
+
+        const italicText = contentContainer.querySelectorAll('em, i');
+        italicText.forEach(i => {
+          i.style.fontStyle = 'italic';
+        });
+
+        const underlineText = contentContainer.querySelectorAll('u');
+        underlineText.forEach(u => {
+          u.style.textDecoration = 'underline';
+        });
+
+        const links = contentContainer.querySelectorAll('a');
+        links.forEach(link => {
+          link.style.color = 'blue';
+          link.style.textDecoration = 'underline';
+          link.setAttribute('target', '_blank');
+        });
+
+        const blockquotes = contentContainer.querySelectorAll('blockquote');
+        blockquotes.forEach(bq => {
+          bq.style.borderLeft = '4px solid #ccc';
+          bq.style.paddingLeft = '1rem';
+          bq.style.margin = '1rem 0';
+          bq.style.color = '#666';
+        });
+
+        const codeElements = contentContainer.querySelectorAll('code');
+        codeElements.forEach(code => {
+          code.style.backgroundColor = '#f4f4f4';
+          code.style.padding = '2px 4px';
+          code.style.borderRadius = '4px';
+          code.style.fontFamily = 'monospace';
+        });
+
+        const images = contentContainer.querySelectorAll('img');
+        images.forEach(img => {
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.marginBottom = '1rem';
+          img.style.borderRadius = '8px';
+        });
+
+        modal.classList.remove('hidden');
+        document.body.classList.add('popup-active');
+      });
+      staticLinks.appendChild(a);
+    });
+
+  document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
+  document.getElementById('mobile-support-email').textContent = settings.supportEmail;
+  document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+  const mobileSocialLinks = document.getElementById('mobile-social-links');
+  mobileSocialLinks.innerHTML = '';
+  if (settings.socials) {
+    Object.entries(settings.socials).forEach(([platform, url]) => {
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.className = 'text-gray-500 hover:text-green-600 text-sm';
+        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+        mobileSocialLinks.appendChild(a);
       }
+    });
+  }
 
-      const mobileStaticLinks = document.getElementById('mobile-static-links');
-      mobileStaticLinks.innerHTML = '';
-      staticPages
-        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-        .forEach(page => {
-          const a = document.createElement('a');
-          a.href = '#';
-          a.className = "text-gray-500 hover:text-green-600 text-sm";
-          a.textContent = page.title;
-          a.dataset.slug = page.slug;
-          a.addEventListener('click', e => {
-            e.preventDefault();
-            const modal = document.getElementById('static-page-modal');
-            document.getElementById('static-page-title').textContent = page.title;
-            document.getElementById('static-page-content').innerHTML = page.content;
-            modal.classList.remove('hidden');
-            document.body.classList.add('popup-active');
-            document.getElementById('mobile-menu').classList.remove('open');
-          });
-          mobileStaticLinks.appendChild(a);
+  const mobileStaticLinks = document.getElementById('mobile-static-links');
+  mobileStaticLinks.innerHTML = '';
+  staticPages
+    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+    .forEach(page => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = "text-gray-500 hover:text-green-600 text-sm";
+      a.textContent = page.title;
+      a.dataset.slug = page.slug;
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const modal = document.getElementById('static-page-modal');
+        document.getElementById('static-page-title').textContent = page.title;
+
+        // Clean and render static page content with Quill.js formatting
+        let cleanedContent = page.content
+          .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
+          .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
+          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
+          .trim();
+
+        // Handle headers (h1, h2, h3) from Quill.js
+        cleanedContent = cleanedContent.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
+                                      .replace(/<\/h\d>/g, '</h$1>');
+
+        const contentContainer = document.getElementById('static-page-content');
+        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+
+        // Style Quill.js content for better alignment and readability
+        const paragraphs = contentContainer.querySelectorAll('p');
+        paragraphs.forEach(p => {
+          p.style.marginBottom = '1rem';
+          p.style.lineHeight = '1.6';
+          p.style.wordBreak = 'break-word';
         });
 
-      document.getElementById('static-page-close').onclick = () => {
-        document.getElementById('static-page-modal').classList.add('hidden');
-        document.body.classList.remove('popup-active');
-      };
-    }
+        const headers = contentContainer.querySelectorAll('h1, h2, h3');
+        headers.forEach(h => {
+          h.style.fontWeight = '600';
+          h.style.marginBottom = '0.75rem';
+        });
 
+        const lists = contentContainer.querySelectorAll('ul, ol');
+        lists.forEach(list => {
+          list.style.marginBottom = '1rem';
+          list.style.paddingLeft = '1.5rem';
+          list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
+        });
+
+        const listItems = contentContainer.querySelectorAll('li');
+        listItems.forEach(li => {
+          li.style.marginBottom = '0.5rem';
+          const indentLevel = li.className.match(/ql-indent-(\d+)/);
+          if (indentLevel) {
+            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+          }
+          li.style.position = 'relative';
+          li.style.paddingLeft = '1.5rem';
+        });
+
+        const boldText = contentContainer.querySelectorAll('strong, b');
+        boldText.forEach(b => {
+          b.style.fontWeight = 'bold';
+        });
+
+        const italicText = contentContainer.querySelectorAll('em, i');
+        italicText.forEach(i => {
+          i.style.fontStyle = 'italic';
+        });
+
+        const underlineText = contentContainer.querySelectorAll('u');
+        underlineText.forEach(u => {
+          u.style.textDecoration = 'underline';
+        });
+
+        const links = contentContainer.querySelectorAll('a');
+        links.forEach(link => {
+          link.style.color = 'blue';
+          link.style.textDecoration = 'underline';
+          link.setAttribute('target', '_blank');
+        });
+
+        const blockquotes = contentContainer.querySelectorAll('blockquote');
+        blockquotes.forEach(bq => {
+          bq.style.borderLeft = '4px solid #ccc';
+          bq.style.paddingLeft = '1rem';
+          bq.style.margin = '1rem 0';
+          bq.style.color = '#666';
+        });
+
+        const codeElements = contentContainer.querySelectorAll('code');
+        codeElements.forEach(code => {
+          code.style.backgroundColor = '#f4f4f4';
+          code.style.padding = '2px 4px';
+          code.style.borderRadius = '4px';
+          code.style.fontFamily = 'monospace';
+        });
+
+        const images = contentContainer.querySelectorAll('img');
+        images.forEach(img => {
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.marginBottom = '1rem';
+          img.style.borderRadius = '8px';
+        });
+
+        modal.classList.remove('hidden');
+        document.body.classList.add('popup-active');
+        document.getElementById('mobile-menu').classList.remove('open');
+      });
+      mobileStaticLinks.appendChild(a);
+    });
+
+  document.getElementById('static-page-close').onclick = () => {
+    document.getElementById('static-page-modal').classList.add('hidden');
+    document.body.classList.remove('popup-active');
+  };
+}
+    
     function showUrgentMessage() {
   const urgentMessage = document.getElementById('urgent-message');
   const urgentText = document.getElementById('urgent-text');
