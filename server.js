@@ -10,53 +10,32 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
-const { createClient: createSupabaseClient } = require('@supabase/supabase-js'); // Renamed
+const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
 const RedisStore = require('connect-redis').default;
-const { createClient: createRedisClient } = require('redis'); // Renamed
+const { createClient: createRedisClient } = require('redis');
 
 dotenv.config();
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
 
-// Supabase client setup with service role key for RLS
+// Supabase client setup
 const supabase = createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// Create a Redis client for Valkey
+// Redis client setup
 const redisClient = createRedisClient({
   url: `rediss://${process.env.VALKEY_USERNAME}:${process.env.VALKEY_PASSWORD}@${process.env.VALKEY_HOST}:${process.env.VALKEY_PORT}/0`
 });
 
-// Handle Redis client connection errors
-redisClient.on('error', (err) => {
-  console.error(`[${new Date().toISOString()}] Redis Client Error:`, err.message);
-});
+redisClient.on('error', (err) => console.error(`[${new Date().toISOString()}] Redis Client Error:`, err.message));
+redisClient.connect().then(() => console.log(`[${new Date().toISOString()}] Connected to Valkey successfully`)).catch((err) => console.error(`[${new Date().toISOString()}] Failed to connect to Valkey:`, err.message));
 
-// Connect to Redis (Valkey)
-redisClient.connect().then(() => {
-  console.log(`[${new Date().toISOString()}] Connected to Valkey successfully`);
-}).catch((err) => {
-  console.error(`[${new Date().toISOString()}] Failed to connect to Valkey:`, err.message);
-});
-
-// Allowed domains for CORS and download links
-const ALLOWED_ORIGINS = [
-  'https://bot-delivery-system-qlx4j.ondigitalocean.app',
-  'https://botblitz.store',
-  'https://www.botblitz.store'
-];
-
-// Helper to get the base URL based on request origin
+const ALLOWED_ORIGINS = ['https://bot-delivery-system-qlx4j.ondigitalocean.app', 'https://botblitz.store', 'https://www.botblitz.store'];
 function getBaseUrl(req) {
   const origin = req.get('origin') || req.get('referer');
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    return origin;
-  }
-  return 'https://botblitz.store';
+  return origin && ALLOWED_ORIGINS.includes(origin) ? origin : 'https://botblitz.store';
 }
 
-// CORS configuration
 app.use(cors({
   origin: ALLOWED_ORIGINS,
   credentials: true,
@@ -64,13 +43,196 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Debug-Source']
 }));
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Serve static files from 'public' directory
 const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
+
+// Session middleware
+app.use(session({
+  store: new RedisStore({ client: redisClient }),
+  name: 'sid',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: 'auto', httpOnly: true, sameSite: 'lax', maxAge: 24 * 60 * 60 * 1000 }
+}));
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
+  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
+  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
+  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
+  next();
+});
+
+// Email setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+});
+
+// Cache for data
+let cachedData = {
+  products: [],
+  categories: [],
+  settings: {
+    supportEmail: 'kaylie254.business@gmail.com',
+    copyrightText: '© 2025 Deriv Bot Store',
+    logoUrl: '',
+    socials: {},
+    urgentMessage: { enabled: false, text: '' },
+    fallbackRate: 130,
+    mpesaTill: '4933614'
+  },
+  staticPages: []
+};
+
+const fallbackPaymentModal = { title: 'Payment Modal', slug: '/payment-modal', content: `
+  <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+  <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+  <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+  <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+  <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+  <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+` };
+
+const fallbackRefCodeModal = { title: 'Ref Code Modal', slug: '/ref-code-modal', content: `
+  <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
+  <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
+  <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
+  <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+` };
+
+// Template function on server
+function getPageTemplate(title, content) {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Deriv Bot Store</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <nav class="bg-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="prose prose-lg text-gray-700">
+      ${content}
+    </div>
+  </main>
+  <footer class="bg-gray-800 text-white py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p>© ${new Date().getFullYear()} Deriv Bot Store. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>`;
+}
+
+// Save static page endpoint
+app.post('/api/save-page', isAuthenticated, async (req, res) => {
+  try {
+    const { title, slug, content } = req.body;
+
+    if (!title || !slug || !content) {
+      return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    // Check for slug uniqueness
+    if (cachedData.staticPages.some(page => page.slug === slug)) {
+      return res.status(400).json({ error: 'A page with this slug already exists.' });
+    }
+
+    // Generate full HTML with template
+    const wrappedContent = getPageTemplate(title, content);
+
+    // Save to Supabase
+    const { error } = await supabase.from('static_pages').insert({ title, slug, content: wrappedContent });
+    if (error) throw error;
+
+    await loadData(); // Refresh cache
+    res.json({ success: true, message: 'Page saved successfully.' });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving page:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to save page' });
+  }
+});
+
+// Update existing page endpoint
+app.put('/api/update-page/:slug', isAuthenticated, async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { title, content } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required.' });
+    }
+
+    // Find existing page
+    const existingPage = cachedData.staticPages.find(p => p.slug === slug);
+    if (!existingPage) {
+      return res.status(404).json({ error: 'Page not found.' });
+    }
+
+    // Generate full HTML with template
+    const wrappedContent = getPageTemplate(title, content);
+
+    // Update in Supabase
+    const { error } = await supabase.from('static_pages').update({ title, content: wrappedContent }).eq('slug', slug);
+    if (error) throw error;
+
+    await loadData(); // Refresh cache
+    res.json({ success: true, message: 'Page updated successfully.' });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating page:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to update page' });
+  }
+});
+
+// Delete page endpoint
+app.delete('/api/update-page/:slug', isAuthenticated, async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const { error } = await supabase.from('static_pages').delete().eq('slug', slug);
+    if (error) throw error;
+    await loadData();
+    res.json({ success: true, message: 'Page deleted successfully.' });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error deleting page:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to delete page' });
+  }
+});
+
+// Serve fully rendered page
+app.get('/api/page/:slug', async (req, res) => {
+  const slug = `/${req.params.slug}`;
+  let page = cachedData.staticPages.find(p => p.slug === slug);
+  if (!page) {
+    if (slug === '/payment-modal') page = fallbackPaymentModal;
+    if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
+  }
+  if (!page) {
+    console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
+    return res.status(404).json({ success: false, error: 'Page not found' });
+  }
+
+  // Serve raw content as loaded
+  res.json({ success: true, page: page.content });
+  console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
+});
 
 app.get('/sitemap.xml', async (req, res) => {
   try {
@@ -142,82 +304,6 @@ function sanitizeXml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
-
-app.use(express.static(publicPath));
-console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
-
-// Session middleware with RedisStore (replacing MemoryStore)
-app.use(session({
-  store: new RedisStore({ client: redisClient }), // Use RedisStore with the Redis client
-  name: 'sid',
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: 'auto',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000
-  }
-}));
-
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
-  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
-  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
-  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
-  next();
-});
-
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// Cache for data
-let cachedData = {
-  products: [],
-  categories: [],
-  settings: {
-    supportEmail: 'kaylie254.business@gmail.com',
-    copyrightText: '© 2025 Deriv Bot Store',
-    logoUrl: '',
-    socials: {},
-    urgentMessage: { enabled: false, text: '' },
-    fallbackRate: 130,
-    mpesaTill: '4933614'
-  },
-  staticPages: []
-};
-
-// Fallback content for modals
-const fallbackPaymentModal = {
-  title: 'Payment Modal',
-  slug: '/payment-modal',
-  content: `
-    <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-  `
-};
-
-const fallbackRefCodeModal = {
-  title: 'Ref Code Modal',
-  slug: '/ref-code-modal',
-  content: `
-    <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
-    <input id="ref-code-input" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
-    <button id="submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit</button>
-    <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-  `
-};
 
 // Load data from Supabase
 // Load data from Supabase with updated product sorting
@@ -467,6 +553,7 @@ async function selfCheck() {
 
   console.log(`[${new Date().toISOString()}] Self-check completed`);
 }
+
 // Session check endpoint
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
@@ -495,7 +582,6 @@ async function rateLimit(req, res, next) {
     next(); // Fallback to allow request if Valkey fails
   }
 }
-
 
 // API Routes
 app.get('/api/data', async (req, res) => {
@@ -1042,21 +1128,6 @@ app.post('/api/login', rateLimit, async (req, res) => {
     console.error(`[${new Date().toISOString()}] Error during login:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to login' });
   }
-});
-
-app.get('/api/page/:slug', async (req, res) => {
-  const slug = `/${req.params.slug}`;
-  let page = cachedData.staticPages.find(p => p.slug === slug);
-  if (!page) {
-    if (slug === '/payment-modal') page = fallbackPaymentModal;
-    if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
-  }
-  if (!page) {
-    console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
-    return res.status(404).json({ success: false, error: 'Page not found' });
-  }
-  res.json({ success: true, page }); // Serve raw content as loaded
-  console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
 });
 
 app.get('/virus.html', (req, res) => {
