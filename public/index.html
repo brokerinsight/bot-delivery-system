@@ -954,11 +954,12 @@
       
       descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
 
-      // Style Quill.js content for better readability
+      // Style Quill.js content for better alignment and readability
       const paragraphs = descContainer.querySelectorAll('p');
       paragraphs.forEach(p => {
         p.style.marginBottom = '1rem';
         p.style.lineHeight = '1.6';
+        p.style.wordBreak = 'break-word'; // Prevent overflow issues
       });
 
       const headers = descContainer.querySelectorAll('h1, h2, h3');
@@ -976,7 +977,6 @@
       const listItems = descContainer.querySelectorAll('li');
       listItems.forEach(li => {
         li.style.marginBottom = '0.5rem';
-        // Handle indentation
         const indentLevel = li.className.match(/ql-indent-(\d+)/);
         if (indentLevel) {
           li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
@@ -986,7 +986,8 @@
       // Style text formatting from Quill.js toolbar
       const boldText = descContainer.querySelectorAll('strong, b');
       boldText.forEach(b => {
-        b.style.fontWeight = 'bold'; // Use browser's bold for consistency
+        b.style.fontWeight = 'bold'; // Ensure bold text is rendered correctly
+        b.style.display = 'inline'; // Prevent block-level behavior that causes misalignment
       });
 
       const italicText = descContainer.querySelectorAll('em, i');
