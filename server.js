@@ -237,7 +237,7 @@ async function loadData() {
       originalFileName: row.original_file_name,
       price: parseFloat(row.price),
       name: row.name,
-      desc: row.description || '',
+      desc: row.description || '', // Store as raw HTML
       img: row.image || 'https://via.placeholder.com/300',
       category: row.category || 'General',
       embed: row.embed || '',
@@ -252,7 +252,7 @@ async function loadData() {
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
       logoUrl: settingsData.logoUrl || '',
       socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
-      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
+      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' }, // JSON object
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
       adminEmail: settingsData.adminEmail || '',
       adminPassword: settingsData.adminPassword || '',
@@ -267,10 +267,7 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content
-        .replace(/\\n/g, '\n')
-        .replace(/^"|"$/g, '')
-        .replace(/=""([^"]*)""/g, '="$1"')
+      content: row.content // Store as raw HTML
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -327,7 +324,7 @@ async function saveData() {
         original_file_name: existing?.original_file_name || p.originalFileName,
         price: p.price,
         name: p.name,
-        description: p.desc,
+        description: p.desc, // Save as raw HTML
         image: p.img,
         category: p.category,
         embed: p.embed,
@@ -351,12 +348,12 @@ async function saveData() {
       .delete()
       .not('item', 'in', `(${cachedItems.join(',')})`);
 
-    // Save settings
+    // Save settings with urgentMessage as JSON
     await supabase.from('settings').delete().neq('key', null);
     await supabase.from('settings').insert(
       Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
-        value: typeof value === 'object' ? JSON.stringify(value) : value
+        value: typeof value === 'object' ? JSON.stringify(value) : value // Stringify urgentMessage
       }))
     );
 
@@ -520,13 +517,14 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    // Preserve fileId and originalFileName for products, save static pages as raw
+    // Preserve fileId and originalFileName for products, save static pages and descriptions as raw
     cachedData = {
       ...req.body,
       products: req.body.products.map(p => ({
         ...p,
         fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
-        originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName
+        originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName,
+        desc: p.desc // Save as raw HTML
       })),
       staticPages: req.body.staticPages // Save as raw
     };
@@ -565,6 +563,13 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     if (cachedData.settings.adminPassword) {
       const saltRounds = 10;
       cachedData.settings.adminPassword = await bcrypt.hash(cachedData.settings.adminPassword, saltRounds);
+    }
+
+    // Ensure urgentMessage is an object
+    if (cachedData.settings.urgentMessage && typeof cachedData.settings.urgentMessage === 'string') {
+      cachedData.settings.urgentMessage = JSON.parse(cachedData.settings.urgentMessage);
+    } else if (!cachedData.settings.urgentMessage) {
+      cachedData.settings.urgentMessage = { enabled: false, text: '' };
     }
 
     await saveData();
