@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
   <style>
     /* Prevent background scrolling when modals are active */
     body.modal-active {
@@ -917,95 +917,115 @@
   });
 
    function initializeQuillEditors() {
+  if (typeof Quill === 'undefined') {
+    console.error('Quill library is not loaded. Please check the Quill script inclusion.');
+    return;
+  }
+
   // Initialize Quill for Add Bot Description
-  const descQuill = new Quill('#desc-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link', 'image'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['clean']
-      ]
-    },
-    placeholder: 'Enter bot description...',
-  });
+  if (document.getElementById('desc-editor')) {
+    const descQuill = new Quill('#desc-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          ['link', 'image'],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['clean']
+        ]
+      },
+      placeholder: 'Enter bot description...',
+    });
 
-  // Sync Quill content with hidden input for form submission
-  descQuill.on('text-change', () => {
-    document.getElementById('desc').value = descQuill.root.innerHTML;
-  });
+    // Sync Quill content with hidden input for form submission
+    descQuill.on('text-change', () => {
+      document.getElementById('desc').value = descQuill.root.innerHTML;
+    });
+  } else {
+    console.warn('Element #desc-editor not found in DOM.');
+  }
 
-     // Initialize Quill for Edit Bot Description
-  const editDescQuill = new Quill('#edit-desc-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link', 'image'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['clean']
-      ]
-    },
-    placeholder: 'Enter bot description...',
-  });
+  // Initialize Quill for Edit Bot Description
+  if (document.getElementById('edit-desc-editor')) {
+    const editDescQuill = new Quill('#edit-desc-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          ['link', 'image'],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['clean']
+        ]
+      },
+      placeholder: 'Enter bot description...',
+    });
 
-  // Sync Quill content with hidden input for form submission
-  editDescQuill.on('text-change', () => {
-    document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
-  });
+    // Sync Quill content with hidden input for form submission
+    editDescQuill.on('text-change', () => {
+      document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
+    });
 
-  // Store editDescQuill for use in edit modal
-  window.editDescQuill = editDescQuill;
+    // Store editDescQuill for use in edit modal
+    window.editDescQuill = editDescQuill;
+  } else {
+    console.warn('Element #edit-desc-editor not found in DOM.');
+  }
 
-     // Initialize Quill for Urgent Message
-  const urgentQuill = new Quill('#urgent-message-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['clean']
-      ]
-    },
-    placeholder: 'Enter urgent message...',
-  });
+  // Initialize Quill for Urgent Message
+  if (document.getElementById('urgent-message-editor')) {
+    const urgentQuill = new Quill('#urgent-message-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          ['link'],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['clean']
+        ]
+      },
+      placeholder: 'Enter urgent message...',
+    });
 
-  // Sync Quill content with hidden input for form submission
-  urgentQuill.on('text-change', () => {
-    document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
-  });
+    // Sync Quill content with hidden input for form submission
+    urgentQuill.on('text-change', () => {
+      document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
+    });
 
-  // Store urgentQuill for use in initialization
-  window.urgentQuill = urgentQuill;
-     
-Initialize Quill for Static Page Content
-  const pageContentQuill = new Quill('#page-content-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link', 'image'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['clean']
-      ]
-    },
-    placeholder: 'Enter page content (Markdown or HTML)...',
-  });
+    // Store urgentQuill for use in initialization
+    window.urgentQuill = urgentQuill;
+  } else {
+    console.warn('Element #urgent-message-editor not found in DOM.');
+  }
 
-  // Sync Quill content with hidden input for form submission
-  pageContentQuill.on('text-change', () => {
-    document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
-  });
+  // Initialize Quill for Static Page Content
+  if (document.getElementById('page-content-editor')) {
+    const pageContentQuill = new Quill('#page-content-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [1, 2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          ['link', 'image'],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['clean']
+        ]
+      },
+      placeholder: 'Enter page content (Markdown or HTML)...',
+    });
 
-  // Store pageContentQuill for use in edit page
-  window.pageContentQuill = pageContentQuill;
-     
+    // Sync Quill content with hidden input for form submission
+    pageContentQuill.on('text-change', () => {
+      document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+    });
+
+    // Store pageContentQuill for use in edit page
+    window.pageContentQuill = pageContentQuill;
+  } else {
+    console.warn('Element #page-content-editor not found in DOM.');
+  }
 } 
     
   // Categories
@@ -1348,7 +1368,7 @@ Initialize Quill for Static Page Content
     }
   }
 
-  initialize();
+  document.addEventListener('DOMContentLoaded', initialize);
   </script>
   
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
