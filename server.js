@@ -559,10 +559,17 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
       console.log(`[${new Date().toISOString()}] ➕ Added categories: ${addedCategories.join(', ')}`);
     }
 
-    // Hash the new password if provided
-    if (cachedData.settings.adminPassword) {
+    // Handle admin password update only if a new password is provided
+    let originalPasswordHash = cachedData.settings.adminPassword; // Current hash from cache
+    const incomingPassword = req.body.settings?.adminPassword; // New password from request
+
+    if (incomingPassword && incomingPassword !== originalPasswordHash) {
+      // Only hash if a new password is provided and it differs from the current hash
       const saltRounds = 10;
-      cachedData.settings.adminPassword = await bcrypt.hash(cachedData.settings.adminPassword, saltRounds);
+      cachedData.settings.adminPassword = await bcrypt.hash(incomingPassword, saltRounds);
+    } else {
+      // Keep the existing hash if no new password or if it matches the current hash
+      cachedData.settings.adminPassword = originalPasswordHash;
     }
 
     // Ensure urgentMessage is an object
