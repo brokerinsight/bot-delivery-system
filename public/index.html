@@ -535,8 +535,51 @@
       <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
       <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
     </div>
-  </div>
+</div>
 
+<script>
+  function handleCookiePopup() {
+    const cookiePopup = document.getElementById('cookie-popup-container');
+    const acceptButton = document.getElementById('cookie-accept');
+    
+    // Check if cookies have already been accepted
+    const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+    const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+    const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+    const now = Date.now();
+
+    // If cookies are accepted and the 3-day period hasn't passed, keep hidden
+    if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+      cookiePopup.classList.add('hidden');
+      cookiePopup.style.display = 'none';
+      return;
+    }
+
+    // Show the popup
+    cookiePopup.classList.remove('hidden');
+    cookiePopup.style.display = 'flex';
+    document.body.classList.add('popup-active');
+
+    // Remove any existing event listeners to avoid duplicates
+    acceptButton.removeEventListener('click', handleAcceptClick);
+    
+    function handleAcceptClick() {
+      localStorage.setItem('cookiesAccepted', 'true');
+      localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+      cookiePopup.classList.add('hidden');
+      cookiePopup.style.display = 'none';
+      document.body.classList.remove('popup-active');
+      console.log('Cookies accepted');
+    }
+
+    // Add the event listener
+    acceptButton.addEventListener('click', handleAcceptClick);
+  }
+
+  // Run immediately
+  handleCookiePopup();
+</script>
+  
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <div id="countdown-timer" class="mb-4">
@@ -1347,29 +1390,7 @@
       }
     }
 
-    function manageCookieConsent() {
-  const cookiePopup = document.getElementById('cookie-popup-container');
-  const cookieAcceptBtn = document.getElementById('cookie-accept');
-  
-  // Check if consent cookie exists
-  const cookies = document.cookie.split(';');
-  const hasConsent = cookies.some(cookie => cookie.trim().startsWith('cookie_consent=accepted'));
-  
-  if (!hasConsent) {
-    cookiePopup.classList.remove('hidden');
-    document.body.classList.add('popup-active');
-  }
-  
-  cookieAcceptBtn.addEventListener('click', () => {
-    // Set consent cookie with 1-year expiry
-    const expiry = new Date();
-    expiry.setFullYear(expiry.getFullYear() + 1);
-    document.cookie = `cookie_consent=accepted; expires=${expiry.toUTCString()}; path=/`;
-    cookiePopup.classList.add('hidden');
-    document.body.classList.remove('popup-active');
-    console.log('Cookie consent accepted');
-  });
-}
+    
     
     async function proceedWithInit() {
   const success = await fetchData();
@@ -1381,7 +1402,6 @@
     checkPaymentCookie();
     startPolling();
     await fetchModalContent();
-    manageCookieConsent(); // Add this line
   }
 
   document.getElementById('mobile-menu-button').onclick = () => {
