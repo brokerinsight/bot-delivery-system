@@ -1347,36 +1347,60 @@
       }
     }
 
+    function manageCookieConsent() {
+  const cookiePopup = document.getElementById('cookie-popup-container');
+  const cookieAcceptBtn = document.getElementById('cookie-accept');
+  
+  // Check if consent cookie exists
+  const cookies = document.cookie.split(';');
+  const hasConsent = cookies.some(cookie => cookie.trim().startsWith('cookie_consent=accepted'));
+  
+  if (!hasConsent) {
+    cookiePopup.classList.remove('hidden');
+    document.body.classList.add('popup-active');
+  }
+  
+  cookieAcceptBtn.addEventListener('click', () => {
+    // Set consent cookie with 1-year expiry
+    const expiry = new Date();
+    expiry.setFullYear(expiry.getFullYear() + 1);
+    document.cookie = `cookie_consent=accepted; expires=${expiry.toUTCString()}; path=/`;
+    cookiePopup.classList.add('hidden');
+    document.body.classList.remove('popup-active');
+    console.log('Cookie consent accepted');
+  });
+}
+    
     async function proceedWithInit() {
-      const success = await fetchData();
-      if (success) {
-        renderNavLinks();
-        renderProducts();
-        updateFooter();
-        showUrgentMessage();
-        checkPaymentCookie();
-        startPolling();
-        await fetchModalContent();
-      }
+  const success = await fetchData();
+  if (success) {
+    renderNavLinks();
+    renderProducts();
+    updateFooter();
+    showUrgentMessage();
+    checkPaymentCookie();
+    startPolling();
+    await fetchModalContent();
+    manageCookieConsent(); // Add this line
+  }
 
-      document.getElementById('mobile-menu-button').onclick = () => {
-        document.getElementById('mobile-menu').classList.add('open');
-      };
+  document.getElementById('mobile-menu-button').onclick = () => {
+    document.getElementById('mobile-menu').classList.add('open');
+  };
 
-      document.getElementById('mobile-menu-close').onclick = () => {
-        document.getElementById('mobile-menu').classList.remove('open');
-      };
+  document.getElementById('mobile-menu-close').onclick = () => {
+    document.getElementById('mobile-menu').classList.remove('open');
+  };
 
-      const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
-      searchBars.forEach(searchBar => {
-        searchBar.addEventListener('input', debounce(() => {
-          const search = searchBar.value;
-          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
-          renderProducts(category, search);
-        }, 300));
-      });
-    }
-
+  const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
+  searchBars.forEach(searchBar => {
+    searchBar.addEventListener('input', debounce(() => {
+      const search = searchBar.value;
+      const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+      renderProducts(category, search);
+    }, 300));
+  });
+}
     async function init() {
       handleInAppBrowser();
     }
