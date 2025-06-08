@@ -1125,6 +1125,7 @@ app.get('/product/:slug', async (req, res) => {
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Product Not Found - Deriv Bot Store</title>
+          <link rel="icon" type="image/png" href="/favicon.png">
           <script src="https://cdn.tailwindcss.com"></script>
         </head>
         <body class="bg-gray-100">
@@ -1140,7 +1141,7 @@ app.get('/product/:slug', async (req, res) => {
           <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <h1 class="text-3xl font-bold text-gray-900 mb-8">Product Not Found</h1>
             <p class="text-gray-600">The product you're looking for doesn't exist or has been removed.</p>
-            <a href="/" class="mt-4 inline-block bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">Back to Home</a>
+            <a href="/" class="mt-4 inline-block bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Back to Home</a>
           </main>
         </body>
         </html>
@@ -1175,38 +1176,19 @@ app.get('/product/:slug', async (req, res) => {
         <meta property="og:description" content="${sanitizeHtml(product.desc.substring(0, 160))}...">
         <meta property="og:image" content="${product.img}">
         <meta property="og:type" content="product">
+        <link rel="icon" type="image/png" href="/favicon.png">
         <link rel="stylesheet" href="https://cdn.tailwindcss.com">
         <style>
           .prose { max-width: 65ch; }
-          .embed-container {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-            margin-bottom: 2rem;
-          }
-          .embed-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: 0;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-          }
-          .thumbnail-image {
-            width: 100%;
-            max-width: 640px;
-            height: auto;
-            border-radius: 12px;
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-            transition: transform 0.3s ease;
-          }
-          .thumbnail-image:hover {
-            transform: scale(1.02);
-          }
+          .embed-container { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; margin-bottom: 2rem; }
+          .embed-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+          .thumbnail-image { width: 100%; max-width: 640px; height: auto; border-radius: 12px; box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); margin-bottom: 1.5rem; transition: transform 0.3s ease; }
+          .thumbnail-image:hover { transform: scale(1.02); }
+          .payment-section { display: none; background: #f9fafb; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+          .payment-section.active { display: block; }
+          .progress-bar { width: 100%; height: 10px; background: #e5e7eb; border-radius: 5px; }
+          .progress { height: 100%; background: linear-gradient(90deg, #16a34a, #22c55e); border-radius: 5px; transition: width 1s linear; }
+          button { transition: all 0.3s ease; }
         </style>
       </head>
       <body class="bg-gray-100">
@@ -1234,8 +1216,27 @@ app.get('/product/:slug', async (req, res) => {
               <button
                 class="buy-now w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors"
                 data-item="${product.item}"
-                onclick="initiatePayment('${product.item}', ${product.price})"
+                onclick="startPayment('${product.item}', ${product.price})"
               >Buy Now</button>
+              <div id="payment-section-${product.item}" class="payment-section mt-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Payment Details</h3>
+                <p class="text-gray-600 mb-4">Send payment via MPESA to:</p>
+                <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-${product.item}">${cachedData.settings.mpesaTill}</span></p>
+                <p id="payment-amount-${product.item}" class="text-green-600 font-bold mt-2"></p>
+                <div id="timer-${product.item}" class="progress-bar mt-4"><div id="progress-${product.item}" class="progress" style="width: 100%;"></div></div>
+                <button id="confirm-payment-${product.item}" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">I Have Paid</button>
+                <button id="payment-cancel-${product.item}" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition-colors">Cancel</button>
+                <div id="ref-code-section-${product.item}" class="mt-6 hidden">
+                  <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
+                  <input id="ref-code-input-${product.item}" type="text" placeholder="e.g., QK12345678" class="w-full p-2 border rounded-md mb-4">
+                  <button id="submit-ref-code-${product.item}" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors">Submit</button>
+                  <button id="ref-code-cancel-${product.item}" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700 transition-colors">Cancel</button>
+                </div>
+                <div id="status-section-${product.item}" class="mt-6 hidden">
+                  <h3 class="text-xl font-bold text-gray-900 mb-4">Checking Status...</h3>
+                  <p id="status-text-${product.item}" class="text-gray-600"></p>
+                </div>
+              </div>
             </div>
             <div class="lg:w-1/2 prose">
               <h2 class="text-2xl font-semibold text-gray-800 mb-4">Description</h2>
@@ -1246,12 +1247,15 @@ app.get('/product/:slug', async (req, res) => {
           </div>
         </main>
         <script>
-          async function initiatePayment(item, price) {
+          async function startPayment(item, price) {
             const rate = await fetchExchangeRate();
             const kesPrice = (price * rate).toFixed(2);
+            document.getElementById(`payment-amount-${item}`).textContent = `Amount: ${kesPrice} KES`;
             document.cookie = \`payment_\${item}=initiated; expires=\${new Date(Date.now() + 5 * 60 * 1000).toUTCString()}; path=/\`;
             localStorage.setItem(\`payment_\${item}_kesPrice\`, kesPrice);
-            window.location.href = '/?buy=' + item; // Redirect to homepage with buy parameter
+            const paymentSection = document.getElementById(`payment-section-${item}`);
+            paymentSection.classList.add('active');
+            startTimer(item, 300); // 5-minute timer
           }
 
           async function fetchExchangeRate() {
@@ -1264,6 +1268,85 @@ app.get('/product/:slug', async (req, res) => {
               return ${cachedData.settings.fallbackRate || 130};
             }
           }
+
+          function startTimer(item, duration) {
+            let timeLeft = duration;
+            const progress = document.getElementById(`progress-${item}`);
+            const timer = setInterval(() => {
+              timeLeft--;
+              const width = (timeLeft / duration) * 100;
+              progress.style.width = `${width}%`;
+              if (timeLeft <= 0) {
+                clearInterval(timer);
+                window.location.href = 'https://wa.me/1234567890'; // Replace with support WhatsApp
+              }
+            }, 1000);
+          }
+
+          document.querySelectorAll('[id^=confirm-payment-]').forEach(button => {
+            button.addEventListener('click', () => {
+              const item = button.id.split('-')[2];
+              document.getElementById(`ref-code-section-${item}`).classList.remove('hidden');
+              button.disabled = true;
+            });
+          });
+
+          document.querySelectorAll('[id^=submit-ref-code-]').forEach(button => {
+            button.addEventListener('click', async () => {
+              const item = button.id.split('-')[2];
+              const refCode = document.getElementById(`ref-code-input-${item}`).value;
+              if (/^[A-Za-z0-9]{8,12}$/.test(refCode)) {
+                const res = await fetch('/api/submit-ref', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    item, refCode, amount: localStorage.getItem(`payment_${item}_kesPrice`),
+                    timestamp: new Date().toISOString()
+                  })
+                });
+                if (res.ok) {
+                  document.getElementById(`ref-code-section-${item}`).classList.add('hidden');
+                  checkStatus(item, refCode);
+                } else {
+                  alert('Invalid ref code or server error');
+                }
+              } else {
+                alert('Ref code must be 8-12 alphanumeric characters');
+              }
+            });
+          });
+
+          async function checkStatus(item, refCode) {
+            const statusSection = document.getElementById(`status-section-${item}`);
+            statusSection.classList.remove('hidden');
+            let attempts = 0;
+            const maxAttempts = 20; // 5 minutes with 15s intervals
+            const check = async () => {
+              const res = await fetch(`/api/order-status/${item}/${refCode}`);
+              const data = await res.json();
+              document.getElementById(`status-text-${item}`).textContent = data.error || data.status;
+              if (data.success && data.status === 'confirmed' && data.downloadLink) {
+                window.location.href = data.downloadLink;
+              } else if (attempts >= maxAttempts) {
+                alert('Payment check timed out. Contact support.');
+              } else if (data.success && ['no payment', 'partial payment'].includes(data.status)) {
+                alert('Payment not confirmed. Try again or contact support.');
+              } else {
+                setTimeout(check, 15000);
+              }
+              attempts++;
+            };
+            check();
+          }
+
+          document.querySelectorAll('[id^=payment-cancel-], [id^=ref-code-cancel-]').forEach(button => {
+            button.addEventListener('click', () => {
+              const item = button.id.split('-')[2];
+              document.getElementById(`payment-section-${item}`).classList.remove('active');
+              document.getElementById(`ref-code-section-${item}`).classList.add('hidden');
+              document.getElementById(`confirm-payment-${item}`).disabled = false;
+            });
+          });
         </script>
       </body>
       </html>
