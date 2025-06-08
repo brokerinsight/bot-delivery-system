@@ -103,9 +103,14 @@ app.get('/sitemap.xml', async (req, res) => {
 
     for (const product of products) {
       if (!product.isArchived && product.item) {
+        const slug = product.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .replace(/-+/g, '-');
         sitemap += `
           <url>
-            <loc>https://botblitz.store/store?id=${product.item}</loc>
+            <loc>https://botblitz.store/product/${slug}</loc>
             <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
             <changefreq>weekly</changefreq>
             <priority>0.8</priority>
@@ -133,15 +138,6 @@ app.get('/sitemap.xml', async (req, res) => {
     res.status(500).send('Failed to generate sitemap.');
   }
 });
-
-function sanitizeXml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 app.use(express.static(publicPath));
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
@@ -1094,6 +1090,188 @@ app.post('/api/logout', (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error during logout:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to log out' });
+  }
+});
+
+app.get('/product/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  console.log(`[${new Date().toISOString()}] Serving product page for slug: ${slug}`);
+
+  try {
+    // Fetch cached data or load from Supabase
+    const cached = await redisClient.get('cachedData');
+    if (cached) {
+      cachedData = JSON.parse(cached);
+    } else {
+      await loadData();
+    }
+
+    // Find product by matching slug (case-insensitive)
+    const product = cachedData.products.find(p => {
+      const productSlug = p.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-+/g, '-');
+      return productSlug === slug && !p.isArchived;
+    });
+
+    if (!product) {
+      console.log(`[${new Date().toISOString()}] Product not found for slug: ${slug}`);
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Product Not Found - Deriv Bot Store</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="bg-gray-100">
+          <nav class="bg-white shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                  <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+                </div>
+              </div>
+            </div>
+          </nav>
+          <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <h1 class="text-3xl font-bold text-gray-900 mb-8">Product Not Found</h1>
+            <p class="text-gray-600">The product you're looking for doesn't exist or has been removed.</p>
+            <a href="/" class="mt-4 inline-block bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700">Back to Home</a>
+          </main>
+        </body>
+        </html>
+      `);
+    }
+
+    // Format description for display
+    const descHtml = product.desc
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
+          return `<li>${line.replace(/^(✅|🚀|🧠)\s*/, '')}</li>`;
+        }
+        return `<p>${line}</p>`;
+      })
+      .join('')
+      .replace(/<li>/g, '<li class="flex items-start"><span class="mr-2">•</span>')
+      .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" class="text-blue-600 underline" target="_blank">$1</a>');
+
+    // Render product page
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${sanitizeHtml(product.name)} - Deriv Bot Store</title>
+        <meta name="description" content="${sanitizeHtml(product.desc.substring(0, 160))}...">
+        <meta name="keywords" content="${product.category}, trading bot, Deriv, automation">
+        <meta property="og:title" content="${sanitizeHtml(product.name)}">
+        <meta property="og:description" content="${sanitizeHtml(product.desc.substring(0, 160))}...">
+        <meta property="og:image" content="${product.img}">
+        <meta property="og:type" content="product">
+        <link rel="stylesheet" href="https://cdn.tailwindcss.com">
+        <style>
+          .prose { max-width: 65ch; }
+          .embed-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            margin-bottom: 2rem;
+          }
+          .embed-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          }
+          .thumbnail-image {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s ease;
+          }
+          .thumbnail-image:hover {
+            transform: scale(1.02);
+          }
+        </style>
+      </head>
+      <body class="bg-gray-100">
+        <nav class="bg-white shadow-md">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+              <div class="flex items-center">
+                <a href="/" class="text-xl font-bold text-gray-800">Deriv Bot Store</a>
+              </div>
+            </div>
+          </div>
+        </nav>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h1 class="text-3xl font-bold text-gray-900 mb-4">${sanitizeHtml(product.name)}</h1>
+          <div class="flex flex-col lg:flex-row gap-8">
+            <div class="lg:w-1/2">
+              ${product.embed ? `
+                <div class="embed-container">
+                  <iframe src="${sanitizeHtml(product.embed)}" frameborder="0" allowfullscreen></iframe>
+                </div>
+              ` : `
+                <img src="${product.img}" alt="${sanitizeHtml(product.name)}" class="thumbnail-image">
+              `}
+              <p class="text-green-600 font-bold text-xl mb-4">${product.price.toFixed(2)} USD</p>
+              <button
+                class="buy-now w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition-colors"
+                data-item="${product.item}"
+                onclick="initiatePayment('${product.item}', ${product.price})"
+              >Buy Now</button>
+            </div>
+            <div class="lg:w-1/2 prose">
+              <h2 class="text-2xl font-semibold text-gray-800 mb-4">Description</h2>
+              ${descHtml}
+              <p class="mt-4 text-gray-600">Category: ${sanitizeHtml(product.category)}</p>
+              ${product.isNew ? '<span class="inline-block bg-green-600 text-white text-sm px-3 py-1 rounded-full">New</span>' : ''}
+            </div>
+          </div>
+        </main>
+        <script>
+          async function initiatePayment(item, price) {
+            const rate = await fetchExchangeRate();
+            const kesPrice = (price * rate).toFixed(2);
+            document.cookie = \`payment_\${item}=initiated; expires=\${new Date(Date.now() + 5 * 60 * 1000).toUTCString()}; path=/\`;
+            localStorage.setItem(\`payment_\${item}_kesPrice\`, kesPrice);
+            window.location.href = '/?buy=' + item; // Redirect to homepage with buy parameter
+          }
+
+          async function fetchExchangeRate() {
+            try {
+              const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+              const data = await response.json();
+              return data.rates.KES || ${cachedData.settings.fallbackRate || 130};
+            } catch (error) {
+              console.error('Error fetching exchange rate:', error);
+              return ${cachedData.settings.fallbackRate || 130};
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+    console.log(`[${new Date().toISOString()}] Product page served for slug: ${slug}`);
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error serving product page for slug ${slug}:`, error.message);
+    res.status(500).send('Internal Server Error');
   }
 });
 
