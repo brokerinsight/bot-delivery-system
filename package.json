@@ -1,14 +1,10 @@
 {
   "name": "bot-delivery-system",
   "version": "1.0.0",
-  "description": "A bot delivery system for Deriv Bot Store with Next.js frontend",
+  "description": "A bot delivery system for Deriv Bot Store",
   "main": "server.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "node server.js",
-    "start:next": "next start",
-    "export": "next export"
+    "start": "node server.js"
   },
   "engines": {
     "node": "18.x"
@@ -17,26 +13,20 @@
     "@supabase/supabase-js": "^2.49.8",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
-    "connect-redis": "^7.1.1",
+    "connect-redis": "^7.1.1",    
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-session": "^1.18.1",
     "marked": "^9.1.6",
     "multer": "^1.4.5-lts.2",
-    "next": "^12.2.0",
     "node-fetch": "^2.7.0",
     "nodemailer": "^6.10.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "redis": "^4.6.14",
+    "redis": "^4.6.14",           
     "sanitize-html": "^2.17.0"
   },
   "devDependencies": {
-    "autoprefixer": "^10.4.7",
-    "nodemon": "^3.1.10",
-    "postcss": "^8.4.14",
-    "tailwindcss": "^3.3.3"
+    "nodemon": "^3.1.10"
   },
   "author": "",
   "license": "ISC"
