@@ -236,66 +236,65 @@ nextApp.prepare().then(() => {
 
   // Save data to Supabase
   async function saveData() {
-    try {
-      const { data: existingProducts } = await supabase
-        .from('products')
-        .select('*');
-      const updatedProducts = cachedData.products.map(p => {
-        const existing = existingProducts.find(ep => ep.item === p.item);
-        return {
-          item: p.item,
-          file_id: existing?.file_id || p.fileId,
-          original_file_name: existing?.original_file_name || p.originalFileName,
-          price: p.price,
-          name: p.name,
-          description: p.desc,
-          image: p.img,
-          category: p.category,
-          embed: p.embed,
-          is_new: p.isNew,
-          is_archived: p.isArchived
-        };
-      });
+  try {
+    const { data: existingProducts } = await supabase
+      .from('products')
+      .select('*');
+    const updatedProducts = cachedData.products.map(p => {
+      const existing = existingProducts.find(ep => ep.item === p.item);
+      return {
+        item: p.item,
+        file_id: existing?.file_id || p.fileId,
+        original_file_name: existing?.original_file_name || p.originalFileName,
+        price: p.price,
+        name: p.name,
+        description: p.desc,
+        image: p.img,
+        category: p.category,
+        embed: p.embed,
+        is_new: p.isNew,
+        is_archived: p.isArchived
+      };
+    });
 
-      for (const product of updatedProducts) {
-        await supabase
-          .from('products')
-          .upsert(product, { onConflict: 'item' });
-      }
-
+    for (const product of updatedProducts) {
       await supabase
         .from('products')
-        .delete()
-        .not('item', 'in', `(${cachedData.products.map(p => p.item).join(',')})`);
-
-      await supabase.from('settings').delete().neq('key', null);
-      await supabase.from('settings').insert(
-        Object.entries(cachedData.settings).map(([key, value]) => ({
-          key,
-          value: typeof value === 'object' ? JSON.stringify(value) : value
-        }))
-      );
-
-      await supabase.from('categories').delete().neq('name', null);
-      if (cachedData.categories.length > 0) {
-        await supabase.from('categories').insert(
-          cachedData.categories.map(c => ({ name: c }))
-        );
-      }
-
-      await supabase.from('static_pages').delete().neq('slug', null);
-      if (cachedData.staticPages.length > 0) {
-        await supabase.from('static_pages').insert(cachedData.staticPages);
-      }
-
-      console.log(`[${new Date().toISOString()]) Data saved to Supabase`);
-      await loadData();
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
-      throw error;
+        .upsert(product, { onConflict: 'item' });
     }
-  }
 
+    await supabase
+      .from('products')
+      .delete()
+      .not('item', 'in', `(${cachedData.products.map(p => p.item).join(',')})`);
+
+    await supabase.from('settings').delete().neq('key', null);
+    await supabase.from('settings').insert(
+      Object.entries(cachedData.settings).map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : value
+      }))
+    );
+
+    await supabase.from('categories').delete().neq('name', null);
+    if (cachedData.categories.length > 0) {
+      await supabase.from('categories').insert(
+        cachedData.categories.map(c => ({ name: c }))
+      );
+    }
+
+    await supabase.from('static_pages').delete().neq('slug', null);
+    if (cachedData.staticPages.length > 0) {
+      await supabase.from('static_pages').insert(cachedData.staticPages);
+    }
+
+    console.log(`[${new Date().toISOString()}] Data saved to Supabase`); // Fixed: Added missing closing brace
+    await loadData();
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
+    throw error;
+  }
+}
   // Delete orders older than 3 days
   async function deleteOldOrders() {
     try {
