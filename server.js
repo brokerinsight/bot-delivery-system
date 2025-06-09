@@ -962,21 +962,20 @@ nextApp.prepare().then(() => {
   });
 
   // Initialize server
-  async function initialize() {
-    await selfCheck();
-    await loadData();
-    await deleteOldOrders();
-    setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
-    setInterval(refreshCache, 15 * 60 * 1000);
-  }
+async function initialize() {
+  await selfCheck();
+  await loadData();
+  await deleteOldOrders();
+  setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
+  setInterval(refreshCache, 15 * 60 * 1000);
+}
 
-  initialize().catch(error => {
-    console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
-    process.exit(1);
-  });
+initialize().catch(error => {
+  console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
+  process.exit(1);
+});
 
-  const PORT = process.env.PORT || 10000;
-  app.listen(PORT, () => {
-    console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
-  });
+const PORT = process.env.PORT || 10000; // Use platform-provided PORT or fallback to 10000
+app.listen(PORT, () => {
+  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
 });
