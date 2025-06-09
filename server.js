@@ -288,7 +288,7 @@ nextApp.prepare().then(() => {
         await supabase.from('static_pages').insert(cachedData.staticPages);
       }
 
-      console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
+      console.log(`[${new Date().toISOString()]) Data saved to Supabase`);
       await loadData();
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
@@ -397,7 +397,7 @@ nextApp.prepare().then(() => {
     try {
       const requests = await redisClient.get(key);
       if (requests && parseInt(requests) >= limit) {
-        return res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
+        return res.status(429).json({ success: false, error: 'Too many attempts, please try again later' });
       }
 
       if (!requests) {
@@ -962,20 +962,24 @@ nextApp.prepare().then(() => {
   });
 
   // Initialize server
-async function initialize() {
-  await selfCheck();
-  await loadData();
-  await deleteOldOrders();
-  setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
-  setInterval(refreshCache, 15 * 60 * 1000);
-}
+  async function initialize() {
+    await selfCheck();
+    await loadData();
+    await deleteOldOrders();
+    setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
+    setInterval(refreshCache, 15 * 60 * 1000);
+  }
 
-initialize().catch(error => {
-  console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
+  initialize().catch(error => {
+    console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
+    process.exit(1);
+  });
+
+  const PORT = process.env.PORT || 10000;
+  app.listen(PORT, () => {
+    console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
+  });
+}).catch(error => {
+  console.error(`[${new Date().toISOString()}] Failed to prepare Next.js app:`, error.message);
   process.exit(1);
-});
-
-const PORT = process.env.PORT || 10000; // Use platform-provided PORT or fallback to 10000
-app.listen(PORT, () => {
-  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
 });
