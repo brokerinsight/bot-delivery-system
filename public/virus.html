@@ -8,7 +8,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
   <style>
    
     #add-page, #cancel-page-edit {
@@ -174,24 +173,6 @@
     .status-select:hover, .status-select:focus {
       border-color: #16a34a;
       box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
-    }
-
-    .pagination-btn {
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      font-size: 0.875rem;
-      transition: all 0.3s ease;
-    }
-
-    .pagination-btn:disabled {
-      background: #e5e7eb;
-      color: #6b7280;
-      cursor: not-allowed;
-    }
-
-    .pagination-btn:not(:disabled):hover {
-      background: #16a34a;
-      color: white;
     }
     /* Close button for modals */
     .close-modal {
@@ -399,8 +380,8 @@
       <section id="manage-bots" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Bots</h2>
         <ul id="bot-list" class="space-y-4"></ul>
-        <div id="bot-pagination" class="mt-6 flex justify-center space-x-2"></div>
       </section>
+
       <!-- Settings Section -->
       <section id="settings" class="section bg-white rounded-lg shadow-md p-6 mb-8 hidden">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Settings</h2>
@@ -528,7 +509,6 @@
           </thead>
           <tbody id="order-list"></tbody>
         </table>
-        <div id="order-pagination" class="mt-6 flex justify-center space-x-2"></div>
       </section>
     </main>
 
@@ -591,14 +571,6 @@
   </div>
 
   <script>
-    // Debounce function to limit rapid executions
-  function debounce(func, wait) {
-    let timeout;
-    return function (...args) {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-  }
   // Helper function to show button feedback
   function showButtonFeedback(btn, actionText, originalText, duration = 2000) {
     btn.disabled = true;
@@ -612,122 +584,80 @@
   let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
   let orders = [];
 
-  // Fetch with timeout utility
-  async function fetchWithTimeout(url, options = {}, timeout = 10000) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(id);
-      return response;
-    } catch (error) {
-      clearTimeout(id);
-      if (error.name === 'AbortError') {
-        throw new Error('Request timed out. Please check your connection.');
-      }
-      throw error;
-    }
-  }
   // Fetch data from server
   async function fetchData() {
     try {
-      const response = await fetchWithTimeout('/api/data', { credentials: 'include' }, 10000);
-      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      const response = await fetch('/api/data', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch data');
       data = await response.json();
       return true;
     } catch (error) {
-      console.error('Error fetching data:', error.message);
-      alert(`Failed to load data: ${error.message}. Please try again.`);
+      console.error('Error fetching data:', error);
+      alert('Failed to load data. Please try again.');
       return false;
     }
   }
-  
+
   // Save data to server
   async function saveData() {
     try {
-      const response = await fetchWithTimeout('/api/save-data', {
+      const response = await fetch('/api/save-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
         credentials: 'include'
-      }, 10000);
-      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      });
+      if (!response.ok) throw new Error('Failed to save data');
       return true;
     } catch (error) {
-      console.error('Error saving data:', error.message);
-      alert(`Failed to save data: ${error.message}. Please try again.`);
+      console.error('Error saving data:', error);
+      alert('Failed to save data. Please try again.');
       return false;
     }
   }
-  // Fetch orders with pagination
-  async function fetchOrders(page = 1, limit = 10) {
+
+  // Fetch orders
+  async function fetchOrders() {
     try {
-      const response = await fetchWithTimeout(`/api/orders?page=${page}&limit=${limit}`, { credentials: 'include' }, 10000);
-      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      const response = await fetch('/api/orders', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch orders');
       const result = await response.json();
       if (result.success) {
         orders = result.orders;
-        return { success: true, totalCount: result.totalCount || orders.length };
+        renderOrders();
       } else {
         throw new Error(result.error || 'Failed to fetch orders');
       }
     } catch (error) {
-      console.error('Error fetching orders:', error.message);
+      console.error('Error fetching orders:', error);
       alert('Failed to load orders. Please try again.');
-      return { success: false, totalCount: 0 };
     }
   }
+
   // Render orders with status dropdown
-  // Render orders with status dropdown and pagination
-  async function renderOrders(page = 1, limit = 10) {
+  function renderOrders() {
     const orderList = document.getElementById('order-list');
-    const pagination = document.getElementById('order-pagination');
     orderList.innerHTML = '';
-    pagination.innerHTML = '';
-
-    const { success, totalCount } = await fetchOrders(page, limit);
-    if (!success) return;
-
     orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     orders.forEach(order => {
-      const row = document.createElementChild('tr');
+      const row = document.createElement('tr');
       row.innerHTML = `
-        <tr class="bg-gray-100">
-          <td class="item-${order.item}">${order.item}</td>
-          <td class="ref-${order.refCode}">${order.refCode}</td>
-          <td class="amount-${order.amount}">${order.amount}</td>
-          <td class="time-${order.timestamp}">${new Date(order.timestamp).toLocaleString()}</td>
-          <td class="status-${order.status}">${order.status || 'pending'}</td>
-          <td>
-            <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
-              <option value="" selected disabled>Update Status</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="no payment">No Payment</option>
-              <option value="partial payment">Partial Payment</option>
-            </select>
-          </td>
-        </tr>
+        <td>${order.item}</td>
+        <td>${order.refCode}</td>
+        <td>${order.amount}</td>
+        <td>${new Date(order.timestamp).toLocaleString()}</td>
+        <td>${order.status || 'pending'}</td>
+        <td>
+          <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
+            <option value="" selected disabled>Update Status</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="no payment">No Payment</option>
+            <option value="partial payment">Partial Payment</option>
+          </select>
+        </td>
       `;
       orderList.appendChild(row);
     });
-
-    const totalPages = Math.ceil(totalCount / limit);
-    if (totalPages > 1) {
-      const prevBtn = document.createElement('button');
-      prevBtn.className = `pagination-btn ${page === 1 ? 'disabled' : 'bg-green-600 text-white'}`;
-      prevBtn.textContent = 'Previous';
-      prevBtn.disabled = page === 1;
-      prevBtn.addEventListener('click', () => renderOrders(page - 1, limit));
-
-      const nextBtn = document.createElement('button');
-      nextBtn.className = `pagination-btn ${page === totalPages ? 'disabled' : 'bg-green-600 text-white'}`;
-      nextBtn.textContent = 'Next';
-      nextBtn.disabled = page === totalPages;
-      nextBtn.addEventListener('click', () => renderOrders(page + 1, limit));
-
-      pagination.appendChild(prevBtn);
-      pagination.appendChild(nextBtn);
-    }
 
     document.querySelectorAll('.status-select').forEach(select => {
       select.addEventListener('change', async () => {
@@ -738,26 +668,27 @@
         showButtonFeedback(select, 'Updating...', originalText);
 
         try {
-          const response = await fetchWithTimeout('/api/update-order-status', {
+          const response = await fetch('/api/update-order-status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ item, refCode, status }),
             credentials: 'include'
-          }, 10000);
+          });
           const result = await response.json();
           if (result.success) {
-            await renderOrders(page, limit);
+            await fetchOrders();
             alert(`Order status updated to "${status}"!`);
           } else {
             throw new Error(result.error || 'Failed to update order status');
           }
         } catch (error) {
-          console.error('Error updating order status:', error.message);
+          console.error('Error updating order status:', error);
           alert('Failed to update order status. Please try again.');
         }
       });
     });
   }
+
   // Start polling for orders every 5 seconds when Orders section is active
   function startOrdersPolling() {
     setInterval(async () => {
@@ -782,7 +713,7 @@
       document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
       document.getElementById(link.getAttribute('href').slice(1)).classList.remove('hidden');
       if (link.getAttribute('href') === '#orders') {
-        renderOrders(1, 10);
+        fetchOrders();
       }
     });
   });
@@ -790,17 +721,15 @@
   // Login handling
   async function checkSession() {
     try {
-      const response = await fetchWithTimeout('/api/check-session', { credentials: 'include' }, 5000);
-      if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+      const response = await fetch('/api/check-session', { credentials: 'include' });
       const result = await response.json();
       return result.isAuthenticated;
     } catch (error) {
-      console.error('Error checking session:', error.message);
-      alert(`Session check failed: ${error.message}. Please login again.`);
+      console.error('Error checking session:', error);
       return false;
     }
   }
-    
+
   document.getElementById('toggle-password').addEventListener('click', () => {
     const passwordInput = document.getElementById('login-password');
     const toggleBtn = document.getElementById('toggle-password');
@@ -817,19 +746,15 @@
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
     const btn = document.getElementById('login-submit');
-    if (!email || !password) {
-      alert('Please enter both email and password.');
-      return;
-    }
     showButtonFeedback(btn, 'Logging in...', 'Login');
 
     try {
-      const response = await fetchWithTimeout('/api/login', {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
         credentials: 'include'
-      }, 10000);
+      });
       const result = await response.json();
       if (result.success) {
         document.getElementById('login-page').classList.add('hidden');
@@ -838,40 +763,27 @@
         document.querySelector('.nav-link[href="#add-bot"]').classList.add('border-b-2', 'border-green-500');
         initialize();
       } else {
-        alert(result.error || 'Invalid credentials. Please try again.');
+        alert('Invalid credentials. Please try again.');
       }
     } catch (error) {
-      console.error('Error logging in:', error.message);
-      alert(`Failed to login: ${error.message}. Please try again.`);
+      console.error('Error logging in:', error);
+      alert('Failed to login. Please try again.');
     }
   });
+
   // Add bot with progress bar
-  // Add bot with progress bar and file validation
   document.getElementById('product-form').addEventListener('submit', async e => {
     e.preventDefault();
-    const fileInput = document.getElementById('file');
-    const file = fileInput.files[0];
-    if (file) {
-      if (!file.name.endsWith('.zip')) {
-        alert('Only .zip files are allowed.');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB.');
-        return;
-      }
-    }
-
     const formData = new FormData();
     formData.append('item', document.getElementById('item').value.trim());
     formData.append('name', document.getElementById('name').value.trim());
     formData.append('price', document.getElementById('price').value);
-    formData.append('desc', DOMPurify.sanitize(document.getElementById('desc').value));
+    formData.append('desc', document.getElementById('desc').value); // No trim, as it's HTML
     formData.append('embed', document.getElementById('embed').value.trim());
     formData.append('category', document.getElementById('category').value);
     formData.append('img', document.getElementById('img').value.trim());
     formData.append('isNew', document.getElementById('isNew').checked);
-    if (file) formData.append('file', file);
+    formData.append('file', document.getElementById('file').files[0]);
 
     const progressBar = document.getElementById('upload-progress-bar');
     const progressContainer = document.getElementById('upload-progress');
@@ -894,15 +806,15 @@
         if (result.success) {
           data.products.push(result.product);
           await saveData();
-          renderBots(1, 10);
+          renderBots();
           document.getElementById('product-form').reset();
           progressContainer.classList.add('hidden');
           alert('Bot added successfully!');
         } else {
-          throw new Error(result.error || 'Failed to add bot');
+          throw new Error('Failed to add bot');
         }
       } else {
-        throw new Error(`HTTP error: ${xhr.status}`);
+        throw new Error('Upload failed');
       }
     };
 
@@ -913,20 +825,12 @@
 
     xhr.send(formData);
   });
-    
-  // Render bots with pagination
-  function renderBots(page = 1, limit = 10) {
+
+  // Render bots
+  function renderBots() {
     const botList = document.getElementById('bot-list');
-    const pagination = document.getElementById('bot-pagination');
     botList.innerHTML = '';
-    pagination.innerHTML = '';
-
-    const start = (page - 1) * limit;
-    const end = start + limit;
-    const paginatedBots = data.products.slice(start, end);
-    const totalPages = Math.ceil(data.products.length / limit);
-
-    paginatedBots.forEach(product => {
+    data.products.forEach(product => {
       const li = document.createElement('li');
       li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
       li.innerHTML = `
@@ -942,23 +846,6 @@
       botList.appendChild(li);
     });
 
-    if (totalPages > 1) {
-      const prevBtn = document.createElement('button');
-      prevBtn.className = `pagination-btn ${page === 1 ? 'disabled' : 'bg-green-600 text-white'}`;
-      prevBtn.textContent = 'Previous';
-      prevBtn.disabled = page === 1;
-      prevBtn.addEventListener('click', () => renderBots(page - 1, limit));
-
-      const nextBtn = document.createElement('button');
-      nextBtn.className = `pagination-btn ${page === totalPages ? 'disabled' : 'bg-green-600 text-white'}`;
-      nextBtn.textContent = 'Next';
-      nextBtn.disabled = page === totalPages;
-      nextBtn.addEventListener('click', () => renderBots(page + 1, limit));
-
-      pagination.appendChild(prevBtn);
-      pagination.appendChild(nextBtn);
-    }
-
     document.querySelectorAll('.edit-bot').forEach(btn => {
       btn.addEventListener('click', () => {
         const item = btn.dataset.item;
@@ -968,10 +855,10 @@
           return;
         }
         document.getElementById('edit-item').value = product.item;
-        document.getElementById('edit-item').dataset.originalItem = product.item;
+        document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
         document.getElementById('edit-name').value = product.name;
         document.getElementById('edit-price').value = product.price;
-        window.editDescQuill.root.innerHTML = DOMPurify.sanitize(product.desc || '<p></p>');
+        window.editDescQuill.root.innerHTML = product.desc || '<p></p>';
         document.getElementById('edit-embed').value = product.embed || '';
         document.getElementById('edit-img').value = product.img;
         document.getElementById('edit-isNew').checked = product.isNew;
@@ -992,28 +879,29 @@
         showButtonFeedback(btn, 'Deleting...', 'Delete');
         const item = btn.dataset.item;
         try {
-          const response = await fetchWithTimeout('/api/delete-bot', {
+          const response = await fetch('/api/delete-bot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ item }),
             credentials: 'include'
-          }, 10000);
+          });
           const result = await response.json();
           if (result.success) {
             data.products = data.products.filter(p => p.item !== item);
             await saveData();
-            renderBots(page, limit);
+            renderBots();
             alert('Bot deleted successfully!');
           } else {
             throw new Error(result.error || 'Failed to delete bot');
           }
         } catch (error) {
-          console.error('Error deleting bot:', error.message);
+          console.error('Error deleting bot:', error);
           alert('Failed to delete bot. Please try again.');
         }
       });
     });
   }
+
   // Function to close the Edit Bot modal
   function closeEditModal() {
     document.getElementById('edit-modal').classList.add('hidden');
@@ -1022,82 +910,76 @@
   }
 
   document.getElementById('edit-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const btn = e.submitter;
-  showButtonFeedback(btn, 'Saving...', 'Save Changes');
+    e.preventDefault();
+    const btn = e.submitter;
+    showButtonFeedback(btn, 'Saving...', 'Save Changes');
 
-  const originalItem = document.getElementById('edit-item').dataset.originalItem;
-  const newItem = DOMPurify.sanitize(document.getElementById('edit-item').value.trim());
+    const originalItem = document.getElementById('edit-item').dataset.originalItem;
+    const newItem = document.getElementById('edit-item').value.trim();
 
-  // Check if new item number already exists (excluding the current bot being edited)
-  if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
-    alert('This item number already exists. Please use a unique item number.');
-    return;
-  }
+    // Check if new item number already exists (excluding the current bot being edited)
+    if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
+      alert('This item number already exists. Please use a unique item number.');
+      return;
+    }
 
-  const productIndex = data.products.findIndex(p => p.item === originalItem);
-  if (productIndex === -1) {
-    alert('Bot not found. Please try again.');
-    return;
-  }
+    const productIndex = data.products.findIndex(p => p.item === originalItem);
+    if (productIndex === -1) {
+      alert('Bot not found. Please try again.');
+      return;
+    }
 
-  // Update the bot data
-  data.products[productIndex] = {
-    ...data.products[productIndex],
-    item: newItem,
-    name: DOMPurify.sanitize(document.getElementById('edit-name').value.trim()),
-    price: parseFloat(document.getElementById('edit-price').value),
-    desc: DOMPurify.sanitize(document.getElementById('edit-desc').value),
-    embed: DOMPurify.sanitize(document.getElementById('edit-embed').value.trim()),
-    category: DOMPurify.sanitize(document.getElementById('edit-category').value),
-    img: DOMPurify.sanitize(document.getElementById('edit-img').value.trim()),
-    isNew: document.getElementById('edit-isNew').checked,
-isArchived: document.getElementById('edit-isArchived').checked
-  };
+    // Update the bot data
+    data.products[productIndex] = {
+      ...data.products[productIndex],
+      item: newItem,
+      name: document.getElementById('edit-name').value.trim(),
+      price: parseFloat(document.getElementById('edit-price').value),
+      desc: document.getElementById('edit-desc').value, // No trim, as it's HTML
+      embed: document.getElementById('edit-embed').value.trim(),
+      category: document.getElementById('edit-category').value,
+      img: document.getElementById('edit-img').value.trim(),
+      isNew: document.getElementById('edit-isNew').checked,
+      isArchived: document.getElementById('edit-isArchived').checked
+    };
 
-  const success = await saveData();
-  if (success) {
-    renderBots(1, 10);
-    closeEditModal();
-    alert('Bot updated successfully!');
-  } else {
-    alert('Failed to update bot. Please try again.');
-  }
-});
-    
+    const success = await saveData();
+    if (success) {
+      renderBots();
+      closeEditModal();
+      alert('Bot updated successfully!');
+    } else {
+      alert('Failed to update bot. Please try again.');
+    }
+  });
+
   document.getElementById('edit-cancel').addEventListener('click', () => {
     closeEditModal();
   });
 
    function initializeQuillEditors() {
-    if (typeof Quill === 'undefined') {
-      console.error('Quill library is not loaded. Please check the Quill script inclusion.');
-      return;
+  if (typeof Quill === 'undefined') {
+    console.error('Quill library is not loaded. Please check the Quill script inclusion.');
+    return;
+  }
+
+  // Remove any stray <textarea> elements that might have the same IDs
+  const idsToClean = ['desc', 'edit-desc', 'urgent-message', 'page-content'];
+  idsToClean.forEach(id => {
+    const textarea = document.querySelector(`textarea[id="${id}"]`);
+    if (textarea) {
+      console.warn(`Found stray <textarea> with id "${id}". Removing it.`);
+      textarea.remove();
     }
+  });
 
-    const editors = [
-      { id: 'desc-editor', input: 'desc', placeholder: 'Enter bot description...' },
-      { id: 'edit-desc-editor', input: 'edit-desc', placeholder: 'Enter bot description...', global: 'editDescQuill' },
-      { id: 'urgent-message-editor', input: 'urgent-message', placeholder: 'Enter urgent message...', global: 'urgentQuill', toolbar: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline'],
-        ['link'],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['clean']
-      ]},
-      { id: 'page-content-editor', input: 'page-content', placeholder: 'Enter page content (Markdown or HTML)...', global: 'pageContentQuill' }
-    ];
-
-    editors.forEach(({ id, input, placeholder, global, toolbar }) => {
-      const element = document.getElementById(id);
-      if (!element) {
-        console.warn(`Element #${id} not found in DOM.`);
-        return;
-      }
-      const quill = new Quill(`#${id}`, {
+  // Initialize Quill for Add Bot Description
+  if (document.getElementById('desc-editor')) {
+    setTimeout(() => {
+      const descQuill = new Quill('#desc-editor', {
         theme: 'snow',
         modules: {
-          toolbar: toolbar || [
+          toolbar: [
             [{ 'header': [1, 2, 3, false] }],
             ['bold', 'italic', 'underline'],
             ['link', 'image'],
@@ -1105,14 +987,91 @@ isArchived: document.getElementById('edit-isArchived').checked
             ['clean']
           ]
         },
-        placeholder
+        placeholder: 'Enter bot description...',
       });
-      quill.on('text-change', () => {
-        document.getElementById(input).value = DOMPurify.sanitize(quill.root.innerHTML);
+      descQuill.on('text-change', () => {
+        document.getElementById('desc').value = descQuill.root.innerHTML;
       });
-      if (global) window[global] = quill;
-    });
-  } 
+    }, 100); // Delay to ensure DOM is ready
+  } else {
+    console.warn('Element #desc-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Edit Bot Description
+  if (document.getElementById('edit-desc-editor')) {
+    setTimeout(() => {
+      const editDescQuill = new Quill('#edit-desc-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link', 'image'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter bot description...',
+      });
+      editDescQuill.on('text-change', () => {
+        document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
+      });
+      window.editDescQuill = editDescQuill;
+    }, 100);
+  } else {
+    console.warn('Element #edit-desc-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Urgent Message
+  if (document.getElementById('urgent-message-editor')) {
+    setTimeout(() => {
+      const urgentQuill = new Quill('#urgent-message-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter urgent message...',
+      });
+      urgentQuill.on('text-change', () => {
+        document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
+      });
+      window.urgentQuill = urgentQuill;
+    }, 100);
+  } else {
+    console.warn('Element #urgent-message-editor not found in DOM.');
+  }
+
+  // Initialize Quill for Static Page Content
+  if (document.getElementById('page-content-editor')) {
+    setTimeout(() => {
+      const pageContentQuill = new Quill('#page-content-editor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            ['link', 'image'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['clean']
+          ]
+        },
+        placeholder: 'Enter page content (Markdown or HTML)...',
+      });
+      pageContentQuill.on('text-change', () => {
+        document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+      });
+      window.pageContentQuill = pageContentQuill;
+    }, 100);
+  } else {
+    console.warn('Element #page-content-editor not found in DOM.');
+  }
+} 
     
   // Categories
   function renderCategories() {
@@ -1151,16 +1110,6 @@ isArchived: document.getElementById('edit-isArchived').checked
     });
   }
 
-  document.getElementById('new-category').addEventListener('input', debounce(() => {
-    const newCategory = document.getElementById('new-category').value.trim();
-    const addBtn = document.getElementById('add-category');
-    if (newCategory && !data.categories.includes(newCategory)) {
-      addBtn.disabled = false;
-    } else {
-      addBtn.disabled = true;
-    }
-  }, 300));
-
   document.getElementById('add-category').addEventListener('click', async () => {
     const btn = document.getElementById('add-category');
     showButtonFeedback(btn, 'Adding...', 'Add Category');
@@ -1175,7 +1124,7 @@ isArchived: document.getElementById('edit-isArchived').checked
       alert('Category already exists or is invalid.');
     }
   });
-    
+
   // Settings - Urgent Message Fix
   const urgentToggle = document.getElementById('urgent-toggle');
   const urgentMessage = document.getElementById('urgent-message');
@@ -1187,7 +1136,7 @@ isArchived: document.getElementById('edit-isArchived').checked
   }
   urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
   window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
-  window.urgentQuill.root.innerHTML = DOMPurify.sanitize(data.settings.urgentMessage?.text || '<p></p>');
+  window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
 }
 
   urgentToggle.addEventListener('change', () => {
@@ -1316,56 +1265,57 @@ isArchived: document.getElementById('edit-isArchived').checked
     
   // Static Pages
   function renderPages() {
-    const pageList = document.getElementById('page-list');
-    pageList.innerHTML = '';
-    data.staticPages.forEach(page => {
-      const li = document.createElement('li');
-      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-      li.innerHTML = `
-        <div>
-          <h3 class="text-lg font-medium text-gray-900">${DOMPurify.sanitize(page.title)}</h3>
-          <p class="text-sm text-gray-600">Slug: ${DOMPurify.sanitize(page.slug)}</p>
-        </div>
-        <div class="space-x-2">
-          <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${DOMPurify.sanitize(page.slug)}">Edit</button>
-          <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${DOMPurify.sanitize(page.slug)}">Delete</button>
-        </div>
-      `;
-      pageList.appendChild(li);
-    });
+  const pageList = document.getElementById('page-list');
+  pageList.innerHTML = '';
+  data.staticPages.forEach(page => {
+    const li = document.createElement('li');
+    li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+    li.innerHTML = `
+      <div>
+        <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
+        <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
+      </div>
+      <div class="space-x-2">
+        <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
+        <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
+      </div>
+    `;
+    pageList.appendChild(li);
+  });
 
-    document.querySelectorAll('.edit-page').forEach(btn => {
-      btn.addEventListener('click', () => {
+  document.querySelectorAll('.edit-page').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slug = btn.dataset.slug;
+      const page = data.staticPages.find(p => p.slug === slug);
+      if (!page) {
+        alert('Page not found. Please refresh and try again.');
+        return;
+      }
+      document.getElementById('page-title').value = page.title;
+      document.getElementById('page-slug').value = page.slug;
+      window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
+      document.getElementById('add-page').textContent = 'Save Changes';
+      document.getElementById('add-page').dataset.editSlug = slug;
+      document.getElementById('page-slug').dataset.originalSlug = slug;
+      document.getElementById('cancel-page-edit').classList.remove('hidden'); // Show Cancel button
+    });
+  });
+
+  document.querySelectorAll('.delete-page').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to delete this page?')) {
+        showButtonFeedback(btn, 'Deleting...', 'Delete');
         const slug = btn.dataset.slug;
-        const page = data.staticPages.find(p => p.slug === slug);
-        if (!page) {
-          alert('Page not found. Please refresh and try again.');
-          return;
-        }
-        document.getElementById('page-title').value = DOMPurify.sanitize(page.title);
-        document.getElementById('page-slug').value = DOMPurify.sanitize(page.slug);
-        window.pageContentQuill.root.innerHTML = DOMPurify.sanitize(page.content || '<p></p>');
-        document.getElementById('add-page').textContent = 'Save Changes';
-        document.getElementById('add-page').dataset.editSlug = slug;
-        document.getElementById('page-slug').dataset.originalSlug = slug;
-        document.getElementById('cancel-page-edit').classList.remove('hidden');
-      });
+        data.staticPages = data.staticPages.filter(p => p.slug !== slug);
+        await saveData();
+        renderPages();
+        resetPageForm(); // Reset form after deletion
+        alert('Page deleted successfully!');
+      }
     });
+  });
+}
 
-    document.querySelectorAll('.delete-page').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete this page?')) {
-          showButtonFeedback(btn, 'Deleting...', 'Delete');
-          const slug = btn.dataset.slug;
-          data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-          await saveData();
-          renderPages();
-          resetPageForm();
-          alert('Page deleted successfully!');
-        }
-      });
-    });
-  }
   // Reset the page form state
 function resetPageForm() {
   document.getElementById('page-title').value = '';
@@ -1379,31 +1329,11 @@ function resetPageForm() {
   document.getElementById('cancel-page-edit').classList.add('hidden');
 }
 
-const validatePageForm = debounce(() => {
-    const pageTitle = document.getElementById('page-title').value.trim();
-    const pageSlug = document.getElementById('page-slug').value.trim();
-    const pageContent = document.getElementById('page-content').value;
-    const addBtn = document.getElementById('add-page');
-    const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
-
-    if (!pageTitle || !pageSlug || !pageContent) {
-      addBtn.disabled = true;
-    } else if (data.staticPages.some(page => page.slug === pageSlug && pageSlug !== originalSlug)) {
-      addBtn.disabled = true;
-      alert('A page with this slug already exists.');
-    } else {
-      addBtn.disabled = false;
-    }
-  }, 300);
-
-  document.getElementById('page-title').addEventListener('input', validatePageForm);
-  document.getElementById('page-slug').addEventListener('input', validatePageForm);
-
-  document.getElementById('add-page').addEventListener('click', async function() {
+document.getElementById('add-page').addEventListener('click', async function() {
   const btn = this;
-  const pageTitle = DOMPurify.sanitize(document.getElementById('page-title').value.trim());
-  const pageSlug = DOMPurify.sanitize(document.getElementById('page-slug').value.trim());
-  const pageContent = DOMPurify.sanitize(document.getElementById('page-content').value);
+  const pageTitle = document.getElementById('page-title').value.trim();
+  const pageSlug = document.getElementById('page-slug').value.trim();
+  const pageContent = document.getElementById('page-content').value;
 
   if (!pageTitle || !pageSlug || !pageContent) {
     alert('Please fill in all fields.');
@@ -1454,7 +1384,7 @@ const validatePageForm = debounce(() => {
     }
   }
 });
-    
+
 document.getElementById('cancel-page-edit').addEventListener('click', () => {
   resetPageForm();
 });
