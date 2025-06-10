@@ -293,19 +293,9 @@ async function loadData() {
 // Refresh cache periodically
 async function refreshCache() {
   try {
-    const cachedProducts = await redisClient.get('cachedProducts');
-    const cachedSettings = await redisClient.get('cachedSettings');
-    const cachedCategories = await redisClient.get('cachedCategories');
-    const cachedStaticPages = await redisClient.get('cachedStaticPages');
-
-    if (cachedProducts && cachedSettings && cachedCategories && cachedStaticPages) {
-      cachedData = {
-        products: JSON.parse(cachedProducts).products,
-        totalCount: JSON.parse(cachedProducts).totalCount,
-        settings: JSON.parse(cachedSettings),
-        categories: JSON.parse(cachedCategories),
-        staticPages: JSON.parse(cachedStaticPages)
-      };
+    const cached = await redisClient.get('cachedData');
+    if (cached) {
+      cachedData = JSON.parse(cached);
       console.log(`[${new Date().toISOString()}] Cache refreshed from Valkey`);
     } else {
       await loadData();
@@ -315,6 +305,7 @@ async function refreshCache() {
     console.error(`[${new Date().toISOString()}] Error refreshing cache:`, error.message);
   }
 }
+
 // Save data to Supabase
 async function saveData() {
   try {
@@ -485,35 +476,18 @@ async function rateLimit(req, res, next) {
   const ip = req.ip || req.connection.remoteAddress;
   const key = `rate-limit:${ip}`;
   const limit = 100; // 100 requests
-  const windowMs = 15 * 60 * 1000; // 15 minutes in milliseconds
+  const window = 15 * 60; // 15 minutes in seconds
 
   try {
-    // Lua script for sliding window rate limiting
-    const luaScript = `
-      local key = KEYS[1]
-      local now = tonumber(ARGV[1])
-      local window = tonumber(ARGV[2])
-      local limit = tonumber(ARGV[3])
-      
-      redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
-      local count = redis.call('ZCARD', key)
-      
-      if count < limit then
-        redis.call('ZADD', key, now, now .. ':' .. math.random())
-        redis.call('EXPIRE', key, math.ceil(window / 1000))
-        return 0
-      else
-        return 1
-      end
-    `;
-    
-    const result = await redisClient.eval(luaScript, {
-      keys: [key],
-      arguments: [Date.now().toString(), windowMs.toString(), limit.toString()]
-    });
-
-    if (result === 1) {
+    const requests = await redisClient.get(key);
+    if (requests && parseInt(requests) >= limit) {
       return res.status(429).json({ success: false, error: 'Too many requests, please try again later' });
+    }
+
+    if (!requests) {
+      await redisClient.set(key, 1, { EX: window });
+    } else {
+      await redisClient.incr(key);
     }
     next();
   } catch (error) {
@@ -522,68 +496,22 @@ async function rateLimit(req, res, next) {
   }
 }
 
+
 // API Routes
 app.get('/api/data', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 9;
-    const cachedProducts = await redisClient.get('cachedProducts');
-    const cachedSettings = await redisClient.get('cachedSettings');
-    const cachedCategories = await redisClient.get('cachedCategories');
-    const cachedStaticPages = await redisClient.get('cachedStaticPages');
-
-    if (cachedProducts && cachedSettings && cachedCategories && cachedStaticPages) {
-      cachedData = {
-        products: JSON.parse(cachedProducts).products,
-        totalCount: JSON.parse(cachedProducts).totalCount,
-        settings: JSON.parse(cachedSettings),
-        categories: JSON.parse(cachedCategories),
-        staticPages: JSON.parse(cachedStaticPages)
-      };
+    const cached = await redisClient.get('cachedData');
+    if (cached) {
+      cachedData = JSON.parse(cached);
       console.log(`[${new Date().toISOString()}] Served /api/data from Valkey cache`);
     } else {
-      await loadData(page, limit);
+      await loadData();
       console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Valkey`);
     }
     res.json(cachedData);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to fetch data' });
-  }
-});
-
-app.get('/api/search-autocomplete', rateLimit, async (req, res) => {
-  try {
-    const query = req.query.q?.toLowerCase().trim() || '';
-    if (!query || query.length < 2) {
-      return res.json({ success: true, suggestions: [] });
-    }
-
-    // Check cache first
-    const cacheKey = `autocomplete:${query}`;
-    const cachedSuggestions = await redisClient.get(cacheKey);
-    if (cachedSuggestions) {
-      console.log(`[${new Date().toISOString()}] Served /api/search-autocomplete from Valkey cache: ${query}`);
-      return res.json({ success: true, suggestions: JSON.parse(cachedSuggestions) });
-    }
-
-    // Fetch from Supabase
-    const { data: products, error } = await supabase
-      .from('products')
-      .select('name')
-      .ilike('name', `%${query}%`)
-      .limit(5);
-    if (error) throw error;
-
-    const suggestions = products.map(p => p.name);
-    // Cache for 5 minutes
-    await redisClient.set(cacheKey, JSON.stringify(suggestions), { EX: 300 });
-    console.log(`[${new Date().toISOString()}] Served /api/search-autocomplete from Supabase: ${query}`);
-
-    res.json({ success: true, suggestions });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error serving /api/search-autocomplete:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch suggestions' });
   }
 });
 
@@ -1123,24 +1051,17 @@ app.post('/api/login', rateLimit, async (req, res) => {
 
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
-  try {
-    const cachedStaticPages = await redisClient.get('cachedStaticPages');
-    let staticPages = cachedStaticPages ? JSON.parse(cachedStaticPages) : cachedData.staticPages;
-    let page = staticPages.find(p => p.slug === slug);
-    if (!page) {
-      if (slug === '/payment-modal') page = fallbackPaymentModal;
-      if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
-    }
-    if (!page) {
-      console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
-      return res.status(404).json({ success: false, error: 'Page not found' });
-    }
-    res.json({ success: true, page });
-    console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error serving /api/page/${slug}:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch page' });
+  let page = cachedData.staticPages.find(p => p.slug === slug);
+  if (!page) {
+    if (slug === '/payment-modal') page = fallbackPaymentModal;
+    if (slug === '/ref-code-modal') page = fallbackRefCodeModal;
   }
+  if (!page) {
+    console.log(`[${new Date().toISOString()}] Page not found: ${slug}`);
+    return res.status(404).json({ success: false, error: 'Page not found' });
+  }
+  res.json({ success: true, page }); // Serve raw content as loaded
+  console.log(`[${new Date().toISOString()}] Served page: ${slug}`);
 });
 
 app.get('/virus.html', (req, res) => {
@@ -1223,11 +1144,12 @@ app.get('/:slug', async (req, res) => {
 // Initialize server
 async function initialize() {
   await selfCheck();
-  await loadData(1, 9);
+  await loadData();
   await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
   setInterval(refreshCache, 15 * 60 * 1000);
 }
+
 initialize().catch(error => {
   console.error(`[${new Date().toISOString()}] Server initialization failed:`, error.message);
   process.exit(1);
