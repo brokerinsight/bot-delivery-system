@@ -76,6 +76,32 @@
     color: #6b7280;
   }
 
+  .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.0.1);
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 0.25rem;
+  }
+
+  .autocomplete-item {
+    padding: 0.75rem 1rem;
+    padding: cursor;
+    font-size: 0.875rem;
+    color: #374151;
+  }
+
+  .autocomplete-item:hover {
+    background: #f3f4f6;
+  }
+    
   #details-modal .modal-content {
     max-height: 90vh;
     overflow: hidden;
@@ -616,10 +642,11 @@
         </div>
         <div class="flex items-center space-x-4">
           <div class="hidden sm:block search-container">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24">
+              <svg class="path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
+            <span id="autocomplete-desktop" class="autocomplete-dropdown hidden"></div>
           </div>
           <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
@@ -652,21 +679,23 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
     <div class="search-container">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <path stroke-linecap="round" stroke-join-round="round" stroke-width="2" data="M21d345 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
-      <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
+      <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="text w-full p-3 rounded-md border">
+      <div id="autocomplete-mobile" class="autocomplete-dropdown hidden"></div>
     </div>
   </div>
-
+              
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-3xl font-bold text-gray-900 mb-8 text-center">Explore Our Bots</h2>
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       <div id="loading-message" class="col-span-full text-center text-gray-600">
-        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email&#160;protected]</span></a>.
+        Loading bots... If this takes too long, please refresh the page or contact support at <a href="/cdn-cgi/l/email-protection#5e353f2732373b6c6b6a703c2b2d37303b2d2d1e39333f3732703d3133" class="underline text-green-600"><span class="__cf_email__" data-cfemail="b8d3d9c1d4d1dd8a8d8c96dacdcbd1d6ddcbcbf8dfd5d9d1d496dbd7d5">[email protected]</span></a>.
       </div>
     </div>
-  </main>
-
+    <div id="pagination-controls" class="mt-8 flex justify-center space-x-2"></div>
+</main>
+  
   <footer class="bg-white shadow-inner mt-12 py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
       <p id="copyright-text" class="text-gray-600"></p>
@@ -860,9 +889,9 @@
       return exchangeRate;
     }
 
-    async function fetchData() {
+    async function fetchData(page = 1, limit = 9) {
       try {
-        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 15000);
+        const response = await fetchWithTimeout(`${BASE_URL}/api/data?page=${page}&limit=${limit}`, { credentials: 'include' }, 15000);
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}, StatusText: ${response.statusText}`);
         }
@@ -871,15 +900,16 @@
         categories = data.categories;
         settings = data.settings;
         staticPages = data.staticPages;
-        console.log('Data fetched successfully:', { products, categories, settings, staticPages });
-        return true;
+        const totalCount = data.totalCount || products.length;
+        console.log('Data fetched successfully:', { products, categories, settings, staticPages, totalCount });
+        return { success: true, totalCount };
       } catch (error) {
         console.error('Error fetching data:', error.message);
         document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>. (Error: ${error.message})`;
-        return false;
+        return { success: false, totalCount: 0 };
       }
     }
-
+    
     async function fetchModalContent() {
       const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
       const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
@@ -897,28 +927,33 @@
       }
     }
 
-    function renderNavLinks() {
-      const navLinks = document.getElementById('nav-links');
-      const mobileNavLinks = document.getElementById('mobile-nav-links');
-      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
-      categories.forEach(cat => {
-        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
-        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
-      });
+    function renderNavLinks(activeCategory = 'all') {
+  const navLinks = document.getElementById('nav-links');
+  const mobileNavLinks = document.getElementById('mobile-nav-links');
+  navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link ${activeCategory === 'all' ? 'border-b-2 border-green-500 text-green-600' : 'text-gray-600 hover:text-gray-900'} px-3 py-2 text-sm font-medium'>Home</a>`;
+  mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link ${activeCategory === 'all' ? 'text-green-600' : 'text-gray-600 hover:text-gray-800'} py-1 text-sm font-medium">Home</a>`;
+  categories.forEach(cat => {
+    navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link ${activeCategory === cat ? 'border-b-2 border-green-500 text-green-600' : 'text-gray-600 hover:text-gray-900'} px-3 py-2 text-sm font-medium">${cat}</a>`;
+    mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link ${activeCategory === cat ? 'text-green-600' : 'text-gray-600 hover:text-gray-800'} py-1 text-sm font-medium">${cat}</a>`;
+  });
 
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
-          e.preventDefault();
-          const category = link.dataset.category;
-          filterProducts(category);
-          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
-          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
-          document.getElementById('mobile-menu').classList.remove('open');
-        });
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      const category = link.dataset.category;
+      filterProducts(category);
+      document.querySelectorAll('.nav-link').forEach(l => {
+        l.classList.remove('border-b-2', 'border-green-500', 'text-green-600');
+        l.classList.add('text-gray-600');
       });
-    }
-
+      link.classList.add('border-b-2', 'border-green-500', 'px-3', 'py-2');
+      if (link.classList.contains('mobile-nav-link')) {
+        document.getElementById('mobile-menu').classList.remove('open');
+      }
+      document.getElementById('mobile-menu').classList.remove('open');
+    });
+  });
+}
     function formatDescription(desc) {
       const lines = desc.split('\n').filter(line => line.trim() !== '');
       let html = '';
@@ -949,15 +984,37 @@
       return html;
     }
 
-    async function renderProducts(category = 'all', search = '') {
+    function setupLazyLoading() {
+  const lazyImages = document.querySelectorAll('img.lazy-load[data-src]');
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        img.src = img.dataset.src;
+        img.classList.add('loaded');
+        img.removeAttribute('data-src');
+        obs.unobserve(img);
+      }
+    });
+  }, { rootMargin: '100px' });
+  lazyImages.forEach(img => observer.observe(img));
+}
+    
+    async function renderProducts(category = 'all', search = '', page = 1, limit = 9) {
   const grid = document.getElementById('product-grid');
   const loadingMessage = document.getElementById('loading-message');
+  const paginationControls = document.getElementById('pagination-controls');
   if (loadingMessage) {
     loadingMessage.classList.add('hidden');
   } else {
     console.warn('Loading message element not found.');
   }
   grid.innerHTML = '';
+  paginationControls.innerHTML = '';
+
+  const { success, totalCount } = await fetchData(page, limit);
+  if (!success) return;
+
   let filteredProducts = products;
   if (category !== 'all') {
     filteredProducts = products.filter(p => p.category === category);
@@ -971,7 +1028,6 @@
     return;
   }
   filteredProducts.forEach(product => {
-    // Convert HTML description to plain text for excerpt
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = product.desc;
     const plainText = tempDiv.textContent || tempDiv.innerText || '';
@@ -982,7 +1038,7 @@
     card.innerHTML = `
       <div class="relative">
         <div class="product-image-container">
-          <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover">
+          <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover lazy-load" loading="lazy">
         </div>
         ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
       </div>
@@ -997,6 +1053,28 @@
     grid.appendChild(card);
   });
 
+  const totalPages = Math.ceil(totalCount / limit);
+  if (totalPages > 1) {
+    const prevBtn = document.createElement('button');
+    prevBtn.className = `px-4 py-2 rounded-md ${page === 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`;
+    prevBtn.textContent = 'Previous';
+    prevBtn.disabled = page === 1;
+    prevBtn.addEventListener('click', () => {
+      if (page > 1) renderProducts(category, search, page - 1, limit);
+    });
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = `px-4 py-2 rounded-md ${page === totalPages ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`;
+    nextBtn.textContent = 'Next';
+    nextBtn.disabled = page === totalPages;
+    nextBtn.addEventListener('click', () => {
+      if (page < totalPages) renderProducts(category, search, page + 1, limit);
+    });
+
+    paginationControls.appendChild(prevBtn);
+    paginationControls.appendChild(nextBtn);
+  }
+
   document.querySelectorAll('.view-details').forEach(btn => {
     btn.addEventListener('click', async () => {
       const item = btn.dataset.item;
@@ -1008,21 +1086,18 @@
       document.getElementById('details-name').textContent = product.name;
       document.getElementById('details-item-name').textContent = product.item;
       
-      // Render description with Quill.js HTML structure
       const descContainer = document.getElementById('details-desc');
       let cleanedDesc = product.desc
-        .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
-        .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
-        .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
+        .replace(/<p>\s*<\/p>/g, '')
+        .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '')
+        .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
         .trim();
       
-      // Handle headers (h1, h2, h3) from Quill.js
       cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
                               .replace(/<\/h\d>/g, '</h$1>');
       
       descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
 
-      // Style Quill.js content for better alignment and readability
       const paragraphs = descContainer.querySelectorAll('p');
       paragraphs.forEach(p => {
         p.style.marginBottom = '1rem';
@@ -1040,7 +1115,7 @@
       lists.forEach(list => {
         list.style.marginBottom = '1rem';
         list.style.paddingLeft = '1.5rem';
-        list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
+        list.style.listStyleType = 'none';
       });
 
       const listItems = descContainer.querySelectorAll('li');
@@ -1050,12 +1125,10 @@
         if (indentLevel) {
           li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
         }
-        // Remove custom bullet if present, handled by Quill.js icons
         li.style.position = 'relative';
         li.style.paddingLeft = '1.5rem';
       });
 
-      // Style text formatting from Quill.js toolbar
       const boldText = descContainer.querySelectorAll('strong, b');
       boldText.forEach(b => {
         b.style.fontWeight = 'bold';
@@ -1071,7 +1144,6 @@
         u.style.textDecoration = 'underline';
       });
 
-      // Style links from Quill.js
       const links = descContainer.querySelectorAll('a');
       links.forEach(link => {
         link.style.color = 'blue';
@@ -1079,7 +1151,6 @@
         link.setAttribute('target', '_blank');
       });
 
-      // Style blockquotes
       const blockquotes = descContainer.querySelectorAll('blockquote');
       blockquotes.forEach(bq => {
         bq.style.borderLeft = '4px solid #ccc';
@@ -1088,7 +1159,6 @@
         bq.style.color = '#666';
       });
 
-      // Style inline code
       const codeElements = descContainer.querySelectorAll('code');
       codeElements.forEach(code => {
         code.style.backgroundColor = '#f4f4f4';
@@ -1097,7 +1167,6 @@
         code.style.fontFamily = 'monospace';
       });
 
-      // Handle images (if added via Quill.js)
       const images = descContainer.querySelectorAll('img');
       images.forEach(img => {
         img.style.maxWidth = '100%';
@@ -1154,6 +1223,7 @@
   });
 }
     
+    
     function debounce(func, wait) {
       let timeout;
       return function (...args) {
@@ -1162,6 +1232,81 @@
       };
     }
 
+function setupAutocomplete(searchBar, autocompleteId) {
+      const autocomplete = document.getElementById(autocompleteId);
+      searchBar.addEventListener('input', debounce(async () => {
+        const query = searchBar.value.trim().toLowerCase();
+        autocomplete.innerHTML = '';
+        if (query.length < 2) {
+          autocomplete.classList.add('hidden');
+          return;
+        }
+        try {
+          const response = await(fetchWithTimeout(`${BASE_URL}/api/search-autocomplete?q=${encodeURIComponent(query)}`, {}, 5000));
+          const { suggestions } = await response.json();
+          if (suggestions.length) {
+            autocomplete.innerHTML = suggestions.map(s => `<div class="autocomplete-item">${s}</div>`).join('');
+            autocomplete.classList.remove('hidden');
+            autocomplete.querySelectorAll('.autocomplete-item').forEach(item => {
+              item.addEventListener('click', () => {
+                searchBar.value = item.textContent;
+                autocomplete.classList.add('hidden');
+                const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+                renderProducts(category, searchBar.value, 1);
+              });
+              });
+          } else {
+            autocomplete.classList.add('hidden');
+          }
+        } catch (error) {
+          console.error('Error fetching autocomplete suggestions:', error.message);
+          autocomplete.classList.add('hidden');
+        }
+      });
+      document.addEventListener('click', e => {
+        if (!searchBar.contains(e.target) && !autocomplete.contains(e.target)) {
+          autocomplete.classList.add('hidden');
+        }
+      });
+    }
+    
+function setupAutocomplete(searchBar, autocompleteId) {
+      const autocomplete = document.getElementById(autocompleteId);
+      searchBar.addEventListener('input', debounce(async () => {
+        const query = searchBar.value.trim().toLowerCase();
+        autocomplete.innerHTML = '';
+        if (query.length < 2) {
+          autocomplete.classList.add('hidden');
+          return;
+        }
+        try {
+          const response = await(fetchWithTimeout(`${BASE_URL}/api/search-autocomplete?q=${encodeURIComponent(query)}`, {}, 5000));
+          const { suggestions } = await response.json();
+          if (suggestions.length) {
+            autocomplete.innerHTML = suggestions.map(s => `<div class="autocomplete-item">${s}</div>`).join('');
+            autocomplete.classList.remove('hidden');
+            autocomplete.querySelectorAll('.autocomplete-item').forEach(item => {
+              item.addEventListener('click', () => {
+                searchBar.value = item.textContent;
+                autocomplete.classList.add('hidden');
+                const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+                renderProducts(category, searchBar.value, 1);
+              });
+              });
+          } else {
+            autocomplete.classList.add('hidden');
+          }
+        } catch (error) {
+          console.error('Error fetching autocomplete suggestions:', error.message);
+          autocomplete.classList.add('hidden');
+        }
+      });
+      document.addEventListener('click', e => {
+        if (!searchBar.contains(e.target) && !autocomplete.contains(e.target)) {
+          autocomplete.classList.add('hidden');
+        }
+      });
+    }
     const debouncedFilterProducts = debounce((category) => {
       const search = document.getElementById('search-bar')?.value || document.getElementById('mobile-search-bar')?.value || '';
       renderProducts(category, search);
@@ -1965,15 +2110,17 @@
     }
 
     async function proceedWithInit() {
-      const success = await fetchData();
+      const { success } = await searchData(1, 9);
       if (success) {
-        renderNavLinks();
-        renderProducts();
+        renderNavLinks('all');
+        renderProducts('all', '', 1, 9);
         updateFooter();
         showUrgentMessage();
         checkPaymentCookie();
-        startPolling();
+        startPoll();
         await fetchModalContent();
+        setupAutocomplete(document.getElementById('search-bar'), 'autocomplete-desktop');
+        setupAutocomplete(document.getElementById('mobile-search-bar'), 'autocomplete-mobile');
       }
 
       document.getElementById('mobile-menu-button').onclick = () => {
@@ -1989,11 +2136,11 @@
         searchBar.addEventListener('input', debounce(() => {
           const search = searchBar.value;
           const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
-          renderProducts(category, search);
+          renderProducts(category, search, 1);
         }, 300));
       });
     }
-
+    
     async function init() {
       handleInAppBrowser();
     }
