@@ -203,11 +203,11 @@ const fallbackPaymentModal = {
     <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
     <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
     <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+    <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
     <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
     <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   `
 };
-
 const fallbackRefCodeModal = {
   title: 'Ref Code Modal',
   slug: '/ref-code-modal',
