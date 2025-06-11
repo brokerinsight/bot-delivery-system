@@ -749,25 +749,25 @@
   </div>
 
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 w-full max-w-md">
-      <div id="countdown-timer" class="mb-4">
-        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
-        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
-        </div>
+  <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <div id="countdown-timer" class="mb-4">
+      <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
+      <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
       </div>
-      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-      <div class="flex items-center space-x-2">
-        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
-      </div>
-      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
     </div>
+    <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+    <div class="flex items-center space-x-2">
+      <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+      <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+    </div>
+    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+    <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
+    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   </div>
-
+</div>
   <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
