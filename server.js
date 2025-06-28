@@ -10,6 +10,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const { v4: uuidv4 } = require('uuid');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js'); // Renamed
 const bcrypt = require('bcrypt');
 const RedisStore = require('connect-redis').default;
@@ -179,6 +180,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Cache for data
+// Cache for data
 let cachedData = {
   products: [],
   categories: [],
@@ -189,7 +191,10 @@ let cachedData = {
     socials: {},
     urgentMessage: { enabled: false, text: '' },
     fallbackRate: 130,
-    mpesaTill: '4933614'
+    mpesaTill: '4933614',
+    payheroChannelId: process.env.PAYHERO_CHANNEL_ID || '2332', // Pay Hero channel ID
+    payheroPaymentUrl: process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/2003', // Pay Hero Lipwa link
+    payheroAuthToken: process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg==', // Pay Hero Basic Auth Token
   },
   staticPages: []
 };
@@ -223,7 +228,7 @@ const fallbackRefCodeModal = {
 // Load data from Supabase with updated product sorting
 async function loadData() {
   try {
-    // Fetch products with sorting: is_new = true first, then by created_at DESC, with item as tiebreaker
+    // Fetch products with sorting
     const productRes = await supabase
       .from('products')
       .select('*')
@@ -237,7 +242,7 @@ async function loadData() {
       originalFileName: row.original_file_name,
       price: parseFloat(row.price),
       name: row.name,
-      desc: row.description || '', // Store as raw HTML
+      desc: row.description || '',
       img: row.image || 'https://via.placeholder.com/300',
       category: row.category || 'General',
       embed: row.embed || '',
@@ -252,11 +257,14 @@ async function loadData() {
       copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
       logoUrl: settingsData.logoUrl || '',
       socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
-      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' }, // JSON object
+      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
       fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
       adminEmail: settingsData.adminEmail || '',
       adminPassword: settingsData.adminPassword || '',
-      mpesaTill: settingsData.mpesaTill || '4933614'
+      mpesaTill: settingsData.mpesaTill || '4933614',
+      payheroChannelId: settingsData.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '911',
+      payheroPaymentUrl: settingsData.payheroPaymentUrl || process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5',
+      payheroAuthToken: settingsData.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || ''
     };
 
     const categoriesRes = await supabase.from('categories').select('name');
@@ -267,7 +275,7 @@ async function loadData() {
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content // Store as raw HTML
+      content: row.content
     })) || [];
 
     if (!staticPages.find(page => page.slug === '/payment-modal')) {
@@ -280,7 +288,6 @@ async function loadData() {
     }
 
     cachedData = { products, categories, settings, staticPages };
-    // Cache in Valkey with a 15-minute TTL (900 seconds)
     await redisClient.set('cachedData', JSON.stringify(cachedData), { EX: 900 });
     console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Valkey`);
     console.log(`[${new Date().toISOString()}] Loaded static pages:`, staticPages.map(p => p.slug));
@@ -316,22 +323,19 @@ async function saveData() {
     if (fetchError) throw fetchError;
 
     // Map incoming products, merging with existing data
-    const updatedProducts = cachedData.products.map(p => {
-      const existing = existingProducts.find(ep => ep.item === p.item);
-      return {
-        item: p.item,
-        file_id: existing?.file_id || p.fileId,
-        original_file_name: existing?.original_file_name || p.originalFileName,
-        price: p.price,
-        name: p.name,
-        description: p.desc, // Save as raw HTML
-        image: p.img,
-        category: p.category,
-        embed: p.embed,
-        is_new: p.isNew,
-        is_archived: p.isArchived
-      };
-    });
+    const updatedProducts = cachedData.products.map(p => ({
+      item: p.item,
+      file_id: existing?.file_id || p.fileId,
+      original_file_name: existing?.original_file_name || p.originalFileName,
+      price: p.price,
+      name: p.name,
+      description: p.desc,
+      image: p.img,
+      category: p.category,
+      embed: p.embed,
+      is_new: p.isNew,
+      is_archived: p.isArchived
+    }));
 
     // Update or insert products
     for (const product of updatedProducts) {
@@ -353,7 +357,7 @@ async function saveData() {
     await supabase.from('settings').insert(
       Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
-        value: typeof value === 'object' ? JSON.stringify(value) : value // Stringify urgentMessage
+        value: typeof value === 'object' ? JSON.stringify(value) : value
       }))
     );
 
@@ -365,14 +369,14 @@ async function saveData() {
       );
     }
 
-    // Save static pages, keeping content as raw
+    // Save static pages
     await supabase.from('static_pages').delete().neq('slug', null);
     if (cachedData.staticPages.length > 0) {
       await supabase.from('static_pages').insert(cachedData.staticPages);
     }
 
     console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
-    await loadData(); // Reload cache
+    await loadData();
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
     throw error;
@@ -524,9 +528,9 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
         ...p,
         fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
         originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName,
-        desc: p.desc // Save as raw HTML
+        desc: p.desc
       })),
-      staticPages: req.body.staticPages // Save as raw
+      staticPages: req.body.staticPages
     };
 
     // Log the categories being processed
@@ -560,13 +564,11 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     }
 
     // Handle admin password update
-    const incomingPassword = req.body.settings?.adminPassword; // Plain text password from the admin panel
+    const incomingPassword = req.body.settings?.adminPassword;
     if (incomingPassword && incomingPassword.trim() !== '') {
-      // Hash the new password if provided and not empty
       const saltRounds = 10;
       cachedData.settings.adminPassword = await bcrypt.hash(incomingPassword, saltRounds);
     } else if (!incomingPassword) {
-      // Retain the existing hash if no new password is provided
       cachedData.settings.adminPassword = cachedData.settings.adminPassword || '';
     }
 
@@ -576,6 +578,11 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     } else if (!cachedData.settings.urgentMessage) {
       cachedData.settings.urgentMessage = { enabled: false, text: '' };
     }
+
+    // Ensure Pay Hero settings are preserved
+    cachedData.settings.payheroChannelId = req.body.settings.payheroChannelId || cachedData.settings.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '911';
+    cachedData.settings.payheroPaymentUrl = req.body.settings.payheroPaymentUrl || cachedData.settings.payheroPaymentUrl || process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5';
+    cachedData.settings.payheroAuthToken = req.body.settings.payheroAuthToken || cachedData.settings.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || '';
 
     await saveData();
     res.json({ success: true });
@@ -718,7 +725,7 @@ async function sendOrderNotification(item, refCode, amount) {
 
 app.post('/api/submit-ref', rateLimit, async (req, res) => {
   try {
-    const { item, refCode, amount, timestamp } = req.body;
+    const { item, refCode, amount, timestamp, paymentMethod } = req.body;
     const { data: product, error: productError } = await supabase
       .from('products')
       .select('*')
@@ -743,10 +750,18 @@ app.post('/api/submit-ref', rateLimit, async (req, res) => {
 
     const { error: insertError } = await supabase
       .from('orders')
-      .insert({ item, ref_code: refCode, amount, timestamp, status: 'pending', downloaded: false });
+      .insert({ 
+        item, 
+        ref_code: refCode, 
+        amount, 
+        timestamp, 
+        status: 'pending', 
+        downloaded: false,
+        payment_method: paymentMethod || 'mpesa_till' // Add payment_method
+      });
     if (insertError) throw insertError;
 
-    console.log(`[${new Date().toISOString()}] Order saved for item: ${item}, refCode: ${refCode}`);
+    console.log(`[${new Date().toISOString()}] Order saved for item: ${item}, refCode: ${refCode}, paymentMethod: ${paymentMethod || 'mpesa_till'}`);
     res.json({ success: true });
 
     Promise.resolve(sendOrderNotification(item, refCode, amount)).catch(err => {
@@ -771,7 +786,8 @@ app.get('/api/orders', isAuthenticated, async (req, res) => {
         amount: row.amount,
         timestamp: row.timestamp,
         status: row.status,
-        downloaded: row.downloaded
+        downloaded: row.downloaded,
+        paymentMethod: row.payment_method // Add payment_method
       }))
     });
     console.log(`[${new Date().toISOString()}] Orders fetched successfully, count: ${orders.length}`);
@@ -979,29 +995,24 @@ app.get('/download/:fileId', async (req, res) => {
     const buffer = await fileData.arrayBuffer();
     const mimeType = fileData.type || 'application/octet-stream';
 
-    // Extract the original file name from the file_id
-    // file_id format: "<timestamp>_<random>_botfile.zip"
+    // Extract the original file name
     const fileIdParts = fileId.split('_');
     let finalFileName;
     if (fileIdParts.length >= 3) {
-      // New format: <timestamp>_<random>_botfile.zip
-      finalFileName = fileIdParts.slice(2).join('_'); // Rejoin parts after the second underscore
+      finalFileName = fileIdParts.slice(2).join('_');
     } else {
-      // Old format: file_<timestamp>_<random> (or other unexpected formats)
       finalFileName = `${item}.bin`;
       console.warn(`[${new Date().toISOString()}] Old or invalid file_id format detected for ${fileId}, using fallback name: ${finalFileName}`);
     }
 
-    // Encode the file name for the Content-Disposition header
     const encodedFileName = encodeURIComponent(finalFileName);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFileName}`);
     res.setHeader('Content-Type', mimeType);
 
-    // Send the file
     res.send(Buffer.from(buffer));
     console.log(`[${new Date().toISOString()}] File download completed: ${fileId} as ${finalFileName}`);
 
-    // Mark the order as downloaded after successful download
+    // Mark the order as downloaded
     await supabase
       .from('orders')
       .update({ downloaded: true })
@@ -1046,6 +1057,119 @@ app.post('/api/login', rateLimit, async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error during login:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to login' });
+  }
+});
+
+app.post('/api/initiate-payhero', rateLimit, async (req, res) => {
+  try {
+    const { item, amount, phone, customerName } = req.body;
+    const refCode = uuidv4(); // Generate unique reference code
+
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('item', item)
+      .single();
+    if (productError || !product) {
+      console.log(`[${new Date().toISOString()}] Product not found: ${item}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    if (parseFloat(amount) !== parseFloat(product.price)) {
+      console.log(`[${new Date().toISOString()}] Price tampering detected for item ${item}: received ${amount}, expected ${product.price}`);
+      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    }
+
+    // Insert order with payment_method 'payhero'
+    const { error: insertError } = await supabase
+      .from('orders')
+      .insert({
+        item,
+        ref_code: refCode,
+        amount,
+        timestamp: new Date().toISOString(),
+        status: 'pending',
+        downloaded: false,
+        payment_method: 'payhero'
+      });
+    if (insertError) throw insertError;
+
+    // Prepare Pay Hero STK Push request
+    const callbackUrl = `${getBaseUrl(req)}/api/payhero-callback`;
+    const response = await fetch('https://backend.payhero.co.ke/api/v2/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': cachedData.settings.payheroAuthToken
+      },
+      body: JSON.stringify({
+        amount: parseInt(amount),
+        phone_number: phone.startsWith('+') ? phone : `+${phone}`,
+        channel_id: parseInt(cachedData.settings.payheroChannelId),
+        provider: 'sasapay',
+        network_code: '63902',
+        external_reference: refCode,
+        customer_name: customerName || 'Customer',
+        callback_url: callbackUrl
+      })
+    });
+
+    const payheroResponse = await response.json();
+    if (!payheroResponse.success || payheroResponse.status !== 'QUEUED') {
+      console.log(`[${new Date().toISOString()}] Pay Hero STK Push failed for item: ${item}, refCode: ${refCode}`);
+      // Delete the order if payment initiation fails
+      await supabase.from('orders').delete().eq('item', item).eq('ref_code', refCode);
+      return res.status(500).json({ success: false, error: 'Failed to initiate payment' });
+    }
+
+    console.log(`[${new Date().toISOString()}] Pay Hero STK Push initiated for item: ${item}, refCode: ${refCode}`);
+    res.json({ success: true, refCode });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error initiating Pay Hero payment:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to initiate payment' });
+  }
+});
+
+app.post('/api/payhero-callback', async (req, res) => {
+  try {
+    const { response, status } = req.body;
+    if (!status || !response || response.ResultCode !== 0 || response.Status !== 'Success') {
+      console.log(`[${new Date().toISOString()}] Pay Hero callback failed:`, JSON.stringify(req.body));
+      return res.status(400).json({ success: false, error: 'Invalid callback data' });
+    }
+
+    const { ExternalReference: refCode, Amount: amount, CheckoutRequestID, MpesaReceiptNumber } = response;
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('ref_code', refCode)
+      .eq('payment_method', 'payhero')
+      .single();
+    if (orderError || !order) {
+      console.log(`[${new Date().toISOString()}] Order not found for refCode: ${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    if (parseFloat(order.amount) !== parseFloat(amount)) {
+      console.log(`[${new Date().toISOString()}] Amount mismatch for refCode: ${refCode}, expected: ${order.amount}, received: ${amount}`);
+      return res.status(400).json({ success: false, error: 'Amount mismatch' });
+    }
+
+    // Update order status to confirmed
+    await supabase
+      .from('orders')
+      .update({ status: 'confirmed' })
+      .eq('ref_code', refCode)
+      .eq('item', order.item);
+
+    // Send notification email
+    await sendOrderNotification(order.item, refCode, amount);
+    console.log(`[${new Date().toISOString()}] Pay Hero order confirmed for refCode: ${refCode}, item: ${order.item}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in Pay Hero callback:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to process callback' });
   }
 });
 
