@@ -443,6 +443,21 @@
           <button id="save-fallback-rate" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Rate</button>
         </div>
         <div>
+          <div class="mb-6">
+  <label for="payhero-channel-id" class="block text-sm font-medium text-gray-700">Pay Hero Channel ID</label>
+  <input type="text" id="payhero-channel-id" class="mt-1 w-full p-2 border rounded-md">
+  <button id="save-payhero-channel-id" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Channel ID</button>
+</div>
+<div class="mb-6">
+  <label for="payhero-payment-url" class="block text-sm font-medium text-gray-700">Pay Hero Payment URL</label>
+  <input type="url" id="payhero-payment-url" class="mt-1 w-full p-2 border rounded-md">
+  <button id="save-payhero-payment-url" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Payment URL</button>
+</div>
+<div class="mb-6">
+  <label for="payhero-auth-token" class="block text-sm font-medium text-gray-700">Pay Hero Auth Token</label>
+  <input type="text" id="payhero-auth-token" class="mt-1 w-full p-2 border rounded-md">
+  <button id="save-payhero-auth-token" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Auth Token</button>
+</div>
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Change Admin Credentials</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -496,19 +511,21 @@
       <!-- Orders Section -->
       <section id="orders" class="section bg-white rounded-lg shadow-md p-6 hidden">
         <h2 class="text-xl font-semibold text-gray-900 mb-4">Manage Orders</h2>
-        <table id="orders-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Ref Code</th>
-              <th>Amount</th>
-              <th>Timestamp</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="order-list"></tbody>
-        </table>
+        <table id="orders-table" class="w-full border-collapse">
+  <thead>
+    <tr>
+      <th class="border p-2">Item</th>
+      <th class="border p-2">Ref Code</th>
+      <th class="border p-2">Amount</th>
+      <th class="border p-2">Timestamp</th>
+      <th class="border p-2">Status</th>
+      <th class="border p-2">Downloaded</th>
+      <th class="border p-2">Payment Method</th>
+      <th class="border p-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="order-list"></tbody>
+</table>
       </section>
     </main>
 
@@ -581,7 +598,17 @@
     }, duration);
   }
 
-  let data = { products: [], categories: [], settings: { urgentMessage: { enabled: false, text: '' } }, staticPages: [] };
+  let data = {
+    products: [],
+    categories: [],
+    settings: {
+      urgentMessage: { enabled: false, text: '' },
+      payheroChannelId: '',
+      payheroPaymentUrl: '',
+      payheroAuthToken: ''
+    },
+    staticPages: []
+  };
   let orders = [];
 
   // Fetch data from server
@@ -642,12 +669,14 @@
     orders.forEach(order => {
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>${order.item}</td>
-        <td>${order.refCode}</td>
-        <td>${order.amount}</td>
-        <td>${new Date(order.timestamp).toLocaleString()}</td>
-        <td>${order.status || 'pending'}</td>
-        <td>
+        <td class="border p-2">${order.item}</td>
+        <td class="border p-2">${order.refCode}</td>
+        <td class="border p-2">${order.amount}</td>
+        <td class="border p-2">${new Date(order.timestamp).toLocaleString()}</td>
+        <td class="border p-2">${order.status || 'pending'}</td>
+        <td class="border p-2">${order.downloaded ? 'Yes' : 'No'}</td>
+        <td class="border p-2">${order.paymentMethod || 'mpesa_till'}</td>
+        <td class="border p-2">
           <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
             <option value="" selected disabled>Update Status</option>
             <option value="confirmed">Confirmed</option>
@@ -778,7 +807,7 @@
     formData.append('item', document.getElementById('item').value.trim());
     formData.append('name', document.getElementById('name').value.trim());
     formData.append('price', document.getElementById('price').value);
-    formData.append('desc', document.getElementById('desc').value); // No trim, as it's HTML
+    formData.append('desc', document.getElementById('desc').value);
     formData.append('embed', document.getElementById('embed').value.trim());
     formData.append('category', document.getElementById('category').value);
     formData.append('img', document.getElementById('img').value.trim());
@@ -855,7 +884,7 @@
           return;
         }
         document.getElementById('edit-item').value = product.item;
-        document.getElementById('edit-item').dataset.originalItem = product.item; // Store original item number
+        document.getElementById('edit-item').dataset.originalItem = product.item;
         document.getElementById('edit-name').value = product.name;
         document.getElementById('edit-price').value = product.price;
         window.editDescQuill.root.innerHTML = product.desc || '<p></p>';
@@ -917,7 +946,6 @@
     const originalItem = document.getElementById('edit-item').dataset.originalItem;
     const newItem = document.getElementById('edit-item').value.trim();
 
-    // Check if new item number already exists (excluding the current bot being edited)
     if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
       alert('This item number already exists. Please use a unique item number.');
       return;
@@ -929,13 +957,12 @@
       return;
     }
 
-    // Update the bot data
     data.products[productIndex] = {
       ...data.products[productIndex],
       item: newItem,
       name: document.getElementById('edit-name').value.trim(),
       price: parseFloat(document.getElementById('edit-price').value),
-      desc: document.getElementById('edit-desc').value, // No trim, as it's HTML
+      desc: document.getElementById('edit-desc').value,
       embed: document.getElementById('edit-embed').value.trim(),
       category: document.getElementById('edit-category').value,
       img: document.getElementById('edit-img').value.trim(),
@@ -957,122 +984,117 @@
     closeEditModal();
   });
 
-   function initializeQuillEditors() {
-  if (typeof Quill === 'undefined') {
-    console.error('Quill library is not loaded. Please check the Quill script inclusion.');
-    return;
-  }
-
-  // Remove any stray <textarea> elements that might have the same IDs
-  const idsToClean = ['desc', 'edit-desc', 'urgent-message', 'page-content'];
-  idsToClean.forEach(id => {
-    const textarea = document.querySelector(`textarea[id="${id}"]`);
-    if (textarea) {
-      console.warn(`Found stray <textarea> with id "${id}". Removing it.`);
-      textarea.remove();
+  function initializeQuillEditors() {
+    if (typeof Quill === 'undefined') {
+      console.error('Quill library is not loaded. Please check the Quill script inclusion.');
+      return;
     }
-  });
 
-  // Initialize Quill for Add Bot Description
-  if (document.getElementById('desc-editor')) {
-    setTimeout(() => {
-      const descQuill = new Quill('#desc-editor', {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            ['link', 'image'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-          ]
-        },
-        placeholder: 'Enter bot description...',
-      });
-      descQuill.on('text-change', () => {
-        document.getElementById('desc').value = descQuill.root.innerHTML;
-      });
-    }, 100); // Delay to ensure DOM is ready
-  } else {
-    console.warn('Element #desc-editor not found in DOM.');
+    const idsToClean = ['desc', 'edit-desc', 'urgent-message', 'page-content'];
+    idsToClean.forEach(id => {
+      const textarea = document.querySelector(`textarea[id="${id}"]`);
+      if (textarea) {
+        console.warn(`Found stray <textarea> with id "${id}". Removing it.`);
+        textarea.remove();
+      }
+    });
+
+    if (document.getElementById('desc-editor')) {
+      setTimeout(() => {
+        const descQuill = new Quill('#desc-editor', {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline'],
+              ['link', 'image'],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['clean']
+            ]
+          },
+          placeholder: 'Enter bot description...',
+        });
+        descQuill.on('text-change', () => {
+          document.getElementById('desc').value = descQuill.root.innerHTML;
+        });
+      }, 100);
+    } else {
+      console.warn('Element #desc-editor not found in DOM.');
+    }
+
+    if (document.getElementById('edit-desc-editor')) {
+      setTimeout(() => {
+        const editDescQuill = new Quill('#edit-desc-editor', {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline'],
+              ['link', 'image'],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['clean']
+            ]
+          },
+          placeholder: 'Enter bot description...',
+        });
+        editDescQuill.on('text-change', () => {
+          document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
+        });
+        window.editDescQuill = editDescQuill;
+      }, 100);
+    } else {
+      console.warn('Element #edit-desc-editor not found in DOM.');
+    }
+
+    if (document.getElementById('urgent-message-editor')) {
+      setTimeout(() => {
+        const urgentQuill = new Quill('#urgent-message-editor', {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline'],
+              ['link'],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['clean']
+            ]
+          },
+          placeholder: 'Enter urgent message...',
+        });
+        urgentQuill.on('text-change', () => {
+          document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
+        });
+        window.urgentQuill = urgentQuill;
+      }, 100);
+    } else {
+      console.warn('Element #urgent-message-editor not found in DOM.');
+    }
+
+    if (document.getElementById('page-content-editor')) {
+      setTimeout(() => {
+        const pageContentQuill = new Quill('#page-content-editor', {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline'],
+              ['link', 'image'],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['clean']
+            ]
+          },
+          placeholder: 'Enter page content (Markdown or HTML)...',
+        });
+        pageContentQuill.on('text-change', () => {
+          document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
+        });
+        window.pageContentQuill = pageContentQuill;
+      }, 100);
+    } else {
+      console.warn('Element #page-content-editor not found in DOM.');
+    }
   }
 
-  // Initialize Quill for Edit Bot Description
-  if (document.getElementById('edit-desc-editor')) {
-    setTimeout(() => {
-      const editDescQuill = new Quill('#edit-desc-editor', {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            ['link', 'image'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-          ]
-        },
-        placeholder: 'Enter bot description...',
-      });
-      editDescQuill.on('text-change', () => {
-        document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
-      });
-      window.editDescQuill = editDescQuill;
-    }, 100);
-  } else {
-    console.warn('Element #edit-desc-editor not found in DOM.');
-  }
-
-  // Initialize Quill for Urgent Message
-  if (document.getElementById('urgent-message-editor')) {
-    setTimeout(() => {
-      const urgentQuill = new Quill('#urgent-message-editor', {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            ['link'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-          ]
-        },
-        placeholder: 'Enter urgent message...',
-      });
-      urgentQuill.on('text-change', () => {
-        document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
-      });
-      window.urgentQuill = urgentQuill;
-    }, 100);
-  } else {
-    console.warn('Element #urgent-message-editor not found in DOM.');
-  }
-
-  // Initialize Quill for Static Page Content
-  if (document.getElementById('page-content-editor')) {
-    setTimeout(() => {
-      const pageContentQuill = new Quill('#page-content-editor', {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            ['link', 'image'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-          ]
-        },
-        placeholder: 'Enter page content (Markdown or HTML)...',
-      });
-      pageContentQuill.on('text-change', () => {
-        document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
-      });
-      window.pageContentQuill = pageContentQuill;
-    }, 100);
-  } else {
-    console.warn('Element #page-content-editor not found in DOM.');
-  }
-} 
-    
   // Categories
   function renderCategories() {
     const categoryList = document.getElementById('category-list');
@@ -1125,31 +1147,31 @@
     }
   });
 
-  // Settings - Urgent Message Fix
+  // Settings - Urgent Message
   const urgentToggle = document.getElementById('urgent-toggle');
   const urgentMessage = document.getElementById('urgent-message');
 
   function initializeUrgentMessage() {
-  if (!urgentToggle || !window.urgentQuill) {
-    console.error('Urgent message elements or Quill editor not found');
-    return;
+    if (!urgentToggle || !window.urgentQuill) {
+      console.error('Urgent message elements or Quill editor not found');
+      return;
+    }
+    urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+    window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
+    window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
   }
-  urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
-  window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
-  window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
-}
 
   urgentToggle.addEventListener('change', () => {
-  if (!window.urgentQuill) {
-    console.error('Urgent message Quill editor not found');
-    return;
-  }
-  window.urgentQuill.enable(urgentToggle.checked);
-  if (urgentToggle.checked) {
-    window.urgentQuill.focus();
-  }
-});
-    
+    if (!window.urgentQuill) {
+      console.error('Urgent message Quill editor not found');
+      return;
+    }
+    window.urgentQuill.enable(urgentToggle.checked);
+    if (urgentToggle.checked) {
+      window.urgentQuill.focus();
+    }
+  });
+
   document.getElementById('save-urgent').addEventListener('click', async () => {
     const btn = document.getElementById('save-urgent');
     if (!urgentToggle || !urgentMessage) {
@@ -1200,6 +1222,30 @@
     alert('MPESA Till Number saved!');
   });
 
+  document.getElementById('save-payhero-channel-id').addEventListener('click', async () => {
+    const btn = document.getElementById('save-payhero-channel-id');
+    showButtonFeedback(btn, 'Saving...', 'Save Channel ID');
+    data.settings.payheroChannelId = document.getElementById('payhero-channel-id').value.trim();
+    await saveData();
+    alert('Pay Hero Channel ID saved!');
+  });
+
+  document.getElementById('save-payhero-payment-url').addEventListener('click', async () => {
+    const btn = document.getElementById('save-payhero-payment-url');
+    showButtonFeedback(btn, 'Saving...', 'Save Payment URL');
+    data.settings.payheroPaymentUrl = document.getElementById('payhero-payment-url').value.trim();
+    await saveData();
+    alert('Pay Hero Payment URL saved!');
+  });
+
+  document.getElementById('save-payhero-auth-token').addEventListener('click', async () => {
+    const btn = document.getElementById('save-payhero-auth-token');
+    showButtonFeedback(btn, 'Saving...', 'Save Auth Token');
+    data.settings.payheroAuthToken = document.getElementById('payhero-auth-token').value.trim();
+    await saveData();
+    alert('Pay Hero Auth Token saved!');
+  });
+
   document.getElementById('save-socials').addEventListener('click', async () => {
     const btn = document.getElementById('save-socials');
     showButtonFeedback(btn, 'Saving...', 'Save Socials');
@@ -1225,169 +1271,168 @@
   });
 
   document.getElementById('change-credentials').addEventListener('click', async () => {
-  const btn = document.getElementById('change-credentials');
-  showButtonFeedback(btn, 'Saving...', 'Change Credentials');
-  const newEmail = document.getElementById('new-email').value.trim();
-  const newPassword = document.getElementById('new-password').value.trim();
-  const confirmPassword = document.getElementById('confirm-password').value.trim();
-  if (newPassword !== confirmPassword) {
-    alert('Passwords do not match!');
-    return;
-  }
-  if (newEmail) data.settings.adminEmail = newEmail;
-  if (newPassword) data.settings.adminPassword = newPassword;
-  const saveSuccess = await saveData();
-  if (!saveSuccess) {
-    alert('Failed to update credentials. Please try again.');
-    return;
-  }
+    const btn = document.getElementById('change-credentials');
+    showButtonFeedback(btn, 'Saving...', 'Change Credentials');
+    const newEmail = document.getElementById('new-email').value.trim();
+    const newPassword = document.getElementById('new-password').value.trim();
+    const confirmPassword = document.getElementById('confirm-password').value.trim();
+    if (newPassword !== confirmPassword) {
+      alert('Passwords do not match!');
+      return;
+    }
+    if (newEmail) data.settings.adminEmail = newEmail;
+    if (newPassword) data.settings.adminPassword = newPassword;
+    const saveSuccess = await saveData();
+    if (!saveSuccess) {
+      alert('Failed to update credentials. Please try again.');
+      return;
+    }
 
-  // Destroy the session cookie by calling the logout endpoint
-  try {
-    const response = await fetch('/api/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    const result = await response.json();
-    if (!result.success) {
-      console.error('Failed to destroy session cookie:', result.error);
+    try {
+      const response = await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (!result.success) {
+        console.error('Failed to destroy session cookie:', result.error);
+        alert('Credentials updated, but failed to log out. Please log in again manually.');
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
       alert('Credentials updated, but failed to log out. Please log in again manually.');
     }
-  } catch (error) {
-    console.error('Error during logout:', error);
-    alert('Credentials updated, but failed to log out. Please log in again manually.');
-  }
 
-  alert('Credentials updated! Please login again.');
-  document.getElementById('admin-panel').classList.add('hidden');
-  document.getElementById('login-page').classList.remove('hidden');
-});
-    
+    alert('Credentials updated! Please login again.');
+    document.getElementById('admin-panel').classList.add('hidden');
+    document.getElementById('login-page').classList.remove('hidden');
+  });
+
   // Static Pages
   function renderPages() {
-  const pageList = document.getElementById('page-list');
-  pageList.innerHTML = '';
-  data.staticPages.forEach(page => {
-    const li = document.createElement('li');
-    li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
-    li.innerHTML = `
-      <div>
-        <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
-        <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
-      </div>
-      <div class="space-x-2">
-        <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
-        <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
-      </div>
-    `;
-    pageList.appendChild(li);
-  });
+    const pageList = document.getElementById('page-list');
+    pageList.innerHTML = '';
+    data.staticPages.forEach(page => {
+      const li = document.createElement('li');
+      li.className = 'bg-gray-50 p-4 rounded-md flex justify-between items-center';
+      li.innerHTML = `
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">${page.title}</h3>
+          <p class="text-sm text-gray-600">Slug: ${page.slug}</p>
+        </div>
+        <div class="space-x-2">
+          <button class="edit-page bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700" data-slug="${page.slug}">Edit</button>
+          <button class="delete-page bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700" data-slug="${page.slug}">Delete</button>
+        </div>
+      `;
+      pageList.appendChild(li);
+    });
 
-  document.querySelectorAll('.edit-page').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const slug = btn.dataset.slug;
-      const page = data.staticPages.find(p => p.slug === slug);
-      if (!page) {
-        alert('Page not found. Please refresh and try again.');
+    document.querySelectorAll('.edit-page').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slug = btn.dataset.slug;
+        const page = data.staticPages.find(p => p.slug === slug);
+        if (!page) {
+          alert('Page not found. Please refresh and try again.');
+          return;
+        }
+        document.getElementById('page-title').value = page.title;
+        document.getElementById('page-slug').value = page.slug;
+        window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
+        document.getElementById('add-page').textContent = 'Save Changes';
+        document.getElementById('add-page').dataset.editSlug = slug;
+        document.getElementById('page-slug').dataset.originalSlug = slug;
+        document.getElementById('cancel-page-edit').classList.remove('hidden');
+      });
+    });
+
+    document.querySelectorAll('.delete-page').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete this page?')) {
+          showButtonFeedback(btn, 'Deleting...', 'Delete');
+          const slug = btn.dataset.slug;
+          data.staticPages = data.staticPages.filter(p => p.slug !== slug);
+          await saveData();
+          renderPages();
+          resetPageForm();
+          alert('Page deleted successfully!');
+        }
+      });
+    });
+  }
+
+  function resetPageForm() {
+    document.getElementById('page-title').value = '';
+    document.getElementById('page-slug').value = '';
+    document.getElementById('page-content').value = '';
+    window.pageContentQuill.root.innerHTML = '<p></p>';
+    const addPageBtn = document.getElementById('add-page');
+    addPageBtn.textContent = 'Add Page';
+    delete addPageBtn.dataset.editSlug;
+    delete document.getElementById('page-slug').dataset.originalSlug;
+    document.getElementById('cancel-page-edit').classList.add('hidden');
+  }
+
+  document.getElementById('add-page').addEventListener('click', async function() {
+    const btn = this;
+    const pageTitle = document.getElementById('page-title').value.trim();
+    const pageSlug = document.getElementById('page-slug').value.trim();
+    const pageContent = document.getElementById('page-content').value;
+
+    if (!pageTitle || !pageSlug || !pageContent) {
+      alert('Please fill in all fields.');
+      return;
+    }
+
+    const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
+
+    if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
+      if (data.staticPages.some(page => page.slug === pageSlug)) {
+        alert('A page with this slug already exists. Please use a different slug.');
         return;
       }
-      document.getElementById('page-title').value = page.title;
-      document.getElementById('page-slug').value = page.slug;
-      window.pageContentQuill.root.innerHTML = page.content || '<p></p>';
-      document.getElementById('add-page').textContent = 'Save Changes';
-      document.getElementById('add-page').dataset.editSlug = slug;
-      document.getElementById('page-slug').dataset.originalSlug = slug;
-      document.getElementById('cancel-page-edit').classList.remove('hidden'); // Show Cancel button
-    });
-  });
+    }
 
-  document.querySelectorAll('.delete-page').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('Are you sure you want to delete this page?')) {
-        showButtonFeedback(btn, 'Deleting...', 'Delete');
-        const slug = btn.dataset.slug;
-        data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-        await saveData();
+    if (btn.dataset.editSlug) {
+      showButtonFeedback(btn, 'Saving...', 'Save Changes');
+      data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug);
+      data.staticPages.push({
+        title: pageTitle,
+        slug: pageSlug,
+        content: pageContent
+      });
+      const success = await saveData();
+      if (success) {
         renderPages();
-        resetPageForm(); // Reset form after deletion
-        alert('Page deleted successfully!');
+        resetPageForm();
+        alert('Page updated successfully!');
+      } else {
+        alert('Failed to update page. Please try again.');
+        return;
       }
-    });
+    } else {
+      showButtonFeedback(btn, 'Adding...', 'Add Page');
+      data.staticPages.push({
+        title: pageTitle,
+        slug: pageSlug,
+        content: pageContent
+      });
+      const success = await saveData();
+      if (success) {
+        renderPages();
+        resetPageForm();
+        alert('Page added successfully!');
+      } else {
+        alert('Failed to add page. Please try again.');
+        return;
+      }
+    }
   });
-}
 
-  // Reset the page form state
-function resetPageForm() {
-  document.getElementById('page-title').value = '';
-  document.getElementById('page-slug').value = '';
-  document.getElementById('page-content').value = '';
-  window.pageContentQuill.root.innerHTML = '<p></p>';
-  const addPageBtn = document.getElementById('add-page');
-  addPageBtn.textContent = 'Add Page';
-  delete addPageBtn.dataset.editSlug;
-  delete document.getElementById('page-slug').dataset.originalSlug;
-  document.getElementById('cancel-page-edit').classList.add('hidden');
-}
+  document.getElementById('cancel-page-edit').addEventListener('click', () => {
+    resetPageForm();
+  });
 
-document.getElementById('add-page').addEventListener('click', async function() {
-  const btn = this;
-  const pageTitle = document.getElementById('page-title').value.trim();
-  const pageSlug = document.getElementById('page-slug').value.trim();
-  const pageContent = document.getElementById('page-content').value;
-
-  if (!pageTitle || !pageSlug || !pageContent) {
-    alert('Please fill in all fields.');
-    return;
-  }
-
-  const originalSlug = document.getElementById('page-slug').dataset.originalSlug;
-
-  if (!btn.dataset.editSlug || (btn.dataset.editSlug && pageSlug !== originalSlug)) {
-    if (data.staticPages.some(page => page.slug === pageSlug)) {
-      alert('A page with this slug already exists. Please use a different slug.');
-      return;
-    }
-  }
-
-  if (btn.dataset.editSlug) {
-    showButtonFeedback(btn, 'Saving...', 'Save Changes');
-    data.staticPages = data.staticPages.filter(p => p.slug !== originalSlug);
-    data.staticPages.push({
-      title: pageTitle,
-      slug: pageSlug,
-      content: pageContent
-    });
-    const success = await saveData();
-    if (success) {
-      renderPages();
-      resetPageForm();
-      alert('Page updated successfully!');
-    } else {
-      alert('Failed to update page. Please try again.');
-      return;
-    }
-  } else {
-    showButtonFeedback(btn, 'Adding...', 'Add Page');
-    data.staticPages.push({
-      title: pageTitle,
-      slug: pageSlug,
-      content: pageContent
-    });
-    const success = await saveData();
-    if (success) {
-      renderPages();
-      resetPageForm();
-      alert('Page added successfully!');
-    } else {
-      alert('Failed to add page. Please try again.');
-      return;
-    }
-  }
-});
-
-document.getElementById('cancel-page-edit').addEventListener('click', () => {
-  resetPageForm();
-});
   // Initialize
   async function initialize() {
     const isAuthenticated = await checkSession();
@@ -1412,6 +1457,9 @@ document.getElementById('cancel-page-edit').addEventListener('click', () => {
       document.getElementById('copyright-text').value = data.settings.copyrightText || '';
       document.getElementById('logo-url').value = data.settings.logoUrl || '';
       document.getElementById('mpesa-till').value = data.settings.mpesaTill || '';
+      document.getElementById('payhero-channel-id').value = data.settings.payheroChannelId || '';
+      document.getElementById('payhero-payment-url').value = data.settings.payheroPaymentUrl || '';
+      document.getElementById('payhero-auth-token').value = data.settings.payheroAuthToken || '';
       document.getElementById('urgent-toggle').checked = data.settings.urgentMessage?.enabled || false;
       document.getElementById('urgent-message').value = data.settings.urgentMessage?.text || '';
       initializeUrgentMessage();
@@ -1424,7 +1472,7 @@ document.getElementById('cancel-page-edit').addEventListener('click', () => {
   }
 
   document.addEventListener('DOMContentLoaded', initialize);
-  </script>
+</script>
   
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
