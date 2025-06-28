@@ -689,6 +689,39 @@
   </footer>
 
   <div id="cookie-popup-container" class="hidden">
+    <script>
+  function handleCookiePopup() {
+    const cookiePopup = document.getElementById('cookie-popup-container');
+    const acceptButton = document.getElementById('cookie-accept');
+    
+    const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
+    const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
+    const threeDays = 3 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
+      cookiePopup.classList.add('hidden');
+      cookiePopup.style.display = 'none';
+      return;
+    }
+
+    cookiePopup.classList.remove('hidden');
+    cookiePopup.style.display = 'flex';
+    document.body.classList.add('popup-active');
+
+    function handleAcceptClick() {
+      localStorage.setItem('cookiesAccepted', 'true');
+      localStorage.setItem('cookiePopupLastShown', Date.now().toString());
+      cookiePopup.classList.add('hidden');
+      cookiePopup.style.display = 'none';
+      document.body.classList.remove('popup-active');
+    }
+
+    acceptButton.addEventListener('click', handleAcceptClick);
+  }
+
+  handleCookiePopup();
+</script>
     <div id="cookie-popup" class="popup-content">
       <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
       <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
@@ -1959,6 +1992,14 @@
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
-</script>
+fetchData().then(success => {
+  if (success) {
+    renderNavLinks();
+    renderProducts();
+    updateFooter();
+  }
+});
+
+  </script>
 </body>
 </html>
