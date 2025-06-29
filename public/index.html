@@ -797,11 +797,11 @@
     <button id="pay-mpesa-till" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Pay with MPESA Till</button>
     <button id="pay-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-2">Pay with Pay Hero</button>
     <div id="payhero-form" class="payhero-form hidden">
-  <input type="text" id="customer-name" placeholder="Your Name (Optional)" class="w-full p-2 border rounded-md mb-2">
-  <input type="text" id="phone-number" placeholder="Phone Number (e.g., 254712345678)" class="w-full p-2 border rounded-md mb-2">
-  <button id="initiate-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Initiate Pay Hero Payment</button>
-  <div id="payhero-button-container" class="hidden"></div>
-</div>
+      <input type="text" id="customer-name" placeholder="Your Name (Optional)" class="w-full p-2 border rounded-md mb-2">
+      <input type="text" id="phone-number" placeholder="Phone Number (e.g., 254712345678)" class="w-full p-2 border rounded-md mb-2">
+      <button id="initiate-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Initiate Pay Hero Payment</button>
+      <div id="payhero-button-container" class="hidden"></div>
+    </div>
     <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
     <button id="payment-cancel" class="mt-6 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   </div>
@@ -853,1160 +853,147 @@
 
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
   <script>
-    const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
-    const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app';
-    let products = [];
-    let categories = [];
-    let settings = {};
-    let staticPages = [];
-    let exchangeRate = null;
-    let allowInAppBrowser = false;
-    const TEST_MODE = new URLSearchParams(window.location.search).get('test') === 'true';
-
-    async function fetchWithTimeout(url, options = {}, timeout = 15000) {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeout);
-      const headers = options.headers || {};
-      if (options.method === 'GET') {
-        delete headers['Content-Type'];
-      }
-      try {
-        const response = await fetch(url, { 
-          ...options, 
-          signal: controller.signal,
-          headers
-        });
-        clearTimeout(id);
-        return response;
-      } catch (error) {
-        clearTimeout(id);
-        throw error;
-      }
-    }
-
-    async function getExchangeRate() {
-      if (exchangeRate) return exchangeRate;
-      try {
-        const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 5000);
-        const data = await response.json();
-        exchangeRate = data.rates.KES || settings.fallbackRate || 130;
-        console.log('Exchange rate fetched:', exchangeRate);
-      } catch (error) {
-        console.error('Error fetching exchange rate:', error.message);
-        exchangeRate = settings.fallbackRate || 130;
-      }
-      return exchangeRate;
-    }
-
-    async function fetchData() {
-      try {
-        const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 15000);
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}, StatusText: ${response.statusText}`);
-        }
-        const data = await response.json();
-        products = data.products.filter(p => !p.isArchived);
-        categories = data.categories;
-        settings = data.settings;
-        staticPages = data.staticPages;
-        console.log('Data fetched successfully:', { products, categories, settings, staticPages });
-        return true;
-      } catch (error) {
-        console.error('Error fetching data:', error.message);
-        document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>. (Error: ${error.message})`;
-        return false;
-      }
-    }
-
-    async function fetchModalContent() {
-      const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
-      const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
-      if (typeof sanitizeHtml !== 'function') {
-        console.error('sanitizeHtml is not available. Skipping modal content rendering.');
-        return;
-      }
-      if (paymentModalContent) {
-        const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
-        paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
-      }
-      if (refCodeModalContent) {
-        const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
-        refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
-      }
-    }
-
-    function renderNavLinks() {
-      const navLinks = document.getElementById('nav-links');
-      const mobileNavLinks = document.getElementById('mobile-nav-links');
-      navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
-      mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
-      categories.forEach(cat => {
-        navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
-        mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
-      });
-
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
-          e.preventDefault();
-          const category = link.dataset.category;
-          filterProducts(category);
-          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
-          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
-          document.getElementById('mobile-menu').classList.remove('open');
-        });
-      });
-    }
-
-    function formatDescription(desc) {
-      const lines = desc.split('\n').filter(line => line.trim() !== '');
-      let html = '';
-      let inList = false;
-
-      lines.forEach(line => {
-        line = line.trim();
-        if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
-          if (!inList) {
-            html += '<ul>';
-            inList = true;
-          }
-          const content = line.replace(/^(✅|🚀|🧠)\s*/, '');
-          html += `<li>${content}</li>`;
-        } else {
-          if (inList) {
-            html += '</ul>';
-            inList = false;
-          }
-          html += `<p>${line}</p>`;
-        }
-      });
-
-      if (inList) {
-        html += '</ul>';
-      }
-
-      return html;
-    }
-
-    async function renderProducts(category = 'all', search = '') {
-  const grid = document.getElementById('product-grid');
-  const loadingMessage = document.getElementById('loading-message');
-  if (loadingMessage) {
-    loadingMessage.classList.add('hidden');
-  } else {
-    console.warn('Loading message element not found.');
-  }
-  grid.innerHTML = '';
-  let filteredProducts = products;
-  if (category !== 'all') {
-    filteredProducts = products.filter(p => p.category === category);
-  }
-  if (search) {
-    const searchTerm = search.toLowerCase();
-    filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
-  }
-  if (!filteredProducts.length) {
-    grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
-    return;
-  }
-  filteredProducts.forEach(product => {
-    // Convert HTML description to plain text for excerpt
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = product.desc;
-    const plainText = tempDiv.textContent || tempDiv.innerText || '';
-    const excerpt = plainText.length > 250 ? plainText.substring(0, 250).trim() + '...' : plainText;
-
-    const card = document.createElement('div');
-    card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col';
-    card.innerHTML = `
-      <div class="relative">
-        <div class="product-image-container">
-          <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover">
-        </div>
-        ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
-      </div>
-      <div class="p-6 flex-1">
-        <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
-        <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
-        <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
-        <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
-        <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  document.querySelectorAll('.view-details').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const item = btn.dataset.item;
-      const product = products.find(p => p.item === item);
-      const rate = await getExchangeRate();
-      const kesPrice = (product.price * rate).toFixed(2);
-
-      document.getElementById('details-thumbnail').src = product.img;
-      document.getElementById('details-name').textContent = product.name;
-      document.getElementById('details-item-name').textContent = product.item;
-      
-      // Render description with Quill.js HTML structure
-      const descContainer = document.getElementById('details-desc');
-      let cleanedDesc = product.desc
-        .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
-        .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
-        .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-        .trim();
-      
-      // Handle headers (h1, h2, h3) from Quill.js
-      cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
-                              .replace(/<\/h\d>/g, '</h$1>');
-      
-      descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
-
-      // Style Quill.js content for better alignment and readability
-      const paragraphs = descContainer.querySelectorAll('p');
-      paragraphs.forEach(p => {
-        p.style.marginBottom = '1rem';
-        p.style.lineHeight = '1.6';
-        p.style.wordBreak = 'break-word';
-      });
-
-      const headers = descContainer.querySelectorAll('h1, h2, h3');
-      headers.forEach(h => {
-        h.style.fontWeight = '600';
-        h.style.marginBottom = '0.75rem';
-      });
-
-      const lists = descContainer.querySelectorAll('ul, ol');
-      lists.forEach(list => {
-        list.style.marginBottom = '1rem';
-        list.style.paddingLeft = '1.5rem';
-        list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
-      });
-
-      const listItems = descContainer.querySelectorAll('li');
-      listItems.forEach(li => {
-        li.style.marginBottom = '0.5rem';
-        const indentLevel = li.className.match(/ql-indent-(\d+)/);
-        if (indentLevel) {
-          li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-        }
-        // Remove custom bullet if present, handled by Quill.js icons
-        li.style.position = 'relative';
-        li.style.paddingLeft = '1.5rem';
-      });
-
-      // Style text formatting from Quill.js toolbar
-      const boldText = descContainer.querySelectorAll('strong, b');
-      boldText.forEach(b => {
-        b.style.fontWeight = 'bold';
-      });
-
-      const italicText = descContainer.querySelectorAll('em, i');
-      italicText.forEach(i => {
-        i.style.fontStyle = 'italic';
-      });
-
-      const underlineText = descContainer.querySelectorAll('u');
-      underlineText.forEach(u => {
-        u.style.textDecoration = 'underline';
-      });
-
-      // Style links from Quill.js
-      const links = descContainer.querySelectorAll('a');
-      links.forEach(link => {
-        link.style.color = 'blue';
-        link.style.textDecoration = 'underline';
-        link.setAttribute('target', '_blank');
-      });
-
-      // Style blockquotes
-      const blockquotes = descContainer.querySelectorAll('blockquote');
-      blockquotes.forEach(bq => {
-        bq.style.borderLeft = '4px solid #ccc';
-        bq.style.paddingLeft = '1rem';
-        bq.style.margin = '1rem 0';
-        bq.style.color = '#666';
-      });
-
-      // Style inline code
-      const codeElements = descContainer.querySelectorAll('code');
-      codeElements.forEach(code => {
-        code.style.backgroundColor = '#f4f4f4';
-        code.style.padding = '2px 4px';
-        code.style.borderRadius = '4px';
-        code.style.fontFamily = 'monospace';
-      });
-
-      // Handle images (if added via Quill.js)
-      const images = descContainer.querySelectorAll('img');
-      images.forEach(img => {
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.marginBottom = '1rem';
-        img.style.borderRadius = '8px';
-      });
-
-      const embedDiv = document.getElementById('details-embed');
-      if (product.embed) {
-        embedDiv.innerHTML = `
-          <div class="embed-container">
-            <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
-          </div>
-        `;
-      } else {
-        embedDiv.innerHTML = '';
-      }
-
-      const modal = document.getElementById('details-modal');
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-
-      const buyNowBtn = document.getElementById('details-buy-now');
-if (buyNowBtn) {
-  buyNowBtn.dataset.item = item;
-  buyNowBtn.dataset.kesPrice = kesPrice;
-  buyNowBtn.onclick = () => {
-    modal.classList.add('hidden');
-    document.body.classList.remove('popup-active');
-    showPaymentModal(product, kesPrice);
-    const confirmPaymentBtn = document.getElementById('confirm-payment');
-    if (confirmPaymentBtn) {
-      confirmPaymentBtn.dataset.item = item;
-      confirmPaymentBtn.dataset.kesPrice = kesPrice;
-    }
-    const submitRefCodeBtn = document.getElementById('submit-ref-code');
-    if (submitRefCodeBtn) {
-      submitRefCodeBtn.dataset.item = item;
-      submitRefCodeBtn.dataset.kesPrice = kesPrice;
-    }
-  };
-} else {
-  console.error('Buy Now button (#details-buy-now) not found.');
-}
-
-const testPayBtn = document.getElementById('details-test-pay');
-if (testPayBtn) {
-  testPayBtn.classList.toggle('hidden', !TEST_MODE);
-  testPayBtn.dataset.item = item;
-  testPayBtn.dataset.kesPrice = kesPrice;
-  testPayBtn.onclick = () => {
-    modal.classList.add('hidden');
-    document.body.classList.remove('popup-active');
-    initiateTestPayment(product, product.price);
-  };
-} else {
-  console.error('Test Pay button (#details-test-pay) not found.');
-}
-
-      document.getElementById('details-close').onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-      };
-    });
-  });
-}
-    
-    function debounce(func, wait) {
-      let timeout;
-      return function (...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-      };
-    }
-
-    const debouncedFilterProducts = debounce((category) => {
-      const search = document.getElementById('search-bar')?.value || document.getElementById('mobile-search-bar')?.value || '';
-      renderProducts(category, search);
-    }, 300);
-
-    function filterProducts(category) {
-      debouncedFilterProducts(category);
-    }
-async function initiateTestPayment(product, price) {
-      try {
-        const response = await fetchWithTimeout(`${BASE_URL}/deliver-bot`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            item: product.item,
-            price: price,
-            payment_method: 'test'
-          }),
-          credentials: 'include'
-        }, 15000);
-
-        const data = await response.json();
-        if (response.ok && data.success && data.downloadLink) {
-          await downloadFile(data.downloadLink, product.name);
-        } else {
-          throw new Error(data.error || 'Failed to initiate test payment');
-        }
-      } catch (error) {
-        console.error('Error initiating test payment:', error.message);
-        showStatusModal({ item: product.item }, null, `Test payment failed: ${error.message}. Contact support.`, false);
-      }
-    }
-
-    function showRefCodeModal(product, kesPrice) {
-      const modal = document.getElementById('ref-code-modal');
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-
-      const refCodeInput = document.getElementById('ref-code-input');
-      refCodeInput.value = localStorage.getItem(`payment_${product.item}_refCode`) || '';
-
-      document.getElementById('submit-ref-code').onclick = async () => {
-        const refCode = refCodeInput.value.trim();
-        if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
-          alert('Please enter a valid MPESA ref code (8-12 alphanumeric characters).');
-          return;
-        }
-
-        try {
-          const response = await fetchWithTimeout(`${BASE_URL}/api/submit-ref`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              item: product.item,
-              refCode,
-              amount: kesPrice,
-              timestamp: new Date().toISOString()
-            }),
-            credentials: 'include'
-          }, 15000);
-
-          const data = await response.json();
-          if (response.ok && data.success) {
-            localStorage.setItem(`payment_${product.item}_refCode`, refCode);
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-            await showStatusModal(product, refCode);
-          } else {
-            throw new Error(data.error || `Failed to submit ref code: ${response.status}`);
-          }
-        } catch (error) {
-          console.error('Error submitting ref code:', error.message);
-          alert(`Error submitting ref code: ${error.message}. Please try again or contact support at ${settings.supportEmail}.`);
-        }
-      };
-
-      document.getElementById('ref-code-cancel').onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-      };
-    }
-
-    async function showStatusModal(product, refCode, initialMessage = 'Confirming payment...', showRetry = true) {
-      const modal = document.getElementById('status-modal');
-      const statusMessage = document.getElementById('status-message');
-      const statusTimerText = document.getElementById('status-timer-text');
-      const statusTimerBar = document.getElementById('status-timer-bar');
-      const retryBtn = document.getElementById('status-retry');
-      statusMessage.innerHTML = initialMessage;
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-      retryBtn.classList.add('hidden');
-
-      let timeLeft = 5 * 60;
-      const pollInterval = 15;
-      let elapsed = 0;
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      const countdown = setInterval(async () => {
-        if (timeLeft <= 0) {
-          clearInterval(countdown);
-          statusMessage.innerHTML = `Confirmation timed out. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-          if (showRetry && retryCount < maxRetries) {
-            retryBtn.classList.remove('hidden');
-            retryBtn.onclick = () => {
-              retryCount++;
-              modal.classList.add('hidden');
-              document.body.classList.remove('popup-active');
-              showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
-            };
-          } else {
-            setTimeout(() => {
-              modal.classList.add('hidden');
-              document.body.classList.remove('popup-active');
-              clearPaymentCookie(product.item);
-              window.location.href = WHATSAPP_REDIRECT;
-            }, 3000);
-          }
-          return;
-        }
-
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        const percentage = (timeLeft / (5 * 60)) * 100;
-        statusTimerBar.style.width = `${percentage}%`;
-
-        elapsed += 1;
-        if (refCode && elapsed % pollInterval === 0) {
-          try {
-            const statusRes = await fetchWithTimeout(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, {
-              credentials: 'include',
-              headers: { 'X-Debug-Source': 'Client-Polling' }
-            }, 10000);
-            const data = await statusRes.json();
-
-            if (!statusRes.ok) {
-              if (statusRes.status === 403) {
-                clearInterval(countdown);
-                statusMessage.innerHTML = `Access denied. This ref code may have already been used. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 3000);
-                return;
-              }
-              throw new Error(data.error || `HTTP error! Status: ${statusRes.status}`);
-            }
-
-            if (data.success && data.status !== 'pending') {
-              clearInterval(countdown);
-              if (data.status === 'confirmed') {
-                statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
-                const downloadSuccess = await downloadFile(data.downloadLink, product.name);
-                if (downloadSuccess) {
-                  setTimeout(() => {
-                    modal.classList.add('hidden');
-                    document.body.classList.remove('popup-active');
-                    clearPaymentCookie(product.item);
-                  }, 2000);
-                } else {
-                  statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-                  if (showRetry && retryCount < maxRetries) {
-                    retryBtn.classList.remove('hidden');
-                    retryBtn.onclick = () => {
-                      retryCount++;
-                      modal.classList.add('hidden');
-                      document.body.classList.remove('popup-active');
-                      showStatusModal(product, refCode, 'Retrying download...', showRetry);
-                    };
-                  } else {
-                    setTimeout(() => {
-                      modal.classList.add('hidden');
-                      document.body.classList.remove('popup-active');
-                      clearPaymentCookie(product.item);
-                    }, 3000);
-                  }
-                }
-              } else if (data.status === 'no payment') {
-                clearInterval(countdown);
-                statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 3000);
-              } else if (data.status === 'partial payment') {
-                clearInterval(countdown);
-                statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                  window.location.href = WHATSAPP_REDIRECT;
-                }, 3000);
-              } else {
-                statusMessage.textContent = 'Unknown status received. Please wait...';
-              }
-            }
-          } catch (error) {
-            console.error('Error checking order status:', error.message);
-            statusMessage.innerHTML = `Order Status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
-            if (showRetry && retryCount < maxRetries) {
-              retryBtn.classList.remove('hidden');
-              retryBtn.onclick = () => {
-                retryCount++;
-                modal.classList.add('hidden');
-                document.body.classList.remove('popup-active');
-                showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
-              };
-            }
-          }
-        }
-        timeLeft--;
-      }, 1000);
-    }
-
-    function clearPaymentCookie(item) {
-      document.cookie = `payment_${item}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
-      localStorage.removeItem(`payment_${item}_refCode`);
-      localStorage.removeItem(`payment_${item}_kesPrice`);
-      console.log(`Cleared payment state for item ${item}`);
-    }
-
-    async function downloadFile(downloadLink, fileNameBase) {
-      const modal = document.getElementById('download-progress-modal');
-      const progressText = document.getElementById('download-progress-text');
-      const progressFill = document.getElementById('download-progress-fill');
-      const errorText = document.getElementById('download-error');
-      
-      modal.style.display = 'flex';
-      document.body.classList.add('popup-active');
-      progressText.textContent = 'Starting download...';
-      errorText.style.display = 'none';
-      progressFill.style.width = '0%';
-
-      return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', downloadLink, true);
-        xhr.responseType = 'blob';
-        xhr.withCredentials = true;
-
-        xhr.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = (event.loaded / event.total) * 100;
-            progressFill.style.width = `${percentComplete}%`;
-            progressText.textContent = `Downloading... ${Math.round(percentComplete)}%`;
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status === 200) {
-            const contentDisposition = xhr.getResponseHeader('Content-Disposition');
-            let fileName = fileNameBase;
-            if (contentDisposition) {
-              const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
-              if (fileNameMatch && fileNameMatch[1]) {
-                fileName = fileNameMatch[1];
-              }
-            }
-
-            const url = window.URL.createObjectURL(xhr.response);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            progressText.textContent = 'Download complete!';
-            setTimeout(() => {
-              modal.style.display = 'none';
-              document.body.classList.remove('popup-active');
-            }, 1000);
-            resolve(true);
-          } else {
-            progressText.textContent = 'Download failed.';
-            errorText.textContent = `Error: ${xhr.statusText || 'Unknown error'}. Contact support.`;
-            errorText.style.display = 'block';
-            modal.style.display = 'none';
-            document.body.classList.remove('popup-active');
-            resolve(false);
-          }
-        };
-
-        xhr.onerror = () => {
-          progressText.textContent = 'Download failed.';
-          errorText.textContent = 'Network error occurred. Please try again or contact support.';
-          errorText.style.display = 'block';
-          modal.style.display = 'none';
-          document.body.classList.remove('popup-active');
-          resolve(false);
-        };
-
-        xhr.send();
-      });
-    }
-
-    function updateFooter() {
-  document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
-  document.getElementById('support-email').textContent = settings.supportEmail;
-  document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
-
-  const socialLinks = document.getElementById('social-links');
-  socialLinks.innerHTML = '';
-  if (settings.socials) {
-    Object.entries(settings.socials).forEach(([platform, url]) => {
-      if (url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.className = 'text-gray-500 hover:text-green-600';
-        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-        socialLinks.appendChild(a);
-      }
-    });
-  }
-
-  const staticLinks = document.getElementById('static-links');
-  staticLinks.innerHTML = '';
-  staticPages
-    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-    .forEach(page => {
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'text-gray-500 hover:text-green-600';
-      a.textContent = page.title;
-      a.dataset.slug = page.slug;
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        const modal = document.getElementById('static-page-modal');
-        document.getElementById('static-page-title').textContent = page.title;
-
-        // Clean Quill.js content
-        let cleanedContent = page.content
-          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-          .trim();
-
-        const contentContainer = document.getElementById('static-page-content');
-        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
-
-        // Reset modal container styles to avoid interference
-        contentContainer.style.margin = '0';
-        contentContainer.style.padding = '0';
-        contentContainer.style.fontSize = '16px'; // Base font size for consistency
-
-        // Style Quill.js content, respecting original formatting
-        const paragraphs = contentContainer.querySelectorAll('p');
-        paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word';
-          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
-          p.style.lineHeight = '1.6'; // Improve readability
-        });
-
-        // Preserve <p><br></p> as a blank line
-        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-        blankParagraphs.forEach(p => {
-          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
-          p.style.margin = '0';
-        });
-
-        const headers = contentContainer.querySelectorAll('h1, h2, h3');
-        headers.forEach(h => {
-          h.style.fontWeight = '600';
-          // Define font sizes to match typical Quill.js rendering
-          if (h.tagName.toLowerCase() === 'h1') {
-            h.style.fontSize = '1.75rem'; // 28px
-          } else if (h.tagName.toLowerCase() === 'h2') {
-            h.style.fontSize = '1.5rem'; // 24px
-          } else if (h.tagName.toLowerCase() === 'h3') {
-            h.style.fontSize = '1.25rem'; // 20px
-          }
-          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
-        });
-
-        const unorderedLists = contentContainer.querySelectorAll('ul');
-        unorderedLists.forEach(ul => {
-          ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none';
-          ul.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const orderedLists = contentContainer.querySelectorAll('ol');
-        orderedLists.forEach(ol => {
-          ol.style.paddingLeft = '1.5rem';
-          if (!ol.style.listStyleType) {
-            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-          }
-          ol.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const listItems = contentContainer.querySelectorAll('li');
-        listItems.forEach(li => {
-          const indentLevel = li.className.match(/ql-indent-(\d+)/);
-          if (indentLevel) {
-            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-          }
-          li.style.position = 'relative';
-          li.style.paddingLeft = '1.5rem';
-          li.style.marginBottom = '0.5rem'; // Spacing between list items
-
-          if (li.parentNode.tagName.toLowerCase() === 'ul') {
-            li.style.listStyleType = 'none';
-            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-          }
-        });
-
-        const boldText = contentContainer.querySelectorAll('strong, b');
-        boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
-        });
-
-        const italicText = contentContainer.querySelectorAll('em, i');
-        italicText.forEach(i => {
-          i.style.fontStyle = 'italic';
-        });
-
-        const underlineText = contentContainer.querySelectorAll('u');
-        underlineText.forEach(u => {
-          u.style.textDecoration = 'underline';
-        });
-
-        const links = contentContainer.querySelectorAll('a');
-        links.forEach(link => {
-          link.style.color = 'blue';
-          link.style.textDecoration = 'underline';
-          link.setAttribute('target', '_blank');
-        });
-
-        const blockquotes = contentContainer.querySelectorAll('blockquote');
-        blockquotes.forEach(bq => {
-          bq.style.borderLeft = '4px solid #ccc';
-          bq.style.paddingLeft = '1rem';
-          bq.style.color = '#666';
-          bq.style.margin = '1rem 0';
-        });
-
-        const codeElements = contentContainer.querySelectorAll('code');
-        codeElements.forEach(code => {
-          code.style.backgroundColor = '#f4f4f4';
-          code.style.padding = '2px 4px';
-          code.style.borderRadius = '4px';
-          code.style.fontFamily = 'monospace';
-        });
-
-        const images = contentContainer.querySelectorAll('img');
-        images.forEach(img => {
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          img.style.borderRadius = '8px';
-          img.style.margin = '1rem 0';
-        });
-
-        modal.classList.remove('hidden');
-        document.body.classList.add('popup-active');
-      });
-      staticLinks.appendChild(a);
-    });
-
-  document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
-  document.getElementById('mobile-support-email').textContent = settings.supportEmail;
-  document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
-
-  const mobileSocialLinks = document.getElementById('mobile-social-links');
-  mobileSocialLinks.innerHTML = '';
-  if (settings.socials) {
-    Object.entries(settings.socials).forEach(([platform, url]) => {
-      if (url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.className = 'text-gray-500 hover:text-green-600 text-sm';
-        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-        mobileSocialLinks.appendChild(a);
-      }
-    });
-  }
-
-  const mobileStaticLinks = document.getElementById('mobile-static-links');
-  mobileStaticLinks.innerHTML = '';
-  staticPages
-    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-    .forEach(page => {
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'text-gray-500 hover:text-green-600 text-sm';
-      a.textContent = page.title;
-      a.dataset.slug = page.slug;
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        const modal = document.getElementById('static-page-modal');
-        document.getElementById('static-page-title').textContent = page.title;
-
-        // Clean Quill.js content
-        let cleanedContent = page.content
-          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-          .trim();
-
-        const contentContainer = document.getElementById('static-page-content');
-        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
-
-        // Reset modal container styles to avoid interference
-        contentContainer.style.margin = '0';
-        contentContainer.style.padding = '0';
-        contentContainer.style.fontSize = '16px'; // Base font size for consistency
-
-        // Style Quill.js content, respecting original formatting
-        const paragraphs = contentContainer.querySelectorAll('p');
-        paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word';
-          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
-          p.style.lineHeight = '1.6'; // Improve readability
-        });
-
-        // Preserve <p><br></p> as a blank line
-        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-        blankParagraphs.forEach(p => {
-          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
-          p.style.margin = '0';
-        });
-
-        const headers = contentContainer.querySelectorAll('h1, h2, h3');
-        headers.forEach(h => {
-          h.style.fontWeight = '600';
-          // Define font sizes to match typical Quill.js rendering
-          if (h.tagName.toLowerCase() === 'h1') {
-            h.style.fontSize = '1.75rem'; // 28px
-          } else if (h.tagName.toLowerCase() === 'h2') {
-            h.style.fontSize = '1.5rem'; // 24px
-          } else if (h.tagName.toLowerCase() === 'h3') {
-            h.style.fontSize = '1.25rem'; // 20px
-          }
-          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
-        });
-
-        const unorderedLists = contentContainer.querySelectorAll('ul');
-        unorderedLists.forEach(ul => {
-          ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none';
-          ul.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const orderedLists = contentContainer.querySelectorAll('ol');
-        orderedLists.forEach(ol => {
-          ol.style.paddingLeft = '1.5rem';
-          if (!ol.style.listStyleType) {
-            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-          }
-          ol.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const listItems = contentContainer.querySelectorAll('li');
-        listItems.forEach(li => {
-          const indentLevel = li.className.match(/ql-indent-(\d+)/);
-          if (indentLevel) {
-            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-          }
-          li.style.position = 'relative';
-          li.style.paddingLeft = '1.5rem';
-          li.style.marginBottom = '0.5rem'; // Spacing between list items
-
-          if (li.parentNode.tagName.toLowerCase() === 'ul') {
-            li.style.listStyleType = 'none';
-            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-          }
-        });
-
-        const boldText = contentContainer.querySelectorAll('strong, b');
-        boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
-        });
-
-        const italicText = contentContainer.querySelectorAll('em, i');
-        italicText.forEach(i => {
-          i.style.fontStyle = 'italic';
-        });
-
-        const underlineText = contentContainer.querySelectorAll('u');
-        underlineText.forEach(u => {
-          u.style.textDecoration = 'underline';
-        });
-
-        const links = contentContainer.querySelectorAll('a');
-        links.forEach(link => {
-          link.style.color = 'blue';
-          link.style.textDecoration = 'underline';
-          link.setAttribute('target', '_blank');
-        });
-
-        const blockquotes = contentContainer.querySelectorAll('blockquote');
-        blockquotes.forEach(bq => {
-          bq.style.borderLeft = '4px solid #ccc';
-          bq.style.paddingLeft = '1rem';
-          bq.style.color = '#666';
-          bq.style.margin = '1rem 0';
-        });
-
-        const codeElements = contentContainer.querySelectorAll('code');
-        codeElements.forEach(code => {
-          code.style.backgroundColor = '#f4f4f4';
-          code.style.padding = '2px 4px';
-          code.style.borderRadius = '4px';
-          code.style.fontFamily = 'monospace';
-        });
-
-        const images = contentContainer.querySelectorAll('img');
-        images.forEach(img => {
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          img.style.borderRadius = '8px';
-          img.style.margin = '1rem 0';
-        });
-
-        modal.classList.remove('hidden');
-        document.body.classList.add('popup-active');
-        document.getElementById('mobile-menu').classList.remove('open');
-      });
-      mobileStaticLinks.appendChild(a);
-    });
-
-  document.getElementById('static-page-close').onclick = () => {
-    document.getElementById('static-page-modal').classList.add('hidden');
-    document.body.classList.remove('popup-active');
-  };
-}
-    
-    function showUrgentMessage() {
-  const urgentMessage = document.getElementById('urgent-message');
-  const urgentText = document.getElementById('urgent-text');
-  if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
-    urgentText.innerHTML = settings.urgentMessage.text; // Use innerHTML for HTML rendering
-    urgentMessage.classList.remove('hidden');
-  }
-  document.getElementById('urgent-close').onclick = () => {
-    urgentMessage.classList.add('hidden');
-  };
-}
-    async function checkPaymentCookie() {
-      const cookies = document.cookie.split(';');
-      const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
-      if (paymentCookie) {
-        const [itemKey, status] = paymentCookie.split('=');
-        const item = itemKey.replace('payment_', '');
-        if (status === 'initiated') {
-          const product = products.find(p => p.item === item);
-          if (product) {
-            const kesPrice = localStorage.getItem(`payment_${item}_kesPrice`);
-            if (kesPrice) {
-              showRefCodeModal(product, kesPrice);
-            } else {
-              const rate = await getExchangeRate();
-              const newKesPrice = (product.price * rate).toFixed(2);
-              localStorage.setItem(`payment_${item}_kesPrice`, newKesPrice);
-              showRefCodeModal(product, newKesPrice);
-            }
-          }
-        }
-      }
-    }
-
-    function startPolling() {
-      setInterval(async () => {
-        const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal']
-          .some(modalId => !document.getElementById(modalId).classList.contains('hidden') || document.getElementById(modalId).style.display === 'flex');
-        if (isUserActive) {
-          console.log('Skipping polling: User is in an active modal');
-          return;
-        }
-        const success = await fetchData();
-        if (success) {
-          renderNavLinks();
-          renderProducts();
-          updateFooter();
-          showUrgentMessage();
-        }
-      }, 10 * 1000);
-    }
-
-    function isInAppBrowser() {
-      const ua = navigator.userAgent.toLowerCase();
-      console.log("User Agent:", navigator.userAgent);
-      const inAppPatterns = [
-        'tiktok', 'bytedancewebview',
-        'twitter', 'twitterandroid', 'twitterios',
-        'fbav', 'fb_iab', 'fban', 'fb4a',
-        'instagram',
-        'linkedin', 'linkedinapp',
-        'snapchat',
-        'line',
-        'zalo',
-        'pinterest',
-        'messenger', 'fb_messenger',
-        'kakaotalk',
-        'dingtalk',
-        'weixin', 'micromessenger',
-        'reddit',
-        'discord',
-        'telegram',
-        'whatsapp'
-      ];
-      const isAppBrowser = inAppPatterns.some(pattern => ua.includes(pattern));
-      const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
-      const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
-      const result = (isAppBrowser || isWebView) && !isRegularBrowser;
-      console.log('Is In-App Browser:', result);
-      return result;
-    }
-
-    function handleInAppBrowser() {
-      if (isInAppBrowser()) {
-        const popup = document.createElement("div");
-        popup.className = "popup";
-        popup.innerHTML = `
-          <div class="popup-content">
-            <h3>Open in Browser</h3>
-            <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
-              For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
-            </p>
-            <button class="browser-popup-button cancel">Okay</button>
-          </div>`;
-        document.body.appendChild(popup);
-
-        popup.querySelector(".cancel").addEventListener("click", () => {
-          console.log('Okay button clicked');
-          popup.remove();
-          allowInAppBrowser = true;
-          proceedWithInit();
-        });
-      } else {
-        proceedWithInit();
-      }
-    }
-
-    async function proceedWithInit() {
-      const success = await fetchData();
-      if (success) {
-        renderNavLinks();
-        renderProducts();
-        updateFooter();
-        showUrgentMessage();
-        checkPaymentCookie();
-        startPolling();
-        await fetchModalContent();
-      }
-
-      document.getElementById('mobile-menu-button').onclick = () => {
-        document.getElementById('mobile-menu').classList.add('open');
-      };
-
-      document.getElementById('mobile-menu-close').onclick = () => {
-        document.getElementById('mobile-menu').classList.remove('open');
-      };
-
-      const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
-      searchBars.forEach(searchBar => {
-        searchBar.addEventListener('input', debounce(() => {
-          const search = searchBar.value;
-          const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
-          renderProducts(category, search);
-        }, 300));
-      });
-    }
-
-    async function init() {
-      handleInAppBrowser();
-    }
-
-    document.addEventListener('DOMContentLoaded', init);
-  </script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
-</script>
-  <script>
-  // Ensure settings, selectedItem, and selectedPrice are available
+  const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
+  const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app';
+  let products = [];
+  let categories = [];
   let settings = {};
-  let selectedItem = '';
-  let selectedPrice = 0;
+  let staticPages = [];
+  let exchangeRate = null;
+  let allowInAppBrowser = false;
+  const TEST_MODE = new URLSearchParams(window.location.search).get('test') === 'true';
+  let selectedItem = ''; // Added for Pay Hero
+  let selectedPrice = 0; // Added for Pay Hero
 
-  // Fetch settings from server
-  fetch('/api/data')
-    .then(response => response.json())
-    .then(data => {
+  async function fetchWithTimeout(url, options = {}, timeout = 15000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const headers = options.headers || {};
+    if (options.method === 'GET') {
+      delete headers['Content-Type'];
+    }
+    try {
+      const response = await fetch(url, { 
+        ...options, 
+        signal: controller.signal,
+        headers
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  }
+
+  async function getExchangeRate() {
+    if (exchangeRate) return exchangeRate;
+    try {
+      const response = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 5000);
+      const data = await response.json();
+      exchangeRate = data.rates.KES || settings.fallbackRate || 130;
+      console.log('Exchange rate fetched:', exchangeRate);
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error.message);
+      exchangeRate = settings.fallbackRate || 130;
+    }
+    return exchangeRate;
+  }
+
+  async function fetchData() {
+    try {
+      const response = await fetchWithTimeout(`${BASE_URL}/api/data`, { credentials: 'include' }, 15000);
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}, StatusText: ${response.statusText}`);
+      }
+      const data = await response.json();
+      products = data.products.filter(p => !p.isArchived);
+      categories = data.categories;
       settings = data.settings;
-    })
-    .catch(error => console.error('Error fetching settings:', error));
+      staticPages = data.staticPages;
+      console.log('Data fetched successfully:', { products, categories, settings, staticPages });
+      return true;
+    } catch (error) {
+      console.error('Error fetching data:', error.message);
+      document.getElementById('loading-message').innerHTML = `Failed to load bots. Please try again later or contact support at <a href="mailto:${settings.supportEmail || 'kaylie254.business@gmail.com'}" class="underline text-green-600">${settings.supportEmail || 'kaylie254.business@gmail.com'}</a>. (Error: ${error.message})`;
+      return false;
+    }
+  }
 
-  // Update showPaymentModal to set selectedItem and selectedPrice
+  async function fetchModalContent() {
+    const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
+    const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+    if (typeof sanitizeHtml !== 'function') {
+      console.error('sanitizeHtml is not available. Skipping modal content rendering.');
+      return;
+    }
+    if (paymentModalContent) {
+      const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
+      paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
+    }
+    if (refCodeModalContent) {
+      const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
+      refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
+    }
+  }
+
+  function renderNavLinks() {
+    const navLinks = document.getElementById('nav-links');
+    const mobileNavLinks = document.getElementById('mobile-nav-links');
+    navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
+    mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
+    categories.forEach(cat => {
+      navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
+      mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
+    });
+
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        const category = link.dataset.category;
+        filterProducts(category);
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
+        link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
+        document.getElementById('mobile-menu').classList.remove('open');
+      });
+    });
+  }
+
+  function formatDescription(desc) {
+    const lines = desc.split('\n').filter(line => line.trim() !== '');
+    let html = '';
+    let inList = false;
+
+    lines.forEach(line => {
+      line = line.trim();
+      if (line.startsWith('✅') || line.startsWith('🚀') || line.startsWith('🧠')) {
+        if (!inList) {
+          html += '<ul>';
+          inList = true;
+        }
+        const content = line.replace(/^(✅|🚀|🧠)\s*/, '');
+        html += `<li>${content}</li>`;
+      } else {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+        html += `<p>${line}</p>`;
+      }
+    });
+
+    if (inList) {
+      html += '</ul>';
+    }
+
+    return html;
+  }
+
   async function showPaymentModal(product, kesPrice) {
     selectedItem = product.item;
     selectedPrice = kesPrice;
     const modal = document.getElementById('payment-modal');
     document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
-    document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
     modal.classList.remove('hidden');
     document.body.classList.add('popup-active');
 
@@ -2101,60 +1088,1037 @@ async function initiateTestPayment(product, price) {
     };
   }
 
-  // Initiate Pay Hero payment
-  document.getElementById('initiate-payhero').addEventListener('click', () => {
-    const customerName = document.getElementById('customer-name').value || 'Customer';
-    const phone = document.getElementById('phone-number').value;
-    if (!phone.match(/^254[0-9]{9}$/)) {
-      alert('Please enter a valid Kenyan phone number (e.g., 254712345678)');
+  async function renderProducts(category = 'all', search = '') {
+    const grid = document.getElementById('product-grid');
+    const loadingMessage = document.getElementById('loading-message');
+    if (loadingMessage) {
+      loadingMessage.classList.add('hidden');
+    } else {
+      console.warn('Loading message element not found.');
+    }
+    grid.innerHTML = '';
+    let filteredProducts = products;
+    if (category !== 'all') {
+      filteredProducts = products.filter(p => p.category === category);
+    }
+    if (search) {
+      const searchTerm = search.toLowerCase();
+      filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
+    }
+    if (!filteredProducts.length) {
+      grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
       return;
     }
-    fetch('/api/initiate-payhero', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: selectedItem, amount: selectedPrice, phone, customerName })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        PayHeroButton.init({
-          paymentUrl: settings.payheroPaymentUrl,
-          containerId: 'payhero-button-container',
-          channelID: settings.payheroChannelId,
-          amount: selectedPrice.toString(),
-          phone: phone,
-          name: customerName,
-          reference: data.refCode,
-          buttonName: 'Pay with Pay Hero',
-          buttonColor: '#007bff',
-          callbackUrl: `${window.location.origin}/api/payhero-callback`
-        });
-        document.getElementById('payhero-form').classList.add('hidden');
-        document.getElementById('payment-modal').classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        showStatusModal({ item: selectedItem }, data.refCode, 'Confirming Pay Hero payment...');
-      } else {
-        alert('Failed to initiate payment. Please try again.');
-      }
-    })
-    .catch(error => {
-      console.error('Error initiating Pay Hero payment:', error);
-      alert('An error occurred. Please try again.');
-    });
-  });
+    filteredProducts.forEach(product => {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = product.desc;
+      const plainText = tempDiv.textContent || tempDiv.innerText || '';
+      const excerpt = plainText.length > 250 ? plainText.substring(0, 250).trim() + '...' : plainText;
 
-  // Handle Pay Hero payment events
-  window.addEventListener('message', function(event) {
-    if (event.data.paymentSuccess) {
-      console.log('Pay Hero Payment Successful:', event.data);
-    } else {
-      console.error('Pay Hero Payment Failed:', event.data);
-      alert('Payment failed. Please try again.');
-      document.getElementById('status-modal').classList.add('hidden');
-      document.getElementById('payment-modal').classList.remove('hidden');
-      document.body.classList.add('popup-active');
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col';
+      card.innerHTML = `
+        <div class="relative">
+          <div class="product-image-container">
+            <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover">
+          </div>
+          ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
+        </div>
+        <div class="p-6 flex-1">
+          <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
+          <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
+          <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
+          <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
+          <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    document.querySelectorAll('.view-details').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const item = btn.dataset.item;
+        const product = products.find(p => p.item === item);
+        const rate = await getExchangeRate();
+        const kesPrice = (product.price * rate).toFixed(2);
+
+        document.getElementById('details-thumbnail').src = product.img;
+        document.getElementById('details-name').textContent = product.name;
+        document.getElementById('details-item-name').textContent = product.item;
+
+        let cleanedDesc = product.desc
+          .replace(/<p>\s*<\/p>/g, '')
+          .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '')
+          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+          .trim();
+
+        cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
+                                .replace(/<\/h\d>/g, '</h$1>');
+
+        const descContainer = document.getElementById('details-desc');
+        descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
+
+        const paragraphs = descContainer.querySelectorAll('p');
+        paragraphs.forEach(p => {
+          p.style.marginBottom = '1rem';
+          p.style.lineHeight = '1.6';
+          p.style.wordBreak = 'break-word';
+        });
+
+        const headers = descContainer.querySelectorAll('h1, h2, h3');
+        headers.forEach(h => {
+          h.style.fontWeight = '600';
+          h.style.marginBottom = '0.75rem';
+        });
+
+        const lists = descContainer.querySelectorAll('ul, ol');
+        lists.forEach(list => {
+          list.style.marginBottom = '1rem';
+          list.style.paddingLeft = '1.5rem';
+          list.style.listStyleType = 'none';
+        });
+
+        const listItems = descContainer.querySelectorAll('li');
+        listItems.forEach(li => {
+          li.style.marginBottom = '0.5rem';
+          const indentLevel = li.className.match(/ql-indent-(\d+)/);
+          if (indentLevel) {
+            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+          }
+          li.style.position = 'relative';
+          li.style.paddingLeft = '1.5rem';
+        });
+
+        const boldText = descContainer.querySelectorAll('strong, b');
+        boldText.forEach(b => {
+          b.style.fontWeight = 'bold';
+        });
+
+        const italicText = descContainer.querySelectorAll('em, i');
+        italicText.forEach(i => {
+          i.style.fontStyle = 'italic';
+        });
+
+        const underlineText = descContainer.querySelectorAll('u');
+        underlineText.forEach(u => {
+          u.style.textDecoration = 'underline';
+        });
+
+        const links = descContainer.querySelectorAll('a');
+        links.forEach(link => {
+          link.style.color = 'blue';
+          link.style.textDecoration = 'underline';
+          link.setAttribute('target', '_blank');
+        });
+
+        const blockquotes = descContainer.querySelectorAll('blockquote');
+        blockquotes.forEach(bq => {
+          bq.style.borderLeft = '4px solid #ccc';
+          bq.style.paddingLeft = '1rem';
+          bq.style.margin = '1rem 0';
+          bq.style.color = '#666';
+        });
+
+        const codeElements = descContainer.querySelectorAll('code');
+        codeElements.forEach(code => {
+          code.style.backgroundColor = '#f4f4f4';
+          code.style.padding = '2px 4px';
+          code.style.borderRadius = '4px';
+          code.style.fontFamily = 'monospace';
+        });
+
+        const images = descContainer.querySelectorAll('img');
+        images.forEach(img => {
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.marginBottom = '1rem';
+          img.style.borderRadius = '8px';
+        });
+
+        const embedDiv = document.getElementById('details-embed');
+        if (product.embed) {
+          embedDiv.innerHTML = `
+            <div class="embed-container">
+              <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
+            </div>
+          `;
+        } else {
+          embedDiv.innerHTML = '';
+        }
+
+        const modal = document.getElementById('details-modal');
+        modal.classList.remove('hidden');
+        document.body.classList.add('popup-active');
+
+        const buyNowBtn = document.getElementById('details-buy-now');
+        if (buyNowBtn) {
+          buyNowBtn.dataset.item = item;
+          buyNowBtn.dataset.kesPrice = kesPrice;
+          buyNowBtn.onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            showPaymentModal(product, kesPrice);
+            const confirmPaymentBtn = document.getElementById('confirm-payment');
+            if (confirmPaymentBtn) {
+              confirmPaymentBtn.dataset.item = item;
+              confirmPaymentBtn.dataset.kesPrice = kesPrice;
+            }
+            const submitRefCodeBtn = document.getElementById('submit-ref-code');
+            if (submitRefCodeBtn) {
+              submitRefCodeBtn.dataset.item = item;
+              submitRefCodeBtn.dataset.kesPrice = kesPrice;
+            }
+          };
+        } else {
+          console.error('Buy Now button (#details-buy-now) not found.');
+        }
+
+        const testPayBtn = document.getElementById('details-test-pay');
+        if (testPayBtn) {
+          testPayBtn.classList.toggle('hidden', !TEST_MODE);
+          testPayBtn.dataset.item = item;
+          testPayBtn.dataset.kesPrice = kesPrice;
+          testPayBtn.onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            initiateTestPayment(product, product.price);
+          };
+        } else {
+          console.error('Test Pay button (#details-test-pay) not found.');
+        }
+
+        document.getElementById('details-close').onclick = () => {
+          modal.classList.add('hidden');
+          document.body.classList.remove('popup-active');
+        };
+      });
+    });
+  }
+
+  function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+
+  const debouncedFilterProducts = debounce((category) => {
+    const search = document.getElementById('search-bar')?.value || document.getElementById('mobile-search-bar')?.value || '';
+    renderProducts(category, search);
+  }, 300);
+
+  function filterProducts(category) {
+    debouncedFilterProducts(category);
+  }
+
+  async function initiateTestPayment(product, price) {
+    try {
+      const response = await fetchWithTimeout(`${BASE_URL}/deliver-bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item: product.item,
+          price: price,
+          payment_method: 'test'
+        }),
+        credentials: 'include'
+      }, 15000);
+
+      const data = await response.json();
+      if (response.ok && data.success && data.downloadLink) {
+        await downloadFile(data.downloadLink, product.name);
+      } else {
+        throw new Error(data.error || 'Failed to initiate test payment');
+      }
+    } catch (error) {
+      console.error('Error initiating test payment:', error.message);
+      showStatusModal({ item: product.item }, null, `Test payment failed: ${error.message}. Contact support.`, false);
     }
-  });
+  }
+
+  function showRefCodeModal(product, kesPrice) {
+    const modal = document.getElementById('ref-code-modal');
+    modal.classList.remove('hidden');
+    document.body.classList.add('popup-active');
+
+    const refCodeInput = document.getElementById('ref-code-input');
+    refCodeInput.value = localStorage.getItem(`payment_${product.item}_refCode`) || '';
+
+    document.getElementById('submit-ref-code').onclick = async () => {
+      const refCode = refCodeInput.value.trim();
+      if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
+        alert('Please enter a valid MPESA ref code (8-12 alphanumeric characters).');
+        return;
+      }
+
+      try {
+        const response = await fetchWithTimeout(`${BASE_URL}/api/submit-ref`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            item: product.item,
+            refCode,
+            amount: kesPrice,
+            timestamp: new Date().toISOString()
+          }),
+          credentials: 'include'
+        }, 15000);
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+          localStorage.setItem(`payment_${product.item}_refCode`, refCode);
+          modal.classList.add('hidden');
+          document.body.classList.remove('popup-active');
+          await showStatusModal(product, refCode);
+        } else {
+          throw new Error(data.error || `Failed to submit ref code: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error submitting ref code:', error.message);
+        alert(`Error submitting ref code: ${error.message}. Please try again or contact support at ${settings.supportEmail}.`);
+      }
+    };
+
+    document.getElementById('ref-code-cancel').onclick = () => {
+      modal.classList.add('hidden');
+      document.body.classList.remove('popup-active');
+    };
+  }
+
+  async function showStatusModal(product, refCode, initialMessage = 'Confirming payment...', showRetry = true) {
+    const modal = document.getElementById('status-modal');
+    const statusMessage = document.getElementById('status-message');
+    const statusTimerText = document.getElementById('status-timer-text');
+    const statusTimerBar = document.getElementById('status-timer-bar');
+    const retryBtn = document.getElementById('status-retry');
+    statusMessage.innerHTML = initialMessage;
+    modal.classList.remove('hidden');
+    document.body.classList.add('popup-active');
+    retryBtn.classList.add('hidden');
+
+    let timeLeft = 5 * 60;
+    const pollInterval = 15;
+    let elapsed = 0;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const countdown = setInterval(async () => {
+      if (timeLeft <= 0) {
+        clearInterval(countdown);
+        statusMessage.innerHTML = `Confirmation timed out. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+        if (showRetry && retryCount < maxRetries) {
+          retryBtn.classList.remove('hidden');
+          retryBtn.onclick = () => {
+            retryCount++;
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+          };
+        } else {
+          setTimeout(() => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            clearPaymentCookie(product.item);
+            window.location.href = WHATSAPP_REDIRECT;
+          }, 3000);
+        }
+        return;
+      }
+
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+      const percentage = (timeLeft / (5 * 60)) * 100;
+      statusTimerBar.style.width = `${percentage}%`;
+
+      elapsed += 1;
+      if (refCode && elapsed % pollInterval === 0) {
+        try {
+          const statusRes = await fetchWithTimeout(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, {
+            credentials: 'include',
+            headers: { 'X-Debug-Source': 'Client-Polling' }
+          }, 10000);
+          const data = await statusRes.json();
+
+          if (!statusRes.ok) {
+            if (statusRes.status === 403) {
+              clearInterval(countdown);
+              statusMessage.innerHTML = `Access denied. This ref code may have already been used. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+              setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                clearPaymentCookie(product.item);
+              }, 3000);
+              return;
+            }
+            throw new Error(data.error || `HTTP error! Status: ${statusRes.status}`);
+          }
+
+          if (data.success && data.status !== 'pending') {
+            clearInterval(countdown);
+            if (data.status === 'confirmed') {
+              statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
+              const downloadSuccess = await downloadFile(data.downloadLink, product.name);
+              if (downloadSuccess) {
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                }, 2000);
+              } else {
+                statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                if (showRetry && retryCount < maxRetries) {
+                  retryBtn.classList.remove('hidden');
+                  retryBtn.onclick = () => {
+                    retryCount++;
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    showStatusModal(product, refCode, 'Retrying download...', showRetry);
+                  };
+                } else {
+                  setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    clearPaymentCookie(product.item);
+                  }, 3000);
+                }
+              }
+            } else if (data.status === 'no payment') {
+              clearInterval(countdown);
+              statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+              setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                clearPaymentCookie(product.item);
+              }, 3000);
+            } else if (data.status === 'partial payment') {
+              clearInterval(countdown);
+              statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
+              setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                clearPaymentCookie(product.item);
+                window.location.href = WHATSAPP_REDIRECT;
+              }, 3000);
+            } else {
+              statusMessage.textContent = 'Unknown status received. Please wait...';
+            }
+          }
+        } catch (error) {
+          console.error('Error checking order status:', error.message);
+          statusMessage.innerHTML = `Order Status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+          if (showRetry && retryCount < maxRetries) {
+            retryBtn.classList.remove('hidden');
+            retryBtn.onclick = () => {
+              retryCount++;
+              modal.classList.add('hidden');
+              document.body.classList.remove('popup-active');
+              showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+            };
+          }
+        }
+      }
+      timeLeft--;
+    }, 1000);
+  }
+
+  function clearPaymentCookie(item) {
+    document.cookie = `payment_${item}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+    localStorage.removeItem(`payment_${item}_refCode`);
+    localStorage.removeItem(`payment_${item}_kesPrice`);
+    console.log(`Cleared payment state for item ${item}`);
+  }
+
+  async function downloadFile(downloadLink, fileNameBase) {
+    const modal = document.getElementById('download-progress-modal');
+    const progressText = document.getElementById('download-progress-text');
+    const progressFill = document.getElementById('download-progress-fill');
+    const errorText = document.getElementById('download-error');
+    
+    modal.style.display = 'flex';
+    document.body.classList.add('popup-active');
+    progressText.textContent = 'Starting download...';
+    errorText.style.display = 'none';
+    progressFill.style.width = '0%';
+
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', downloadLink, true);
+      xhr.responseType = 'blob';
+      xhr.withCredentials = true;
+
+      xhr.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          progressFill.style.width = `${percentComplete}%`;
+          progressText.textContent = `Downloading... ${Math.round(percentComplete)}%`;
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const contentDisposition = xhr.getResponseHeader('Content-Disposition');
+          let fileName = fileNameBase;
+          if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (fileNameMatch && fileNameMatch[1]) {
+              fileName = fileNameMatch[1];
+            }
+          }
+
+          const url = window.URL.createObjectURL(xhr.response);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          progressText.textContent = 'Download complete!';
+          setTimeout(() => {
+            modal.style.display = 'none';
+            document.body.classList.remove('popup-active');
+          }, 1000);
+          resolve(true);
+        } else {
+          progressText.textContent = 'Download failed.';
+          errorText.textContent = `Error: ${xhr.statusText || 'Unknown error'}. Contact support.`;
+          errorText.style.display = 'block';
+          modal.style.display = 'none';
+          document.body.classList.remove('popup-active');
+          resolve(false);
+        }
+      };
+
+      xhr.onerror = () => {
+        progressText.textContent = 'Download failed.';
+        errorText.textContent = 'Network error occurred. Please try again or contact support.';
+        errorText.style.display = 'block';
+        modal.style.display = 'none';
+        document.body.classList.remove('popup-active');
+        resolve(false);
+      };
+
+      xhr.send();
+    });
+  }
+
+  function updateFooter() {
+    document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
+    document.getElementById('support-email').textContent = settings.supportEmail;
+    document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+    const socialLinks = document.getElementById('social-links');
+    socialLinks.innerHTML = '';
+    if (settings.socials) {
+      Object.entries(settings.socials).forEach(([platform, url]) => {
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.className = 'text-gray-500 hover:text-green-600';
+          a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+          socialLinks.appendChild(a);
+        }
+      });
+    }
+
+    const staticLinks = document.getElementById('static-links');
+    staticLinks.innerHTML = '';
+    staticPages
+      .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+      .forEach(page => {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'text-gray-500 hover:text-green-600';
+        a.textContent = page.title;
+        a.dataset.slug = page.slug;
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          const modal = document.getElementById('static-page-modal');
+          document.getElementById('static-page-title').textContent = page.title;
+
+          let cleanedContent = page.content
+            .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+            .trim();
+
+          const contentContainer = document.getElementById('static-page-content');
+          contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+
+          contentContainer.style.margin = '0';
+          contentContainer.style.padding = '0';
+          contentContainer.style.fontSize = '16px';
+
+          const paragraphs = contentContainer.querySelectorAll('p');
+          paragraphs.forEach(p => {
+            p.style.wordBreak = 'break-word';
+            p.style.margin = '0 0 1rem 0';
+            p.style.lineHeight = '1.6';
+          });
+
+          const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+          blankParagraphs.forEach(p => {
+            p.style.height = '1rem';
+            p.style.margin = '0';
+          });
+
+          const headers = contentContainer.querySelectorAll('h1, h2, h3');
+          headers.forEach(h => {
+            h.style.fontWeight = '600';
+            if (h.tagName.toLowerCase() === 'h1') {
+              h.style.fontSize = '1.75rem';
+            } else if (h.tagName.toLowerCase() === 'h2') {
+              h.style.fontSize = '1.5rem';
+            } else if (h.tagName.toLowerCase() === 'h3') {
+              h.style.fontSize = '1.25rem';
+            }
+            h.style.margin = '1.5rem 0 1rem 0';
+          });
+
+          const unorderedLists = contentContainer.querySelectorAll('ul');
+          unorderedLists.forEach(ul => {
+            ul.style.paddingLeft = '1.5rem';
+            ul.style.listStyleType = 'none';
+            ul.style.margin = '1rem 0';
+          });
+
+          const orderedLists = contentContainer.querySelectorAll('ol');
+          orderedLists.forEach(ol => {
+            ol.style.paddingLeft = '1.5rem';
+            if (!ol.style.listStyleType) {
+              ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+            }
+            ol.style.margin = '1rem 0';
+          });
+
+          const listItems = contentContainer.querySelectorAll('li');
+          listItems.forEach(li => {
+            const indentLevel = li.className.match(/ql-indent-(\d+)/);
+            if (indentLevel) {
+              li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+            }
+            li.style.position = 'relative';
+            li.style.paddingLeft = '1.5rem';
+            li.style.marginBottom = '0.5rem';
+            if (li.parentNode.tagName.toLowerCase() === 'ul') {
+              li.style.listStyleType = 'none';
+              li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+            }
+          });
+
+          const boldText = contentContainer.querySelectorAll('strong, b');
+          boldText.forEach(b => {
+            b.style.fontWeight = 'bold';
+          });
+
+          const italicText = contentContainer.querySelectorAll('em, i');
+          italicText.forEach(i => {
+            i.style.fontStyle = 'italic';
+          });
+
+          const underlineText = contentContainer.querySelectorAll('u');
+          underlineText.forEach(u => {
+            u.style.textDecoration = 'underline';
+          });
+
+          const links = contentContainer.querySelectorAll('a');
+          links.forEach(link => {
+            link.style.color = 'blue';
+            link.style.textDecoration = 'underline';
+            link.setAttribute('target', '_blank');
+          });
+
+          const blockquotes = contentContainer.querySelectorAll('blockquote');
+          blockquotes.forEach(bq => {
+            bq.style.borderLeft = '4px solid #ccc';
+            bq.style.paddingLeft = '1rem';
+            bq.style.color = '#666';
+            bq.style.margin = '1rem 0';
+          });
+
+          const codeElements = contentContainer.querySelectorAll('code');
+          codeElements.forEach(code => {
+            code.style.backgroundColor = '#f4f4f4';
+            code.style.padding = '2px 4px';
+            code.style.borderRadius = '4px';
+            code.style.fontFamily = 'monospace';
+          });
+
+          const images = contentContainer.querySelectorAll('img');
+          images.forEach(img => {
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.borderRadius = '8px';
+            img.style.margin = '1rem 0';
+          });
+
+          modal.classList.remove('hidden');
+          document.body.classList.add('popup-active');
+        });
+        staticLinks.appendChild(a);
+      });
+
+    document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
+    document.getElementById('mobile-support-email').textContent = settings.supportEmail;
+    document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+
+    const mobileSocialLinks = document.getElementById('mobile-social-links');
+    mobileSocialLinks.innerHTML = '';
+    if (settings.socials) {
+      Object.entries(settings.socials).forEach(([platform, url]) => {
+        if (url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.className = 'text-gray-500 hover:text-green-600 text-sm';
+          a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+          mobileSocialLinks.appendChild(a);
+        }
+      });
+    }
+
+    const mobileStaticLinks = document.getElementById('mobile-static-links');
+    mobileStaticLinks.innerHTML = '';
+    staticPages
+      .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+      .forEach(page => {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'text-gray-500 hover:text-green-600 text-sm';
+        a.textContent = page.title;
+        a.dataset.slug = page.slug;
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          const modal = document.getElementById('static-page-modal');
+          document.getElementById('static-page-title').textContent = page.title;
+
+          let cleanedContent = page.content
+            .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+            .trim();
+
+          const contentContainer = document.getElementById('static-page-content');
+          contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+
+          contentContainer.style.margin = '0';
+          contentContainer.style.padding = '0';
+          contentContainer.style.fontSize = '16px';
+
+          const paragraphs = contentContainer.querySelectorAll('p');
+          paragraphs.forEach(p => {
+            p.style.wordBreak = 'break-word';
+            p.style.margin = '0 0 1rem 0';
+            p.style.lineHeight = '1.6';
+          });
+
+          const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+          blankParagraphs.forEach(p => {
+            p.style.height = '1rem';
+            p.style.margin = '0';
+          });
+
+          const headers = contentContainer.querySelectorAll('h1, h2, h3');
+          headers.forEach(h => {
+            h.style.fontWeight = '600';
+            if (h.tagName.toLowerCase() === 'h1') {
+              h.style.fontSize = '1.75rem';
+            } else if (h.tagName.toLowerCase() === 'h2') {
+              h.style.fontSize = '1.5rem';
+            } else if (h.tagName.toLowerCase() === 'h3') {
+              h.style.fontSize = '1.25rem';
+            }
+            h.style.margin = '1.5rem 0 1rem 0';
+          });
+
+          const unorderedLists = contentContainer.querySelectorAll('ul');
+          unorderedLists.forEach(ul => {
+            ul.style.paddingLeft = '1.5rem';
+            ul.style.listStyleType = 'none';
+            ul.style.margin = '1rem 0';
+          });
+
+          const orderedLists = contentContainer.querySelectorAll('ol');
+          orderedLists.forEach(ol => {
+            ol.style.paddingLeft = '1.5rem';
+            if (!ol.style.listStyleType) {
+              ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+            }
+            ol.style.margin = '1rem 0';
+          });
+
+          const listItems = contentContainer.querySelectorAll('li');
+          listItems.forEach(li => {
+            const indentLevel = li.className.match(/ql-indent-(\d+)/);
+            if (indentLevel) {
+              li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+            }
+            li.style.position = 'relative';
+            li.style.paddingLeft = '1.5rem';
+            li.style.marginBottom = '0.5rem';
+            if (li.parentNode.tagName.toLowerCase() === 'ul') {
+              li.style.listStyleType = 'none';
+              li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+            }
+          });
+
+          const boldText = contentContainer.querySelectorAll('strong, b');
+          boldText.forEach(b => {
+            b.style.fontWeight = 'bold';
+          });
+
+          const italicText = contentContainer.querySelectorAll('em, i');
+          italicText.forEach(i => {
+            i.style.fontStyle = 'italic';
+          });
+
+          const underlineText = contentContainer.querySelectorAll('u');
+          underlineText.forEach(u => {
+            u.style.textDecoration = 'underline';
+          });
+
+          const links = contentContainer.querySelectorAll('a');
+          links.forEach(link => {
+            link.style.color = 'blue';
+            link.style.textDecoration = 'underline';
+            link.setAttribute('target', '_blank');
+          });
+
+          const blockquotes = contentContainer.querySelectorAll('blockquote');
+          blockquotes.forEach(bq => {
+            bq.style.borderLeft = '4px solid #ccc';
+            bq.style.paddingLeft = '1rem';
+            bq.style.color = '#666';
+            bq.style.margin = '1rem 0';
+          });
+
+          const codeElements = contentContainer.querySelectorAll('code');
+          codeElements.forEach(code => {
+            code.style.backgroundColor = '#f4f4f4';
+            code.style.padding = '2px 4px';
+            code.style.borderRadius = '4px';
+            code.style.fontFamily = 'monospace';
+          });
+
+          const images = contentContainer.querySelectorAll('img');
+          images.forEach(img => {
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.borderRadius = '8px';
+            img.style.margin = '1rem 0';
+          });
+
+          modal.classList.remove('hidden');
+          document.body.classList.add('popup-active');
+          document.getElementById('mobile-menu').classList.remove('open');
+        });
+        mobileStaticLinks.appendChild(a);
+      });
+
+    document.getElementById('static-page-close').onclick = () => {
+      document.getElementById('static-page-modal').classList.add('hidden');
+      document.body.classList.remove('popup-active');
+    };
+  }
+
+  function showUrgentMessage() {
+    const urgentMessage = document.getElementById('urgent-message');
+    const urgentText = document.getElementById('urgent-text');
+    if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+      urgentText.innerHTML = settings.urgentMessage.text;
+      urgentMessage.classList.remove('hidden');
+    }
+    document.getElementById('urgent-close').onclick = () => {
+      urgentMessage.classList.add('hidden');
+    };
+  }
+
+  async function checkPaymentCookie() {
+    const cookies = document.cookie.split(';');
+    const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
+    if (paymentCookie) {
+      const [itemKey, status] = paymentCookie.split('=');
+      const item = itemKey.replace('payment_', '');
+      if (status === 'initiated') {
+        const product = products.find(p => p.item === item);
+        if (product) {
+          const kesPrice = localStorage.getItem(`payment_${item}_kesPrice`);
+          if (kesPrice) {
+            showRefCodeModal(product, kesPrice);
+          } else {
+            const rate = await getExchangeRate();
+            const newKesPrice = (product.price * rate).toFixed(2);
+            localStorage.setItem(`payment_${item}_kesPrice`, newKesPrice);
+            showRefCodeModal(product, newKesPrice);
+          }
+        }
+      }
+    }
+  }
+
+  function startPolling() {
+    setInterval(async () => {
+      const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal']
+        .some(modalId => !document.getElementById(modalId).classList.contains('hidden') || document.getElementById(modalId).style.display === 'flex');
+      if (isUserActive) {
+        console.log('Skipping polling: User is in an active modal');
+        return;
+      }
+      const success = await fetchData();
+      if (success) {
+        renderNavLinks();
+        renderProducts();
+        updateFooter();
+        showUrgentMessage();
+      }
+    }, 10 * 1000);
+  }
+
+  function isInAppBrowser() {
+    const ua = navigator.userAgent.toLowerCase();
+    console.log("User Agent:", navigator.userAgent);
+    const inAppPatterns = [
+      'tiktok', 'bytedancewebview',
+      'twitter', 'twitterandroid', 'twitterios',
+      'fbav', 'fb_iab', 'fban', 'fb4a',
+      'instagram',
+      'linkedin', 'linkedinapp',
+      'snapchat',
+      'line',
+      'zalo',
+      'pinterest',
+      'messenger', 'fb_messenger',
+      'kakaotalk',
+      'dingtalk',
+      'weixin', 'micromessenger',
+      'reddit',
+      'discord',
+      'telegram',
+      'whatsapp'
+    ];
+    const isAppBrowser = inAppPatterns.some(pattern => ua.includes(pattern));
+    const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
+    const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
+    const result = (isAppBrowser || isWebView) && !isRegularBrowser;
+    console.log('Is In-App Browser:', result);
+    return result;
+  }
+
+  function handleInAppBrowser() {
+    if (isInAppBrowser()) {
+      const popup = document.createElement("div");
+      popup.className = "popup";
+      popup.innerHTML = `
+        <div class="popup-content">
+          <h3>Open in Browser</h3>
+          <p style="font-size: 1rem; color: #444; margin-bottom: 20px;">
+            For a smoother experience, please open this page in your default browser (e.g., Chrome, Safari). Tap your app's menu (often a three-dot icon) and select "Open in Browser".
+          </p>
+          <button class="browser-popup-button cancel">Okay</button>
+        </div>`;
+      document.body.appendChild(popup);
+
+      popup.querySelector(".cancel").addEventListener("click", () => {
+        console.log('Okay button clicked');
+        popup.remove();
+        allowInAppBrowser = true;
+        proceedWithInit();
+      });
+    } else {
+      proceedWithInit();
+    }
+  }
+
+  async function proceedWithInit() {
+    const success = await fetchData();
+    if (success) {
+      renderNavLinks();
+      renderProducts();
+      updateFooter();
+      showUrgentMessage();
+      checkPaymentCookie();
+      startPolling();
+      await fetchModalContent();
+
+      // Initialize Pay Hero payment handler
+      document.getElementById('initiate-payhero').addEventListener('click', () => {
+        const customerName = document.getElementById('customer-name').value || 'Customer';
+        const phone = document.getElementById('phone-number').value;
+        if (!phone.match(/^254[0-9]{9}$/)) {
+          alert('Please enter a valid Kenyan phone number (e.g., 254712345678)');
+          return;
+        }
+        fetch('/api/initiate-payhero', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item: selectedItem, amount: selectedPrice, phone, customerName })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            PayHeroButton.init({
+              paymentUrl: settings.payheroPaymentUrl,
+              containerId: 'payhero-button-container',
+              channelID: settings.payheroChannelId,
+              amount: selectedPrice.toString(),
+              phone: phone,
+              name: customerName,
+              reference: data.refCode,
+              buttonName: 'Pay with Pay Hero',
+              buttonColor: '#007bff',
+              callbackUrl: `${window.location.origin}/api/payhero-callback`
+            });
+            document.getElementById('payhero-form').classList.add('hidden');
+            document.getElementById('payment-modal').classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            showStatusModal({ item: selectedItem }, data.refCode, 'Confirming Pay Hero payment...');
+          } else {
+            alert('Failed to initiate payment. Please try again.');
+          }
+        })
+        .catch(error => {
+          console.error('Error initiating Pay Hero payment:', error);
+          alert('An error occurred. Please try again.');
+        });
+      });
+
+      // Handle Pay Hero payment events
+      window.addEventListener('message', function(event) {
+        if (event.data.paymentSuccess) {
+          console.log('Pay Hero Payment Successful:', event.data);
+        } else {
+          console.error('Pay Hero Payment Failed:', event.data);
+          alert('Payment failed. Please try again.');
+          document.getElementById('status-modal').classList.add('hidden');
+          document.getElementById('payment-modal').classList.remove('hidden');
+          document.body.classList.add('popup-active');
+        }
+      });
+    }
+
+    document.getElementById('mobile-menu-button').onclick = () => {
+      document.getElementById('mobile-menu').classList.add('open');
+    };
+
+    document.getElementById('mobile-menu-close').onclick = () => {
+      document.getElementById('mobile-menu').classList.remove('open');
+    };
+
+    const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
+    searchBars.forEach(searchBar => {
+      searchBar.addEventListener('input', debounce(() => {
+        const search = searchBar.value;
+        const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+        renderProducts(category, search);
+      }, 300));
+    });
+  }
+
+  async function init() {
+    handleInAppBrowser();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
 </script>
+  <script> data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
