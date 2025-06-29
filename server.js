@@ -262,7 +262,7 @@ async function loadData() {
       adminEmail: settingsData.adminEmail || '',
       adminPassword: settingsData.adminPassword || '',
       mpesaTill: settingsData.mpesaTill || '4933614',
-      payheroChannelId: settingsData.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '911',
+      payheroChannelId: settingsData.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '2332',
       payheroPaymentUrl: settingsData.payheroPaymentUrl || process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5',
       payheroAuthToken: settingsData.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || ''
     };
@@ -580,7 +580,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     }
 
     // Ensure Pay Hero settings are preserved
-    cachedData.settings.payheroChannelId = req.body.settings.payheroChannelId || cachedData.settings.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '911';
+    cachedData.settings.payheroChannelId = req.body.settings.payheroChannelId || cachedData.settings.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '2332';
     cachedData.settings.payheroPaymentUrl = req.body.settings.payheroPaymentUrl || cachedData.settings.payheroPaymentUrl || process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5';
     cachedData.settings.payheroAuthToken = req.body.settings.payheroAuthToken || cachedData.settings.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || '';
 
