@@ -599,18 +599,22 @@
   <script src="https://applet.payherokenya.com/deposit/payhero.js"></script>
 <style>
   .payment-modal, #payment-modal .bg-white {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: linear-gradient(145deg, #ffffff, #f0f4f8);
-    padding: 1.5rem;
-    border-radius: 16px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-    max-width: 90%;
-    width: 500px;
-  }
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, #ffffff, #f0f4f8);
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-width: 90%;
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
   .payhero-form input, .payhero-form button {
     margin: 0.5rem 0;
     padding: 0.75rem;
@@ -786,12 +790,6 @@
 
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
   <div class="bg-white rounded-lg p-6 w-full max-w-md">
-    <div id="countdown-timer" class="mb-4">
-      <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
-      <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
-      </div>
-    </div>
     <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
     <p class="text-gray-600 mb-4">Choose payment method:</p>
     <button id="pay-mpesa-till" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Pay with MPESA Till</button>
@@ -997,96 +995,102 @@
     modal.classList.remove('hidden');
     document.body.classList.add('popup-active');
 
-    let timeLeft = 10 * 60;
-    const timerText = document.getElementById('timer-text');
-    const timerBar = document.getElementById('timer-bar');
-
-    const countdown = setInterval(() => {
-      if (timeLeft <= 0) {
-        clearInterval(countdown);
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        window.location.href = WHATSAPP_REDIRECT;
-        return;
-      }
-      const minutes = Math.floor(timeLeft / 60);
-      const seconds = timeLeft % 60;
-      timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-      const percentage = (timeLeft / (10 * 60)) * 100;
-      timerBar.style.width = `${percentage}%`;
-      timeLeft--;
-    }, 1000);
-
     // MPESA Till button
     document.getElementById('pay-mpesa-till').onclick = () => {
-      clearInterval(countdown);
-      document.getElementById('payment-modal').classList.add('hidden');
-      document.querySelector('#payment-modal .payhero-form').classList.add('hidden');
-      const paymentInstructions = document.createElement('div');
-      paymentInstructions.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-      paymentInstructions.innerHTML = `
-        <div class="bg-white rounded-lg p-6 w-full max-w-md">
-          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for ${product.name}</h3>
-          <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-          <div class="flex items-center space-x-2">
-            <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">${settings.mpesaTill || '4933614'}</span></p>
-            <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
-          </div>
-          <p class="text-green-600 font-bold mt-2">Amount: ${kesPrice} KES</p>
-          <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-          <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-        </div>
-      `;
-      document.body.appendChild(paymentInstructions);
+        document.getElementById('payment-modal').classList.add('hidden');
+        document.querySelector('#payment-modal .payhero-form').classList.add('hidden');
+        const paymentInstructions = document.createElement('div');
+        paymentInstructions.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        paymentInstructions.innerHTML = `
+            <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                <div id="mpesa-countdown-timer" class="mb-4">
+                    <p class="text-gray-600">Time remaining: <span id="mpesa-timer-text">10:00</span></p>
+                    <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div id="mpesa-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for ${product.name}</h3>
+                <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+                <div class="flex items-center space-x-2">
+                    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">${settings.mpesaTill || '4933614'}</span></p>
+                    <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+                </div>
+                <p class="text-green-600 font-bold mt-2">Amount: ${kesPrice} KES</p>
+                <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+                <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+            </div>
+        `;
+        document.body.appendChild(paymentInstructions);
 
-      document.getElementById('copy-till').onclick = () => {
-        const tillNumber = document.getElementById('mpesa-till-number').textContent;
-        navigator.clipboard.writeText(tillNumber).then(() => {
-          document.getElementById('copy-till').textContent = 'Copied';
-          setTimeout(() => {
-            document.getElementById('copy-till').textContent = 'Copy Till';
-          }, 2000);
-        }).catch(err => {
-          const textarea = document.createElement('textarea');
-          textarea.value = tillNumber;
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          document.getElementById('copy-till').textContent = 'Copied';
-          setTimeout(() => {
-            document.getElementById('copy-till').textContent = 'Copy Till';
-          }, 2000);
-        });
-      };
+        let timeLeft = 10 * 60;
+        const timerText = document.getElementById('mpesa-timer-text');
+        const timerBar = document.getElementById('mpesa-timer-bar');
 
-      document.getElementById('confirm-payment').onclick = () => {
-        document.body.removeChild(paymentInstructions);
-        document.body.classList.remove('popup-active');
-        const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-        document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
-        localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
-        showRefCodeModal(product, kesPrice);
-      };
+        const countdown = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                document.body.removeChild(paymentInstructions);
+                document.body.classList.remove('popup-active');
+                window.location.href = WHATSAPP_REDIRECT;
+                return;
+            }
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            const percentage = (timeLeft / (10 * 60)) * 100;
+            timerBar.style.width = `${percentage}%`;
+            timeLeft--;
+        }, 1000);
 
-      document.getElementById('payment-cancel').onclick = () => {
-        document.body.removeChild(paymentInstructions);
-        document.body.classList.remove('popup-active');
-      };
+        document.getElementById('copy-till').onclick = () => {
+            const tillNumber = document.getElementById('mpesa-till-number').textContent;
+            navigator.clipboard.writeText(tillNumber).then(() => {
+                document.getElementById('copy-till').textContent = 'Copied';
+                setTimeout(() => {
+                    document.getElementById('copy-till').textContent = 'Copy Till';
+                }, 2000);
+            }).catch(err => {
+                const textarea = document.createElement('textarea');
+                textarea.value = tillNumber;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                document.getElementById('copy-till').textContent = 'Copied';
+                setTimeout(() => {
+                    document.getElementById('copy-till').textContent = 'Copy Till';
+                }, 2000);
+            });
+        };
+
+        document.getElementById('confirm-payment').onclick = () => {
+            clearInterval(countdown);
+            document.body.removeChild(paymentInstructions);
+            document.body.classList.remove('popup-active');
+            const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+            document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
+            localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
+            showRefCodeModal(product, kesPrice);
+        };
+
+        document.getElementById('payment-cancel').onclick = () => {
+            clearInterval(countdown);
+            document.body.removeChild(paymentInstructions);
+            document.body.classList.remove('popup-active');
+        };
     };
 
     // Pay Hero button
     document.getElementById('pay-payhero').onclick = () => {
-      document.getElementById('payhero-form').classList.remove('hidden');
+        document.getElementById('payhero-form').classList.remove('hidden');
     };
 
     // Cancel button
     document.getElementById('payment-cancel').onclick = () => {
-      clearInterval(countdown);
-      modal.classList.add('hidden');
-      document.body.classList.remove('popup-active');
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
     };
-  }
+}
 
   async function renderProducts(category = 'all', search = '') {
     const grid = document.getElementById('product-grid');
