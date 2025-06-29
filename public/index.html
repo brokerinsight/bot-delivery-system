@@ -598,44 +598,137 @@
 </style>
   <script src="https://applet.payherokenya.com/deposit/payhero.js"></script>
 <style>
-  #payment-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 50;
+  /* Modal Z-Index Hierarchy */
+#payment-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; /* Use display: none instead of hidden class for consistency */
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
 }
-#payment-modal .bg-white {
-  background: linear-gradient(145deg, #ffffff, #f0f4f8);
-  padding: 1.5rem;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-  max-width: 90%;
-  width: 500px;
-  transform: translateY(0);
-  animation: popupFadeIn 0.5s ease-out forwards;
+
+#mpesa-till-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
 }
-.payhero-form input, .payhero-form button {
-  margin: 0.5rem 0;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  width: 100%;
+
+#ref-code-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
 }
+
+#status-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 80;
+}
+
+#download-progress-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 90; /* Lowered from 999 to avoid overriding critical elements */
+}
+
+#static-page-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#cookie-popup-container {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 110;
+}
+
+#details-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 120;
+}
+
+/* Ensure modal content is styled consistently */
+#payment-modal .bg-white,
+#ref-code-modal .bg-white,
+#status-modal .bg-white,
+#static-page-modal .bg-white,
+#download-progress-modal #download-progress-content,
+#details-modal .modal-content {
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    padding: 1.5rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    max-width: 90%;
+    width: 500px;
+    transform: translateY(0);
+    animation: popupFadeIn 0.5s ease-out forwards;
+}
+
+/* Pay Hero form styling */
+.payhero-form input,
 .payhero-form button {
-  background: linear-gradient(90deg, #2563eb, #3b82f6);
-  color: white;
-  border: none;
-  cursor: pointer;
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    width: 100%;
 }
+
+.payhero-form button {
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
 .payhero-form button:hover {
-  background: linear-gradient(90deg, #1d4ed8, #2563eb);
+    background: linear-gradient(90deg, #1d4ed8, #2563eb);
 }
+
 .payhero-form.hidden {
-  display: none;
+    display: none;
+}
+
+/* Ensure buttons are clickable */
+#payment-modal button,
+#mpesa-till-modal button,
+#ref-code-modal button,
+#status-modal button {
+    position: relative;
+    z-index: 150; /* Ensure buttons are above modal content */
 }
 </style>
 </head>
@@ -990,132 +1083,24 @@
   }
 
   async function showPaymentModal(product, kesPrice) {
+    console.log('showPaymentModal: Called for product', product.name);
     selectedItem = product.item;
     selectedPrice = kesPrice;
     const modal = document.getElementById('payment-modal');
     const payheroForm = document.querySelector('#payment-modal .payhero-form');
-    
-    // Ensure modal and payhero form are hidden initially
-    modal.classList.add('hidden');
-    payheroForm.classList.add('hidden');
-    
+
+    if (!modal || !payheroForm) {
+        console.error('showPaymentModal: Modal or payhero-form not found');
+        return;
+    }
+
     // Set payment title
     document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
     
-    // Show the modal
-    modal.classList.remove('hidden');
-    document.body.classList.add('popup-active');
-
-    // Remove any existing event listeners to prevent duplicates
-    const payMpesaTillBtn = document.getElementById('pay-mpesa-till');
-    const payPayheroBtn = document.getElementById('pay-payhero');
-    const paymentCancelBtn = document.getElementById('payment-cancel');
-    
-    // Clone buttons to remove existing listeners
-    const newPayMpesaTill = payMpesaTillBtn.cloneNode(true);
-    const newPayPayhero = payPayheroBtn.cloneNode(true);
-    const newPaymentCancel = paymentCancelBtn.cloneNode(true);
-    
-    payMpesaTillBtn.parentNode.replaceChild(newPayMpesaTill, payMpesaTillBtn);
-    payPayheroBtn.parentNode.replaceChild(newPayPayhero, payPayheroBtn);
-    paymentCancelBtn.parentNode.replaceChild(newPaymentCancel, paymentCancelBtn);
-
-    // MPESA Till button
-    newPayMpesaTill.onclick = () => {
-        modal.classList.add('hidden');
-        payheroForm.classList.add('hidden');
-        const paymentInstructions = document.createElement('div');
-        paymentInstructions.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        paymentInstructions.id = 'mpesa-till-modal';
-        paymentInstructions.innerHTML = `
-            <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                <div id="mpesa-countdown-timer" class="mb-4">
-                    <p class="text-gray-600">Time remaining: <span id="mpesa-timer-text">10:00</span></p>
-                    <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div id="mpesa-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
-                    </div>
-                </div>
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for ${product.name}</h3>
-                <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-                <div class="flex items-center space-x-2">
-                    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">${settings.mpesaTill || '4933614'}</span></p>
-                    <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
-                </div>
-                <p class="text-green-600 font-bold mt-2">Amount: ${kesPrice} KES</p>
-                <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-                <button id="mpesa-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
-            </div>
-        `;
-        document.body.appendChild(paymentInstructions);
-
-        let timeLeft = 10 * 60;
-        const timerText = document.getElementById('mpesa-timer-text');
-        const timerBar = document.getElementById('mpesa-timer-bar');
-
-        const countdown = setInterval(() => {
-            if (timeLeft <= 0) {
-                clearInterval(countdown);
-                document.body.removeChild(paymentInstructions);
-                document.body.classList.remove('popup-active');
-                return;
-            }
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-            const percentage = (timeLeft / (10 * 60)) * 100;
-            timerBar.style.width = `${percentage}%`;
-            timeLeft--;
-        }, 1000);
-
-        document.getElementById('copy-till').onclick = () => {
-            const tillNumber = document.getElementById('mpesa-till-number').textContent;
-            navigator.clipboard.writeText(tillNumber).then(() => {
-                document.getElementById('copy-till').textContent = 'Copied';
-                setTimeout(() => {
-                    document.getElementById('copy-till').textContent = 'Copy Till';
-                }, 2000);
-            }).catch(err => {
-                const textarea = document.createElement('textarea');
-                textarea.value = tillNumber;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                document.getElementById('copy-till').textContent = 'Copied';
-                setTimeout(() => {
-                    document.getElementById('copy-till').textContent = 'Copy Till';
-                }, 2000);
-            });
-        };
-
-        document.getElementById('confirm-payment').onclick = () => {
-            clearInterval(countdown);
-            document.body.removeChild(paymentInstructions);
-            document.body.classList.remove('popup-active');
-            const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-            document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
-            localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
-            showRefCodeModal(product, kesPrice);
-        };
-
-        document.getElementById('mpesa-cancel').onclick = () => {
-            clearInterval(countdown);
-            document.body.removeChild(paymentInstructions);
-            document.body.classList.remove('popup-active');
-        };
-    };
-
-    // Pay Hero button
-    newPayPayhero.onclick = () => {
-        payheroForm.classList.remove('hidden');
-    };
-
-    // Cancel button
-    newPaymentCancel.onclick = () => {
-        modal.classList.add('hidden');
-        payheroForm.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-    };
+    // Show modal using manager
+    manageModal('payment-modal', true);
+    payheroForm.classList.add('hidden');
+    console.log('showPaymentModal: Payment modal shown');
 }
     
   async function renderProducts(category = 'all', search = '') {
@@ -1962,27 +1947,34 @@
   }
 
   async function checkPaymentCookie() {
+    console.log('checkPaymentCookie: Checking cookies');
     const cookies = document.cookie.split(';');
     const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
     if (paymentCookie) {
-      const [itemKey, status] = paymentCookie.split('=');
-      const item = itemKey.replace('payment_', '');
-      if (status === 'initiated') {
-        const product = products.find(p => p.item === item);
-        if (product) {
-          const kesPrice = localStorage.getItem(`payment_${item}_kesPrice`);
-          if (kesPrice) {
-            showRefCodeModal(product, kesPrice);
-          } else {
-            const rate = await getExchangeRate();
-            const newKesPrice = (product.price * rate).toFixed(2);
-            localStorage.setItem(`payment_${item}_kesPrice`, newKesPrice);
-            showRefCodeModal(product, newKesPrice);
-          }
+        const [itemKey, status] = paymentCookie.split('=');
+        const item = itemKey.replace('payment_', '');
+        if (status === 'initiated') {
+            const product = products.find(p => p.item === item);
+            if (product) {
+                const kesPrice = localStorage.getItem(`payment_${item}_kesPrice`);
+                if (kesPrice) {
+                    console.log('checkPaymentCookie: Found payment cookie, showing ref-code-modal');
+                    showRefCodeModal(product, kesPrice);
+                } else {
+                    const rate = await getExchangeRate();
+                    const newKesPrice = (product.price * rate).toFixed(2);
+                    localStorage.setItem(`payment_${item}_kesPrice`, newKesPrice);
+                    console.log('checkPaymentCookie: Generated new kesPrice, showing ref-code-modal');
+                    showRefCodeModal(product, newKesPrice);
+                }
+            } else {
+                console.warn('checkPaymentCookie: Product not found for item', item);
+            }
         }
-      }
+    } else {
+        console.log('checkPaymentCookie: No payment cookies found');
     }
-  }
+}
 
   function startPolling() {
     setInterval(async () => {
@@ -2057,98 +2049,339 @@
     }
   }
 
+
+    
   async function proceedWithInit() {
+    console.log('proceedWithInit: Starting');
     const success = await fetchData();
     if (success) {
-      renderNavLinks();
-      renderProducts();
-      updateFooter();
-      showUrgentMessage();
-      checkPaymentCookie();
-      startPolling();
-      await fetchModalContent();
+        renderNavLinks();
+        renderProducts();
+        updateFooter();
+        showUrgentMessage();
+        checkPaymentCookie();
+        startPolling();
+        await fetchModalContent();
+        initializePaymentModalButtons(); // Reinitialize buttons after fetchModalContent
+        console.log('proceedWithInit: Buttons reinitialized');
 
-      // Initialize Pay Hero payment handler
-      document.getElementById('initiate-payhero').addEventListener('click', () => {
-        const customerName = document.getElementById('customer-name').value || 'Customer';
-        const phone = document.getElementById('phone-number').value;
-        if (!phone.match(/^254[0-9]{9}$/)) {
-          alert('Please enter a valid Kenyan phone number (e.g., 254712345678)');
-          return;
-        }
-        fetch('/api/initiate-payhero', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item: selectedItem, amount: selectedPrice, phone, customerName })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            PayHeroButton.init({
-              paymentUrl: settings.payheroPaymentUrl,
-              containerId: 'payhero-button-container',
-              channelID: settings.payheroChannelId,
-              amount: selectedPrice.toString(),
-              phone: phone,
-              name: customerName,
-              reference: data.refCode,
-              buttonName: 'Pay with Pay Hero',
-              buttonColor: '#007bff',
-              callbackUrl: `${window.location.origin}/api/payhero-callback`
-            });
-            document.getElementById('payhero-form').classList.add('hidden');
-            document.getElementById('payment-modal').classList.add('hidden');
-            document.body.classList.remove('popup-active');
-            showStatusModal({ item: selectedItem }, data.refCode, 'Confirming Pay Hero payment...');
-          } else {
-            alert('Failed to initiate payment. Please try again.');
-          }
-        })
-        .catch(error => {
-          console.error('Error initiating Pay Hero payment:', error);
-          alert('An error occurred. Please try again.');
-        });
-      });
-
-      // Handle Pay Hero payment events
-      window.addEventListener('message', function(event) {
-        if (event.data.paymentSuccess) {
-          console.log('Pay Hero Payment Successful:', event.data);
+        // Initialize Pay Hero payment handler
+        const initiatePayheroBtn = document.getElementById('initiate-payhero');
+        if (initiatePayheroBtn) {
+            initiatePayheroBtn.onclick = () => {
+                console.log('Initiate Pay Hero button clicked');
+                const customerName = document.getElementById('customer-name').value || 'Customer';
+                const phone = document.getElementById('phone-number').value;
+                if (!phone.match(/^254[0-9]{9}$/)) {
+                    alert('Please enter a valid Kenyan phone number (e.g., 254712345678)');
+                    return;
+                }
+                fetch('/api/initiate-payhero', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item: selectedItem, amount: selectedPrice, phone, customerName })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        PayHeroButton.init({
+                            paymentUrl: settings.payheroPaymentUrl,
+                            containerId: 'payhero-button-container',
+                            channelID: settings.payheroChannelId,
+                            amount: selectedPrice.toString(),
+                            phone: phone,
+                            name: customerName,
+                            reference: data.refCode,
+                            buttonName: 'Pay with Pay Hero',
+                            buttonColor: '#007bff',
+                            callbackUrl: `${window.location.origin}/api/payhero-callback`
+                        });
+                        manageModal('payment-modal', false);
+                        showStatusModal({ item: selectedItem }, data.refCode, 'Confirming Pay Hero payment...');
+                    } else {
+                        alert('Failed to initiate payment. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error initiating Pay Hero payment:', error);
+                    alert('An error occurred. Please try again.');
+                });
+            };
         } else {
-          console.error('Pay Hero Payment Failed:', event.data);
-          alert('Payment failed. Please try again.');
-          document.getElementById('status-modal').classList.add('hidden');
-          document.getElementById('payment-modal').classList.remove('hidden');
-          document.body.classList.add('popup-active');
+            console.error('proceedWithInit: initiate-payhero button not found');
         }
-      });
+
+        // Handle Pay Hero payment events
+        window.addEventListener('message', function(event) {
+            if (event.data.paymentSuccess) {
+                console.log('Pay Hero Payment Successful:', event.data);
+            } else {
+                console.error('Pay Hero Payment Failed:', event.data);
+                alert('Payment failed. Please try again.');
+                manageModal('status-modal', false);
+                manageModal('payment-modal', true);
+            }
+        });
     }
 
     document.getElementById('mobile-menu-button').onclick = () => {
-      document.getElementById('mobile-menu').classList.add('open');
+        console.log('Mobile menu button clicked');
+        document.getElementById('mobile-menu').classList.add('open');
     };
 
     document.getElementById('mobile-menu-close').onclick = () => {
-      document.getElementById('mobile-menu').classList.remove('open');
+        console.log('Mobile menu close button clicked');
+        document.getElementById('mobile-menu').classList.remove('open');
     };
 
     const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
     searchBars.forEach(searchBar => {
-      searchBar.addEventListener('input', debounce(() => {
-        const search = searchBar.value;
-        const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
-        renderProducts(category, search);
-      }, 300));
+        searchBar.addEventListener('input', debounce(() => {
+            const search = searchBar.value;
+            const category = document.querySelector('.nav-link.border-green-500')?.dataset.category || 'all';
+            renderProducts(category, search);
+        }, 300));
     });
-  }
+    console.log('proceedWithInit: Completed');
+}
 
-  async function init() {
-    // Ensure payment modal is hidden on page load
-    document.getElementById('payment-modal').classList.add('hidden');
-    document.querySelector('#payment-modal .payhero-form').classList.add('hidden');
-    document.body.classList.remove('popup-active');
+let activeModal = null;
+
+function manageModal(modalId, show = true) {
+    console.log(`manageModal: ${show ? 'Showing' : 'Hiding'} modal ${modalId}`);
+    const modals = ['payment-modal', 'mpesa-till-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal', 'static-page-modal', 'details-modal', 'cookie-popup-container'];
+    modals.forEach(id => {
+        const modal = document.getElementById(id);
+        if (!modal) {
+            console.warn(`manageModal: Modal ${id} not found`);
+            return;
+        }
+        if (id === modalId && show) {
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+            activeModal = id;
+            document.body.classList.add('popup-active');
+        } else {
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+    });
+    if (!show) {
+        document.body.classList.remove('popup-active');
+        activeModal = null;
+    }
+    console.log(`manageModal: Active modal is ${activeModal || 'none'}`);
+}
+
+    async function showRefCodeModal(product, kesPrice) {
+    console.log('showRefCodeModal: Called for product', product.name);
+    const modal = document.getElementById('ref-code-modal');
+    if (!modal) {
+        console.error('showRefCodeModal: ref-code-modal not found');
+        return;
+    }
+
+    const refCodeInput = document.getElementById('ref-code-input');
+    refCodeInput.value = localStorage.getItem(`payment_${product.item}_refCode`) || '';
+
+    manageModal('ref-code-modal', true);
+
+    document.getElementById('submit-ref-code').onclick = async () => {
+        console.log('submit-ref-code button clicked');
+        const refCode = refCodeInput.value.trim();
+        if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
+            alert('Please enter a valid MPESA ref code (8-12 alphanumeric characters).');
+            return;
+        }
+
+        try {
+            const response = await fetchWithTimeout(`${BASE_URL}/api/submit-ref`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    item: product.item,
+                    refCode,
+                    amount: kesPrice,
+                    timestamp: new Date().toISOString()
+                }),
+                credentials: 'include'
+            }, 15000);
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                localStorage.setItem(`payment_${product.item}_refCode`, refCode);
+                manageModal('ref-code-modal', false);
+                await showStatusModal(product, refCode);
+            } else {
+                throw new Error(data.error || `Failed to submit ref code: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error submitting ref code:', error.message);
+            alert(`Error submitting ref code: ${error.message}. Please try again or contact support at ${settings.supportEmail}.`);
+        }
+    };
+
+    document.getElementById('ref-code-cancel').onclick = () => {
+        console.log('ref-code-cancel button clicked');
+        manageModal('ref-code-modal', false);
+    };
+}
+
+    function initializePaymentModalButtons() {
+    console.log('initializePaymentModalButtons: Starting');
+    const payMpesaTillBtn = document.getElementById('pay-mpesa-till');
+    const payPayheroBtn = document.getElementById('pay-payhero');
+    const paymentCancelBtn = document.getElementById('payment-cancel');
     
+    if (!payMpesaTillBtn || !payPayheroBtn || !paymentCancelBtn) {
+        console.error('initializePaymentModalButtons: One or more buttons not found', {
+            payMpesaTillBtn: !!payMpesaTillBtn,
+            payPayheroBtn: !!payPayheroBtn,
+            paymentCancelBtn: !!paymentCancelBtn
+        });
+        return;
+    }
+
+    // Remove existing listeners by replacing buttons
+    const newPayMpesaTill = payMpesaTillBtn.cloneNode(true);
+    const newPayPayhero = payPayheroBtn.cloneNode(true);
+    const newPaymentCancel = paymentCancelBtn.cloneNode(true);
+    
+    payMpesaTillBtn.parentNode.replaceChild(newPayMpesaTill, payMpesaTillBtn);
+    payPayheroBtn.parentNode.replaceChild(newPayPayhero, payPayheroBtn);
+    paymentCancelBtn.parentNode.replaceChild(newPaymentCancel, paymentCancelBtn);
+    console.log('initializePaymentModalButtons: Buttons cloned');
+
+    // MPESA Till button
+    newPayMpesaTill.onclick = () => {
+        console.log('MPESA Till button clicked');
+        manageModal('payment-modal', false);
+        const paymentInstructions = document.createElement('div');
+        paymentInstructions.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60';
+        paymentInstructions.id = 'mpesa-till-modal';
+        paymentInstructions.innerHTML = `
+            <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                <div id="mpesa-countdown-timer" class="mb-4">
+                    <p class="text-gray-600">Time remaining: <span id="mpesa-timer-text">10:00</span></p>
+                    <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div id="mpesa-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for ${selectedItem}</h3>
+                <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+                <div class="flex items-center space-x-2">
+                    <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">${settings.mpesaTill || '4933614'}</span></p>
+                    <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+                </div>
+                <p class="text-green-600 font-bold mt-2">Amount: ${selectedPrice} KES</p>
+                <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+                <button id="mpesa-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+            </div>
+        `;
+        document.body.appendChild(paymentInstructions);
+        manageModal('mpesa-till-modal', true);
+
+        let timeLeft = 10 * 60;
+        const timerText = document.getElementById('mpesa-timer-text');
+        const timerBar = document.getElementById Fertility and Pregnancy Rapid Test Kits('mpesa-timer-bar');
+
+        const countdown = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                document.body.removeChild(paymentInstructions);
+                manageModal('mpesa-till-modal', false);
+                console.log('MPESA Till modal timed out');
+                return;
+            }
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            const percentage = (timeLeft / (10 * 60)) * 100;
+            timerBar.style.width = `${percentage}%`;
+            timeLeft--;
+        }, 1000);
+
+        document.getElementById('copy-till').onclick = () => {
+            console.log('Copy Till button clicked');
+            const tillNumber = document.getElementById('mpesa-till-number').textContent;
+            navigator.clipboard.writeText(tillNumber).then(() => {
+                document.getElementById('copy-till').textContent = 'Copied';
+                setTimeout(() => {
+                    document.getElementById('copy-till').textContent = 'Copy Till';
+                }, 2000);
+            }).catch(err => {
+                console.error('Clipboard copy failed:', err);
+                const textarea = document.createElement('textarea');
+                textarea.value = tillNumber;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                document.getElementById('copy-till').textContent = 'Copied';
+                setTimeout(() => {
+                    document.getElementById('copy-till').textContent = 'Copy Till';
+                }, 2000);
+            });
+        };
+
+        document.getElementById('confirm-payment').onclick = () => {
+            console.log('Confirm Payment button clicked');
+            clearInterval(countdown);
+            document.body.removeChild(paymentInstructions);
+            manageModal('mpesa-till-modal', false);
+            const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+            document.cookie = `payment_${selectedItem}=initiated; expires=${expiry}; path=/`;
+            localStorage.setItem(`payment_${selectedItem}_kesPrice`, selectedPrice);
+            showRefCodeModal({ item: selectedItem, name: document.getElementById('payment-title').textContent.replace('Pay for ', '') }, selectedPrice);
+        };
+
+        document.getElementById('mpesa-cancel').onclick = () => {
+            console.log('MPESA Cancel button clicked');
+            clearInterval(countdown);
+            document.body.removeChild(paymentInstructions);
+            manageModal('mpesa-till-modal', false);
+        };
+    };
+
+    // Pay Hero button
+    newPayPayhero.onclick = () => {
+        console.log('Pay Hero button clicked');
+        const payheroForm = document.querySelector('#payment-modal .payhero-form');
+        if (payheroForm) {
+            payheroForm.classList.remove('hidden');
+            console.log('Pay Hero form shown');
+        } else {
+            console.error('Pay Hero form not found');
+        }
+    };
+
+    // Cancel button
+    newPaymentCancel.onclick = () => {
+        console.log('Payment Cancel button clicked');
+        manageModal('payment-modal', false);
+        const payheroForm = document.querySelector('#payment-modal .payhero-form');
+        if (payheroForm) {
+            payheroForm.classList.add('hidden');
+        }
+    };
+}
+    
+  async function init() {
+    console.log('init: Starting initialization');
+    // Hide all modals using modal manager
+    manageModal(null, false);
+    const payheroForm = document.querySelector('#payment-modal .payhero-form');
+    if (payheroForm) {
+        payheroForm.classList.add('hidden');
+        console.log('init: Hiding payhero-form');
+    }
+    console.log('init: All modals hidden');
+
+    // Initialize payment modal button listeners
+    initializePaymentModalButtons();
+
     handleInAppBrowser();
+    console.log('init: Completed initialization');
 }
     
   document.addEventListener('DOMContentLoaded', init);
