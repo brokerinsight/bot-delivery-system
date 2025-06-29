@@ -596,6 +596,42 @@
     }
   }
 </style>
+  <script src="https://applet.payherokenya.com/deposit/payhero.js"></script>
+<style>
+  .payment-modal, #payment-modal .bg-white {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(145deg, #ffffff, #f0f4f8);
+    padding: 1.5rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    max-width: 90%;
+    width: 500px;
+  }
+  .payhero-form input, .payhero-form button {
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    width: 100%;
+  }
+  .payhero-form button {
+    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  .payhero-form button:hover {
+    background: linear-gradient(90deg, #1d4ed8, #2563eb);
+  }
+  .payhero-form.hidden {
+    display: none;
+  }
+</style>
 </head>
 <body class="bg-gray-100">
   <div id="urgent-message" class="fixed top-0 left-0 right-0 text-white p-4 z-50 hidden">
@@ -757,15 +793,16 @@
       </div>
     </div>
     <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-    <div class="flex items-center space-x-2">
-      <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-      <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+    <p class="text-gray-600 mb-4">Choose payment method:</p>
+    <button id="pay-mpesa-till" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Pay with MPESA Till</button>
+    <button id="pay-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-2">Pay with Pay Hero</button>
+    <div id="payhero-form" class="payhero-form hidden">
+      <input type="text" id="customer-name" placeholder="Your Name (Optional)" class="w-full p-2 border rounded-md mb-2">
+      <input type="text" id="phone-number" placeholder="Phone Number (e.g., 254712345678)" class="w-full p-2 border rounded-md mb-2">
+      <button id="initiate-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Initiate Pay Hero Payment</button>
     </div>
-    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-    <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
-    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
+    <button id="payment-cancel" class="mt-6 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   </div>
 </div>
   <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -2003,6 +2040,176 @@
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+</script>
+  <script>
+  // Ensure settings, selectedItem, and selectedPrice are available
+  let settings = {};
+  let selectedItem = '';
+  let selectedPrice = 0;
+
+  // Fetch settings from server
+  fetch('/api/data')
+    .then(response => response.json())
+    .then(data => {
+      settings = data.settings;
+    })
+    .catch(error => console.error('Error fetching settings:', error));
+
+  // Update showPaymentModal to set selectedItem and selectedPrice
+  async function showPaymentModal(product, kesPrice) {
+    selectedItem = product.item;
+    selectedPrice = kesPrice;
+    const modal = document.getElementById('payment-modal');
+    document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
+    document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
+    modal.classList.remove('hidden');
+    document.body.classList.add('popup-active');
+
+    let timeLeft = 10 * 60;
+    const timerText = document.getElementById('timer-text');
+    const timerBar = document.getElementById('timer-bar');
+
+    const countdown = setInterval(() => {
+      if (timeLeft <= 0) {
+        clearInterval(countdown);
+        modal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+        window.location.href = WHATSAPP_REDIRECT;
+        return;
+      }
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+      const percentage = (timeLeft / (10 * 60)) * 100;
+      timerBar.style.width = `${percentage}%`;
+      timeLeft--;
+    }, 1000);
+
+    // MPESA Till button
+    document.getElementById('pay-mpesa-till').onclick = () => {
+      clearInterval(countdown);
+      document.getElementById('payment-modal').classList.add('hidden');
+      document.querySelector('#payment-modal .payhero-form').classList.add('hidden');
+      const paymentInstructions = document.createElement('div');
+      paymentInstructions.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      paymentInstructions.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for ${product.name}</h3>
+          <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+          <div class="flex items-center space-x-2">
+            <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">${settings.mpesaTill || '4933614'}</span></p>
+            <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+          </div>
+          <p class="text-green-600 font-bold mt-2">Amount: ${kesPrice} KES</p>
+          <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+          <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+        </div>
+      `;
+      document.body.appendChild(paymentInstructions);
+
+      document.getElementById('copy-till').onclick = () => {
+        const tillNumber = document.getElementById('mpesa-till-number').textContent;
+        navigator.clipboard.writeText(tillNumber).then(() => {
+          document.getElementById('copy-till').textContent = 'Copied';
+          setTimeout(() => {
+            document.getElementById('copy-till').textContent = 'Copy Till';
+          }, 2000);
+        }).catch(err => {
+          const textarea = document.createElement('textarea');
+          textarea.value = tillNumber;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          document.getElementById('copy-till').textContent = 'Copied';
+          setTimeout(() => {
+            document.getElementById('copy-till').textContent = 'Copy Till';
+          }, 2000);
+        });
+      };
+
+      document.getElementById('confirm-payment').onclick = () => {
+        document.body.removeChild(paymentInstructions);
+        document.body.classList.remove('popup-active');
+        const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
+        document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
+        localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
+        showRefCodeModal(product, kesPrice);
+      };
+
+      document.getElementById('payment-cancel').onclick = () => {
+        document.body.removeChild(paymentInstructions);
+        document.body.classList.remove('popup-active');
+      };
+    };
+
+    // Pay Hero button
+    document.getElementById('pay-payhero').onclick = () => {
+      document.getElementById('payhero-form').classList.remove('hidden');
+    };
+
+    // Cancel button
+    document.getElementById('payment-cancel').onclick = () => {
+      clearInterval(countdown);
+      modal.classList.add('hidden');
+      document.body.classList.remove('popup-active');
+    };
+  }
+
+  // Initiate Pay Hero payment
+  document.getElementById('initiate-payhero').addEventListener('click', () => {
+    const customerName = document.getElementById('customer-name').value || 'Customer';
+    const phone = document.getElementById('phone-number').value;
+    if (!phone.match(/^254[0-9]{9}$/)) {
+      alert('Please enter a valid Kenyan phone number (e.g., 254712345678)');
+      return;
+    }
+    fetch('/api/initiate-payhero', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: selectedItem, amount: selectedPrice, phone, customerName })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        PayHeroButton.init({
+          paymentUrl: settings.payheroPaymentUrl,
+          containerId: 'payhero-button-container',
+          channelID: settings.payheroChannelId,
+          amount: selectedPrice.toString(),
+          phone: phone,
+          name: customerName,
+          reference: data.refCode,
+          buttonName: 'Pay with Pay Hero',
+          buttonColor: '#007bff',
+          callbackUrl: `${window.location.origin}/api/payhero-callback`
+        });
+        document.getElementById('payhero-form').classList.add('hidden');
+        document.getElementById('payment-modal').classList.add('hidden');
+        document.body.classList.remove('popup-active');
+        showStatusModal({ item: selectedItem }, data.refCode, 'Confirming Pay Hero payment...');
+      } else {
+        alert('Failed to initiate payment. Please try again.');
+      }
+    })
+    .catch(error => {
+      console.error('Error initiating Pay Hero payment:', error);
+      alert('An error occurred. Please try again.');
+    });
+  });
+
+  // Handle Pay Hero payment events
+  window.addEventListener('message', function(event) {
+    if (event.data.paymentSuccess) {
+      console.log('Pay Hero Payment Successful:', event.data);
+    } else {
+      console.error('Pay Hero Payment Failed:', event.data);
+      alert('Payment failed. Please try again.');
+      document.getElementById('status-modal').classList.add('hidden');
+      document.getElementById('payment-modal').classList.remove('hidden');
+      document.body.classList.add('popup-active');
+    }
+  });
 </script>
 </body>
 </html>
