@@ -797,10 +797,11 @@
     <button id="pay-mpesa-till" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Pay with MPESA Till</button>
     <button id="pay-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-2">Pay with Pay Hero</button>
     <div id="payhero-form" class="payhero-form hidden">
-      <input type="text" id="customer-name" placeholder="Your Name (Optional)" class="w-full p-2 border rounded-md mb-2">
-      <input type="text" id="phone-number" placeholder="Phone Number (e.g., 254712345678)" class="w-full p-2 border rounded-md mb-2">
-      <button id="initiate-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Initiate Pay Hero Payment</button>
-    </div>
+  <input type="text" id="customer-name" placeholder="Your Name (Optional)" class="w-full p-2 border rounded-md mb-2">
+  <input type="text" id="phone-number" placeholder="Phone Number (e.g., 254712345678)" class="w-full p-2 border rounded-md mb-2">
+  <button id="initiate-payhero" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">Initiate Pay Hero Payment</button>
+  <div id="payhero-button-container" class="hidden"></div>
+</div>
     <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
     <button id="payment-cancel" class="mt-6 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   </div>
@@ -1159,29 +1160,41 @@
       document.body.classList.add('popup-active');
 
       const buyNowBtn = document.getElementById('details-buy-now');
-      buyNowBtn.dataset.item = item;
-      buyNowBtn.dataset.kesPrice = kesPrice;
-      buyNowBtn.onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        showPaymentModal(product, kesPrice);
-        const confirmPaymentBtn = document.getElementById('confirm-payment');
-        confirmPaymentBtn.dataset.item = item;
-        confirmPaymentBtn.dataset.kesPrice = kesPrice;
-        const submitRefCodeBtn = document.getElementById('submit-ref-code');
-        submitRefCodeBtn.dataset.item = item;
-        submitRefCodeBtn.dataset.kesPrice = kesPrice;
-      };
+if (buyNowBtn) {
+  buyNowBtn.dataset.item = item;
+  buyNowBtn.dataset.kesPrice = kesPrice;
+  buyNowBtn.onclick = () => {
+    modal.classList.add('hidden');
+    document.body.classList.remove('popup-active');
+    showPaymentModal(product, kesPrice);
+    const confirmPaymentBtn = document.getElementById('confirm-payment');
+    if (confirmPaymentBtn) {
+      confirmPaymentBtn.dataset.item = item;
+      confirmPaymentBtn.dataset.kesPrice = kesPrice;
+    }
+    const submitRefCodeBtn = document.getElementById('submit-ref-code');
+    if (submitRefCodeBtn) {
+      submitRefCodeBtn.dataset.item = item;
+      submitRefCodeBtn.dataset.kesPrice = kesPrice;
+    }
+  };
+} else {
+  console.error('Buy Now button (#details-buy-now) not found.');
+}
 
-      const testPayBtn = document.getElementById('details-test-pay');
-      testPayBtn.classList.toggle('hidden', !TEST_MODE);
-      testPayBtn.dataset.item = item;
-      testPayBtn.dataset.kesPrice = kesPrice;
-      testPayBtn.onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        initiateTestPayment(product, product.price);
-      };
+const testPayBtn = document.getElementById('details-test-pay');
+if (testPayBtn) {
+  testPayBtn.classList.toggle('hidden', !TEST_MODE);
+  testPayBtn.dataset.item = item;
+  testPayBtn.dataset.kesPrice = kesPrice;
+  testPayBtn.onclick = () => {
+    modal.classList.add('hidden');
+    document.body.classList.remove('popup-active');
+    initiateTestPayment(product, product.price);
+  };
+} else {
+  console.error('Test Pay button (#details-test-pay) not found.');
+}
 
       document.getElementById('details-close').onclick = () => {
         modal.classList.add('hidden');
@@ -1207,75 +1220,7 @@
     function filterProducts(category) {
       debouncedFilterProducts(category);
     }
-
-    async function showPaymentModal(product, kesPrice) {
-      const modal = document.getElementById('payment-modal');
-      document.getElementById('payment-title').textContent = `Pay for ${product.name}`;
-      document.getElementById('mpesa-till-number').textContent = settings.mpesaTill || '4933614';
-      document.getElementById('payment-amount').textContent = `Amount: ${kesPrice} KES`;
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-
-      let timeLeft = 10 * 60;
-      const timerText = document.getElementById('timer-text');
-      const timerBar = document.getElementById('timer-bar');
-
-      const countdown = setInterval(() => {
-        if (timeLeft <= 0) {
-          clearInterval(countdown);
-          modal.classList.add('hidden');
-          document.body.classList.remove('popup-active');
-          window.location.href = WHATSAPP_REDIRECT;
-          return;
-        }
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        const percentage = (timeLeft / (10 * 60)) * 100;
-        timerBar.style.width = `${percentage}%`;
-        timeLeft--;
-      }, 1000);
-
-      const copyTillBtn = document.getElementById('copy-till');
-      copyTillBtn.onclick = () => {
-        const tillNumber = document.getElementById('mpesa-till-number').textContent;
-        navigator.clipboard.writeText(tillNumber).then(() => {
-          copyTillBtn.textContent = 'Copied';
-          setTimeout(() => {
-            copyTillBtn.textContent = 'Copy Till';
-          }, 2000);
-        }).catch(err => {
-          const textarea = document.createElement('textarea');
-          textarea.value = tillNumber;
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          copyTillBtn.textContent = 'Copied';
-          setTimeout(() => {
-            copyTillBtn.textContent = 'Copy Till';
-          }, 2000);
-        });
-      };
-
-      document.getElementById('confirm-payment').onclick = () => {
-        clearInterval(countdown);
-        const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-        document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
-        localStorage.setItem(`payment_${product.item}_kesPrice`, kesPrice);
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        showRefCodeModal(product, kesPrice);
-      };
-
-      document.getElementById('payment-cancel').onclick = () => {
-        clearInterval(countdown);
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-      };
-    }
-
-    async function initiateTestPayment(product, price) {
+async function initiateTestPayment(product, price) {
       try {
         const response = await fetchWithTimeout(`${BASE_URL}/deliver-bot`, {
           method: 'POST',
