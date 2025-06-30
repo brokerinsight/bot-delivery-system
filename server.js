@@ -316,11 +316,18 @@ async function refreshCache() {
 async function saveDataToDatabase() {
   try {
     // Save Categories first due to FK constraint from products.category -> categories.name
-    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all');
-    if (cachedData.categories.length > 0) {
-      const categoriesToInsert = cachedData.categories.map(c => ({ name: c }));
-      const { error: catError } = await supabase.from('categories').insert(categoriesToInsert);
-      if (catError) {
+    console.log(`[${new Date().toISOString()}] Attempting to save categories. Current cached categories:`, cachedData.categories);
+    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all_except_none'); // Ensure all are deleted
+
+    if (cachedData.categories && cachedData.categories.length > 0) {
+      // Ensure categories are unique before attempting to insert
+      const uniqueCategories = [...new Set(cachedData.categories.filter(c => typeof c === 'string' && c.trim() !== ''))];
+      console.log(`[${new Date().toISOString()}] Unique categories to insert:`, uniqueCategories);
+
+      if (uniqueCategories.length > 0) {
+        const categoriesToInsert = uniqueCategories.map(c => ({ name: c }));
+        const { error: catError } = await supabase.from('categories').insert(categoriesToInsert);
+        if (catError) {
           console.error(`[${new Date().toISOString()}] Error inserting categories:`, catError.message, catError.details);
           throw catError;
       }
