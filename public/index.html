@@ -15,7 +15,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
-  <script src="https://applet.payherokenya.com/cdn/button_sdk.js?v=3.1"></script>
+  <!-- PayHero Button SDK script REMOVED -->
   <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -597,36 +597,7 @@
     }
   }
 
-  /* PayHero Styles */
-  .payhero-button {
-    background-color: #00a884;
-    color: #fff;
-    padding: 12px 24px;
-    font-size: 16px;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    outline: none;
-  }
-
-  .payhero-button:hover {
-    filter: brightness(1.05);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  .payhero-button:active {
-    transform: translateY(0);
-    filter: brightness(0.95);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-  }
-
+  /* PayHero Styles - Kept for modal structure, actual SDK button styling is removed */
   .payhero-modal {
     display: none;
     position: fixed;
@@ -648,7 +619,7 @@
     border-radius: 12px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
     overflow: hidden;
-    max-width: 400px; /* Adjusted for a more compact form */
+    max-width: 400px;
     max-height: 90%;
     animation: payheroSlideIn 0.3s ease;
     display: flex;
@@ -690,7 +661,7 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 15px; /* Spacing between form elements */
+    gap: 15px;
   }
 
   .payhero-form-container label {
@@ -706,7 +677,7 @@
     border: 1px solid #ccc;
     border-radius: 6px;
     font-size: 16px;
-    box-sizing: border-box; /* Ensures padding doesn't affect width */
+    box-sizing: border-box;
   }
 
   .payhero-form-container .amount-display {
@@ -715,55 +686,6 @@
     color: #16a34a;
     text-align: center;
     margin-bottom: 10px;
-  }
-
-  .payhero-iframe-wrapper {
-    flex: 1;
-    width: 100%;
-    height: calc(100% - 53px); /* Adjusted for header */
-    overflow: hidden;
-  }
-
-  #paymentFrame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: none; /* Initially hidden */
-  }
-
-  .payhero-spinner {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: calc(100% - 53px); /* Adjusted for header */
-    flex-shrink: 0;
-  }
-
-  .payhero-spinner-dot {
-    width: 12px;
-    height: 12px;
-    margin: 0 4px;
-    background-color: #00a884;
-    border-radius: 50%;
-    display: inline-block;
-    animation: payheroBounceDot 1.4s infinite ease-in-out both;
-  }
-
-  .payhero-spinner-dot:nth-child(1) {
-    animation-delay: -0.32s;
-  }
-
-  .payhero-spinner-dot:nth-child(2) {
-    animation-delay: -0.16s;
-  }
-
-  @keyframes payheroBounceDot {
-    0%, 80%, 100% {
-      transform: scale(0);
-    }
-    40% {
-      transform: scale(1.0);
-    }
   }
 
   @keyframes payheroFadeIn {
@@ -779,7 +701,6 @@
   @media (max-width: 768px) {
     .payhero-modal-content {
       width: 95% !important;
-      /* height: 85% !important; */ /* Let height be auto based on content */
       margin: 5vh auto;
     }
   }
@@ -877,28 +798,23 @@
       const cookiePopup = document.getElementById('cookie-popup-container');
       const acceptButton = document.getElementById('cookie-accept');
       
-      // Check if cookies have already been accepted
       const cookiesAccepted = localStorage.getItem('cookiesAccepted') === 'true';
       const lastShown = parseInt(localStorage.getItem('cookiePopupLastShown'), 10);
-      const threeDays = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+      const threeDays = 3 * 24 * 60 * 60 * 1000;
       const now = Date.now();
 
-      // If cookies are accepted and the 3-day period hasn't passed, keep the popup hidden
       if (cookiesAccepted && lastShown && (now - lastShown) < threeDays) {
         cookiePopup.classList.add('hidden');
-        cookiePopup.style.display = 'none'; // Ensure it's hidden
+        cookiePopup.style.display = 'none';
         return;
       }
 
-      // If we reach here, show the popup
       cookiePopup.classList.remove('hidden');
-      cookiePopup.style.display = 'flex'; // Ensure it's visible
+      cookiePopup.style.display = 'flex';
       document.body.classList.add('popup-active');
 
-      // Remove any existing event listeners to avoid duplicates
       acceptButton.removeEventListener('click', handleAcceptClick);
       
-      // Define the click handler
       function handleAcceptClick() {
         localStorage.setItem('cookiesAccepted', 'true');
         localStorage.setItem('cookiePopupLastShown', Date.now().toString());
@@ -906,12 +822,8 @@
         cookiePopup.style.display = 'none';
         document.body.classList.remove('popup-active');
       }
-
-      // Add the event listener
       acceptButton.addEventListener('click', handleAcceptClick);
     }
-
-    // Call handleCookiePopup immediately after the popup container is parsed
     handleCookiePopup();
   </script>
 
@@ -943,7 +855,7 @@
       <p id="payment-choice-product-name" class="text-gray-700 mb-1"></p>
       <p id="payment-choice-amount" class="text-green-600 font-bold mb-6"></p>
       <button id="manual-mpesa-choice" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-3">Pay with Mpesa Till (Manual)</button>
-      <button id="payhero-choice" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Pay with Pay Hero (Instant)</button>
+      <button id="payhero-choice" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Pay with Pay Hero (Mpesa STK)</button>
       <button id="payment-choice-cancel" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
     </div>
   </div>
@@ -969,11 +881,11 @@
     </div>
   </div>
 
-  <!-- PayHero Modal -->
+  <!-- PayHero Modal (for Server-Side STK Push) -->
   <div id="payhero-modal" class="payhero-modal">
     <div class="payhero-modal-content">
       <div class="payhero-modal-header">
-        <h3 class="payhero-modal-title">Pay with Pay Hero</h3>
+        <h3 class="payhero-modal-title">Pay with Pay Hero (Mpesa STK)</h3>
         <button id="payhero-close-button" class="payhero-close-button" aria-label="Close payment form">×</button>
       </div>
       <div class="payhero-form-container">
@@ -986,18 +898,10 @@
           <label for="payhero-phone-number">Mpesa Number:</label>
           <input type="tel" id="payhero-phone-number" placeholder="e.g., 0712345678 or 254712345678">
         </div>
-        <div id="payhero-payment-container">
-          <!-- PayHero SDK will inject button here -->
+        <div>
+          <button id="payhero-proceed-button" class="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 transition-colors">Proceed to Pay via Mpesa</button>
         </div>
-         <p id="payhero-status-message" class="text-center text-sm mt-2"></p>
-      </div>
-      <div class="payhero-spinner" id="paymentSpinner" style="display: none;">
-        <div class="payhero-spinner-dot"></div>
-        <div class="payhero-spinner-dot"></div>
-        <div class="payhero-spinner-dot"></div>
-      </div>
-      <div class="payhero-iframe-wrapper">
-        <iframe id="paymentFrame" title="Payment Form" sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation allow-popups" style="display: none;"></iframe>
+        <p id="payhero-status-message" class="text-center text-sm mt-2"></p>
       </div>
     </div>
   </div>
@@ -1184,203 +1088,191 @@
     }
 
     async function renderProducts(category = 'all', search = '') {
-  const grid = document.getElementById('product-grid');
-  const loadingMessage = document.getElementById('loading-message');
-  if (loadingMessage) {
-    loadingMessage.classList.add('hidden');
-  } else {
-    console.warn('Loading message element not found.');
-  }
-  grid.innerHTML = '';
-  let filteredProducts = products;
-  if (category !== 'all') {
-    filteredProducts = products.filter(p => p.category === category);
-  }
-  if (search) {
-    const searchTerm = search.toLowerCase();
-    filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
-  }
-  if (!filteredProducts.length) {
-    grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
-    return;
-  }
-  filteredProducts.forEach(product => {
-    // Convert HTML description to plain text for excerpt
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = product.desc;
-    const plainText = tempDiv.textContent || tempDiv.innerText || '';
-    const excerpt = plainText.length > 250 ? plainText.substring(0, 250).trim() + '...' : plainText;
+      const grid = document.getElementById('product-grid');
+      const loadingMessage = document.getElementById('loading-message');
+      if (loadingMessage) {
+        loadingMessage.classList.add('hidden');
+      } else {
+        console.warn('Loading message element not found.');
+      }
+      grid.innerHTML = '';
+      let filteredProducts = products;
+      if (category !== 'all') {
+        filteredProducts = products.filter(p => p.category === category);
+      }
+      if (search) {
+        const searchTerm = search.toLowerCase();
+        filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(searchTerm) || p.desc.toLowerCase().includes(searchTerm));
+      }
+      if (!filteredProducts.length) {
+        grid.innerHTML = '<p class="text-center col-span-full text-gray-600">No products found.</p>';
+        return;
+      }
+      filteredProducts.forEach(product => {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = product.desc;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        const excerpt = plainText.length > 250 ? plainText.substring(0, 250).trim() + '...' : plainText;
 
-    const card = document.createElement('div');
-    card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col';
-    card.innerHTML = `
-      <div class="relative">
-        <div class="product-image-container">
-          <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover">
-        </div>
-        ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
-      </div>
-      <div class="p-6 flex-1">
-        <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
-        <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
-        <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
-        <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
-        <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  document.querySelectorAll('.view-details').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const item = btn.dataset.item;
-      const product = products.find(p => p.item === item);
-      const rate = await getExchangeRate();
-      const kesPrice = (product.price * rate).toFixed(2);
-
-      document.getElementById('details-thumbnail').src = product.img;
-      document.getElementById('details-name').textContent = product.name;
-      document.getElementById('details-item-name').textContent = product.item;
-      
-      // Render description with Quill.js HTML structure
-      const descContainer = document.getElementById('details-desc');
-      let cleanedDesc = product.desc
-        .replace(/<p>\s*<\/p>/g, '') // Remove empty <p> tags
-        .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '') // Remove <p><br></p>
-        .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-        .trim();
-      
-      // Handle headers (h1, h2, h3) from Quill.js
-      cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
-                              .replace(/<\/h\d>/g, '</h$1>');
-      
-      descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
-
-      // Style Quill.js content for better alignment and readability
-      const paragraphs = descContainer.querySelectorAll('p');
-      paragraphs.forEach(p => {
-        p.style.marginBottom = '1rem';
-        p.style.lineHeight = '1.6';
-        p.style.wordBreak = 'break-word';
-      });
-
-      const headers = descContainer.querySelectorAll('h1, h2, h3');
-      headers.forEach(h => {
-        h.style.fontWeight = '600';
-        h.style.marginBottom = '0.75rem';
-      });
-
-      const lists = descContainer.querySelectorAll('ul, ol');
-      lists.forEach(list => {
-        list.style.marginBottom = '1rem';
-        list.style.paddingLeft = '1.5rem';
-        list.style.listStyleType = 'none'; // Remove default bullets to avoid conflicts
-      });
-
-      const listItems = descContainer.querySelectorAll('li');
-      listItems.forEach(li => {
-        li.style.marginBottom = '0.5rem';
-        const indentLevel = li.className.match(/ql-indent-(\d+)/);
-        if (indentLevel) {
-          li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-        }
-        // Remove custom bullet if present, handled by Quill.js icons
-        li.style.position = 'relative';
-        li.style.paddingLeft = '1.5rem';
-      });
-
-      // Style text formatting from Quill.js toolbar
-      const boldText = descContainer.querySelectorAll('strong, b');
-      boldText.forEach(b => {
-        b.style.fontWeight = 'bold';
-      });
-
-      const italicText = descContainer.querySelectorAll('em, i');
-      italicText.forEach(i => {
-        i.style.fontStyle = 'italic';
-      });
-
-      const underlineText = descContainer.querySelectorAll('u');
-      underlineText.forEach(u => {
-        u.style.textDecoration = 'underline';
-      });
-
-      // Style links from Quill.js
-      const links = descContainer.querySelectorAll('a');
-      links.forEach(link => {
-        link.style.color = 'blue';
-        link.style.textDecoration = 'underline';
-        link.setAttribute('target', '_blank');
-      });
-
-      // Style blockquotes
-      const blockquotes = descContainer.querySelectorAll('blockquote');
-      blockquotes.forEach(bq => {
-        bq.style.borderLeft = '4px solid #ccc';
-        bq.style.paddingLeft = '1rem';
-        bq.style.margin = '1rem 0';
-        bq.style.color = '#666';
-      });
-
-      // Style inline code
-      const codeElements = descContainer.querySelectorAll('code');
-      codeElements.forEach(code => {
-        code.style.backgroundColor = '#f4f4f4';
-        code.style.padding = '2px 4px';
-        code.style.borderRadius = '4px';
-        code.style.fontFamily = 'monospace';
-      });
-
-      // Handle images (if added via Quill.js)
-      const images = descContainer.querySelectorAll('img');
-      images.forEach(img => {
-        img.style.maxWidth = '100%';
-        img.style.height = 'auto';
-        img.style.marginBottom = '1rem';
-        img.style.borderRadius = '8px';
-      });
-
-      const embedDiv = document.getElementById('details-embed');
-      if (product.embed) {
-        embedDiv.innerHTML = `
-          <div class="embed-container">
-            <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col';
+        card.innerHTML = `
+          <div class="relative">
+            <div class="product-image-container">
+              <img src="${product.img}" alt="${product.name}" class="thumbnail-image object-cover">
+            </div>
+            ${product.isNew ? '<span class="new-badge">NEW</span>' : ''}
+          </div>
+          <div class="p-6 flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
+            <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
+            <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
+            <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
+            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
           </div>
         `;
-      } else {
-        embedDiv.innerHTML = '';
-      }
+        grid.appendChild(card);
+      });
 
-      const modal = document.getElementById('details-modal');
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
+      document.querySelectorAll('.view-details').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const item = btn.dataset.item;
+          const product = products.find(p => p.item === item);
+          const rate = await getExchangeRate();
+          const kesPrice = (product.price * rate).toFixed(2);
 
-      const buyNowBtn = document.getElementById('details-buy-now');
-      buyNowBtn.dataset.item = item;
-      buyNowBtn.dataset.kesPrice = kesPrice;
-      buyNowBtn.onclick = () => {
-        // modal.classList.add('hidden'); // Keep details modal open for now, or close based on UX preference
-        // document.body.classList.remove('popup-active'); // Manage this based on whether details modal closes
-        showPaymentChoiceModal(product, kesPrice);
-      };
+          document.getElementById('details-thumbnail').src = product.img;
+          document.getElementById('details-name').textContent = product.name;
+          document.getElementById('details-item-name').textContent = product.item;
 
-      const testPayBtn = document.getElementById('details-test-pay');
-      testPayBtn.classList.toggle('hidden', !TEST_MODE);
-      testPayBtn.dataset.item = item;
-      testPayBtn.dataset.kesPrice = kesPrice;
-      testPayBtn.onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        initiateTestPayment(product, product.price);
-      };
+          const descContainer = document.getElementById('details-desc');
+          let cleanedDesc = product.desc
+            .replace(/<p>\s*<\/p>/g, '')
+            .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '')
+            .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+            .trim();
 
-      document.getElementById('details-close').onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-      };
-    });
-  });
-}
+          cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
+                                  .replace(/<\/h\d>/g, '</h$1>');
+
+          descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
+
+          const paragraphs = descContainer.querySelectorAll('p');
+          paragraphs.forEach(p => {
+            p.style.marginBottom = '1rem';
+            p.style.lineHeight = '1.6';
+            p.style.wordBreak = 'break-word';
+          });
+
+          const headers = descContainer.querySelectorAll('h1, h2, h3');
+          headers.forEach(h => {
+            h.style.fontWeight = '600';
+            h.style.marginBottom = '0.75rem';
+          });
+
+          const lists = descContainer.querySelectorAll('ul, ol');
+          lists.forEach(list => {
+            list.style.marginBottom = '1rem';
+            list.style.paddingLeft = '1.5rem';
+            list.style.listStyleType = 'none';
+          });
+
+          const listItems = descContainer.querySelectorAll('li');
+          listItems.forEach(li => {
+            li.style.marginBottom = '0.5rem';
+            const indentLevel = li.className.match(/ql-indent-(\d+)/);
+            if (indentLevel) {
+              li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+            }
+            li.style.position = 'relative';
+            li.style.paddingLeft = '1.5rem';
+          });
+
+          const boldText = descContainer.querySelectorAll('strong, b');
+          boldText.forEach(b => {
+            b.style.fontWeight = 'bold';
+          });
+
+          const italicText = descContainer.querySelectorAll('em, i');
+          italicText.forEach(i => {
+            i.style.fontStyle = 'italic';
+          });
+
+          const underlineText = descContainer.querySelectorAll('u');
+          underlineText.forEach(u => {
+            u.style.textDecoration = 'underline';
+          });
+
+          const links = descContainer.querySelectorAll('a');
+          links.forEach(link => {
+            link.style.color = 'blue';
+            link.style.textDecoration = 'underline';
+            link.setAttribute('target', '_blank');
+          });
+
+          const blockquotes = descContainer.querySelectorAll('blockquote');
+          blockquotes.forEach(bq => {
+            bq.style.borderLeft = '4px solid #ccc';
+            bq.style.paddingLeft = '1rem';
+            bq.style.margin = '1rem 0';
+            bq.style.color = '#666';
+          });
+
+          const codeElements = descContainer.querySelectorAll('code');
+          codeElements.forEach(code => {
+            code.style.backgroundColor = '#f4f4f4';
+            code.style.padding = '2px 4px';
+            code.style.borderRadius = '4px';
+            code.style.fontFamily = 'monospace';
+          });
+
+          const images = descContainer.querySelectorAll('img');
+          images.forEach(img => {
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.marginBottom = '1rem';
+            img.style.borderRadius = '8px';
+          });
+
+          const embedDiv = document.getElementById('details-embed');
+          if (product.embed) {
+            embedDiv.innerHTML = `
+              <div class="embed-container">
+                <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
+              </div>
+            `;
+          } else {
+            embedDiv.innerHTML = '';
+          }
+
+          const modal = document.getElementById('details-modal');
+          modal.classList.remove('hidden');
+          document.body.classList.add('popup-active');
+
+          const buyNowBtn = document.getElementById('details-buy-now');
+          buyNowBtn.dataset.item = item;
+          buyNowBtn.dataset.kesPrice = kesPrice;
+          buyNowBtn.onclick = () => {
+            showPaymentChoiceModal(product, kesPrice);
+          };
+
+          const testPayBtn = document.getElementById('details-test-pay');
+          testPayBtn.classList.toggle('hidden', !TEST_MODE);
+          testPayBtn.dataset.item = item;
+          testPayBtn.dataset.kesPrice = kesPrice;
+          testPayBtn.onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            initiateTestPayment(product, product.price);
+          };
+
+          document.getElementById('details-close').onclick = () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+          };
+        });
+      });
+    }
     
     function debounce(func, wait) {
       let timeout;
@@ -1412,13 +1304,11 @@
 
       manualMpesaChoiceBtn.onclick = () => {
         choiceModal.classList.add('hidden');
-        // document.body.classList.remove('popup-active'); // Manage based on next modal
         showPaymentModal(product, kesPrice);
       };
 
       payheroChoiceBtn.onclick = () => {
         choiceModal.classList.add('hidden');
-        // document.body.classList.remove('popup-active'); // Manage based on next modal
         showPayHeroModal(product, kesPrice);
       };
 
@@ -1488,9 +1378,8 @@
         document.body.classList.remove('popup-active');
         showRefCodeModal(product, kesPrice);
       };
-      confirmPaymentBtn.dataset.item = product.item; // Ensure item and kesPrice are set for this path too
+      confirmPaymentBtn.dataset.item = product.item;
       confirmPaymentBtn.dataset.kesPrice = kesPrice;
-
 
       document.getElementById('payment-cancel').onclick = () => {
         clearInterval(countdown);
@@ -1504,14 +1393,27 @@
       const amountDisplay = document.getElementById('payhero-amount-display');
       const customerNameInput = document.getElementById('payhero-customer-name');
       const phoneNumberInput = document.getElementById('payhero-phone-number');
-      const payHeroPaymentContainer = document.getElementById('payhero-payment-container');
       const payheroStatusMessage = document.getElementById('payhero-status-message');
       const closeButton = document.getElementById('payhero-close-button');
+      const proceedButton = document.getElementById('payhero-proceed-button');
 
-      amountDisplay.textContent = parseFloat(kesPrice).toFixed(2);
-      payheroStatusMessage.textContent = ''; // Clear previous messages
-      payHeroPaymentContainer.innerHTML = ''; // Clear previous button
-      amountDisplay.textContent = Math.round(parseFloat(kesPrice)).toFixed(2); // Round to nearest whole number for display
+      // Ensure our local form inputs are visible
+      customerNameInput.style.display = 'block';
+      phoneNumberInput.style.display = 'block';
+      const nameLabel = document.querySelector('label[for="payhero-customer-name"]');
+      if (nameLabel) nameLabel.style.display = 'block';
+      const phoneLabel = document.querySelector('label[for="payhero-phone-number"]');
+      if (phoneLabel) phoneLabel.style.display = 'block';
+
+      const roundedAmount = Math.round(parseFloat(kesPrice));
+      amountDisplay.textContent = roundedAmount.toFixed(2);
+
+      payheroStatusMessage.textContent = '';
+      payheroStatusMessage.style.color = 'inherit';
+      proceedButton.disabled = false;
+
+      customerNameInput.value = '';
+      phoneNumberInput.value = '';
 
       modal.style.display = 'flex';
       document.body.classList.add('popup-active');
@@ -1519,107 +1421,83 @@
       closeButton.onclick = () => {
         modal.style.display = 'none';
         document.body.classList.remove('popup-active');
-        // If PayHero SDK adds listeners to window or body, they might need cleanup.
-        // However, the SDK should manage its own button listeners.
       };
 
-      // Generate a unique reference for this transaction attempt
-      const clientSideReference = `PH-${product.item}-${Date.now()}`;
-      const roundedAmount = Math.round(parseFloat(kesPrice)); // PayHero expects integer
+      proceedButton.onclick = async () => {
+        const phone = phoneNumberInput.value.trim();
+        const customerName = customerNameInput.value.trim() || "Valued Customer";
 
-      // Get name and phone ONCE before init. We will go with Option A: simplify and remove these inputs
-      // and let PayHero's interface collect the phone. Name can be default.
-      // customerNameInput.value = ''; // Optional: Clear if you decide to remove the field
-      // phoneNumberInput.value = ''; // Optional: Clear if you decide to remove the field
+        if (!phone) {
+          payheroStatusMessage.textContent = 'Please enter your Mpesa phone number.';
+          payheroStatusMessage.style.color = 'red';
+          return;
+        }
+        if (!/^(01|07|2541|2547)\d{8}$/.test(phone.replace(/^\+/, ''))) {
+            payheroStatusMessage.textContent = 'Invalid Mpesa phone number. Use formats like 07xx..., 01xx..., 2547xx..., 2541xx...';
+            payheroStatusMessage.style.color = 'red';
+            return;
+        }
 
-      // For Option A (simplified):
-      const customerNameToPass = customerNameInput.value.trim() || "Valued Customer"; // Use input if provided, else default
-      const phoneNumberToPass = phoneNumberInput.value.trim(); // Pass if provided, PayHero form will ask if empty
+        proceedButton.disabled = true;
+        payheroStatusMessage.textContent = 'Initiating payment... Please wait.';
+        payheroStatusMessage.style.color = 'inherit';
 
-      // Hide our name and phone inputs as PayHero's form will handle it or they are optional
-      customerNameInput.style.display = 'none';
-      phoneNumberInput.style.display = 'none';
-      // Also hide their labels if they exist
-      const nameLabel = document.querySelector('label[for="payhero-customer-name"]');
-      if (nameLabel) nameLabel.style.display = 'none';
-      const phoneLabel = document.querySelector('label[for="payhero-phone-number"]');
-      if (phoneLabel) phoneLabel.style.display = 'none';
+        try {
+          const response = await fetchWithTimeout(`${BASE_URL}/api/initiate-server-stk-push`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              item: product.item,
+              amount_kes: roundedAmount,
+              phone: phone,
+              customerName: customerName
+            }),
+            credentials: 'include'
+          }, 20000);
 
+          const data = await response.json();
 
-      PayHero.init({
-        paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003", // From settings
-        width: "100%", // SDK will manage button width within the container
-        height: "auto",
-        containerId: "payhero-payment-container",
-        channelID: parseInt(settings.payheroChannelId) || 2332, // From settings
-        amount: roundedAmount, // Integer amount
-        phone: phoneNumberToPass, // Optional: pre-fill if provided by user
-        name: customerNameToPass, // Optional: pre-fill if provided
-        reference: clientSideReference, // Our unique reference for this transaction attempt
-        buttonName: `Pay KES ${roundedAmount.toFixed(2)}`,
-        buttonColor: "#00a884", // Green color
-        successUrl: null, // We handle this via window.addEventListener('message')
-        failedUrl: null,  // We handle this via window.addEventListener('message')
-        callbackUrl: `${BASE_URL}/api/payhero-callback` // Server-to-server notification URL
-      });
+          if (response.ok && data.success) {
+            payheroStatusMessage.textContent = data.message || 'STK Push initiated. Check your phone to complete payment.';
+            payheroStatusMessage.style.color = 'green';
 
-      // Remove event listeners that caused re-initialization
-      // phoneNumberInput.removeEventListener('input', updatePayHeroParams);
-      // customerNameInput.removeEventListener('input', updatePayHeroParams);
-      // The updatePayHeroParams function is also removed as it's no longer needed.
+            setTimeout(() => {
+                modal.style.display = 'none';
+                if (data.serverReference) {
+                    showStatusModal(product, data.serverReference, 'Waiting for Mpesa payment confirmation via STK push...', true);
+                } else {
+                    payheroStatusMessage.textContent = 'Error: Missing transaction reference from server. Please contact support.';
+                    payheroStatusMessage.style.color = 'red';
+                    proceedButton.disabled = false;
+                    document.body.classList.add('popup-active');
+                }
+            }, 2500);
+          } else {
+            const errorMsg = data.error || `Failed to initiate payment: ${response.statusText || response.status}`;
+            console.error('Server STK Push Initiation Error:', errorMsg, data);
+            payheroStatusMessage.textContent = `Error: ${errorMsg}. Please try again.`;
+            payheroStatusMessage.style.color = 'red';
+            proceedButton.disabled = false;
+          }
+        } catch (error) {
+          console.error('Error initiating server STK push (fetch):', error.message, error);
+          payheroStatusMessage.textContent = `Network or server error: ${error.message}. Please try again.`;
+          payheroStatusMessage.style.color = 'red';
+          proceedButton.disabled = false;
+        }
+      };
     }
 
-    // Centralized PayHero event listener - ENSURE THIS IS ONLY ADDED ONCE GLOBALLY
-    // If it's already global, this is fine. If it was inside a function called multiple times,
-    // it could lead to multiple listeners. Assuming it's correctly placed globally.
+    /*
+    // Global event listener for PayHero Button SDK - No longer needed for server-side STK push
     window.addEventListener('message', async function(event) {
         if (event.data.paymentSuccess) {
-            console.log("PayHero Payment Successful (Client-side):", event.data);
-            const { amount, channel, customerName, phone, provider, providerReference, reference, user_reference } = event.data;
-
-            // Find the product associated with this payment (user_reference should be our clientSideReference)
-            const productItemMatch = user_reference.match(/^PH-(.+?)-\d+$/);
-            if (!productItemMatch || !productItemMatch[1]) {
-                console.error("Could not extract product item from PayHero reference:", user_reference);
-                document.getElementById('payhero-status-message').textContent = 'Error processing payment. Invalid reference.';
-                return;
-            }
-            const productItem = productItemMatch[1];
-            const product = products.find(p => p.item === productItem);
-
-            if (!product) {
-                console.error("Product not found for item:", productItem);
-                document.getElementById('payhero-status-message').textContent = 'Error: Product not found for this transaction.';
-                return;
-            }
-
-            document.getElementById('payhero-status-message').textContent = 'Payment successful! Preparing your download...';
-            document.getElementById('payhero-modal').style.display = 'none'; // Hide PayHero modal
-            // document.body.classList.remove('popup-active'); // Manage active popup state
-
-            // We expect the server-side callback to handle order confirmation and download link generation.
-            // For robustness, we can also poll the server for status if direct client-side download is needed.
-            // For now, we'll rely on the server callback and then potentially show a status modal.
-
-            // Show a generic status modal while waiting for server confirmation / download link
-            await showStatusModal(product, user_reference, 'Payment confirmed by PayHero. Waiting for server to finalize...', true); // Use user_reference
-
-            // Optional: Directly attempt download if server provides link in PayHero success event (not standard)
-            // if (event.data.downloadLink) {
-            //   await downloadFile(event.data.downloadLink, product.name);
-            // }
-
-        } else if (event.data.paymentSuccess === false) { // Explicitly check for false
-            console.log("PayHero Payment Failed (Client-side):", event.data);
-            document.getElementById('payhero-status-message').textContent = 'Payment failed. Please try again or use another method.';
-            // Optionally, keep the PayHero modal open or close it.
-            // setTimeout(() => {
-            //     document.getElementById('payhero-modal').style.display = 'none';
-            //     document.body.classList.remove('popup-active');
-            // }, 3000);
+            // ... old PayHero SDK success logic ...
+        } else if (event.data.paymentSuccess === false) {
+            // ... old PayHero SDK failure logic ...
         }
     });
-
+    */
 
     async function initiateTestPayment(product, price) {
       try {
@@ -1764,55 +1642,63 @@
               throw new Error(data.error || `HTTP error! Status: ${statusRes.status}`);
             }
 
-            if (data.success && data.status !== 'pending') {
+            // Check for server-side STK specific statuses
+            if (data.success && (data.status === 'confirmed_server_stk' || data.status === 'confirmed')) { // Include 'confirmed' for manual Mpesa
               clearInterval(countdown);
-              if (data.status === 'confirmed') {
-                statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
-                const downloadSuccess = await downloadFile(data.downloadLink, product.name);
-                if (downloadSuccess) {
+              statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
+              const downloadSuccess = await downloadFile(data.downloadLink, product.name);
+              if (downloadSuccess) {
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                }, 2000);
+              } else {
+                statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                if (showRetry && retryCount < maxRetries) {
+                  retryBtn.classList.remove('hidden');
+                  retryBtn.onclick = () => {
+                    retryCount++;
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    showStatusModal(product, refCode, 'Retrying download...', showRetry);
+                  };
+                } else {
                   setTimeout(() => {
                     modal.classList.add('hidden');
                     document.body.classList.remove('popup-active');
                     clearPaymentCookie(product.item);
-                  }, 2000);
-                } else {
-                  statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-                  if (showRetry && retryCount < maxRetries) {
-                    retryBtn.classList.remove('hidden');
-                    retryBtn.onclick = () => {
-                      retryCount++;
-                      modal.classList.add('hidden');
-                      document.body.classList.remove('popup-active');
-                      showStatusModal(product, refCode, 'Retrying download...', showRetry);
-                    };
-                  } else {
-                    setTimeout(() => {
-                      modal.classList.add('hidden');
-                      document.body.classList.remove('popup-active');
-                      clearPaymentCookie(product.item);
-                    }, 3000);
-                  }
+                  }, 3000);
                 }
-              } else if (data.status === 'no payment') {
-                clearInterval(countdown);
-                statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 3000);
-              } else if (data.status === 'partial payment') {
-                clearInterval(countdown);
-                statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                  window.location.href = WHATSAPP_REDIRECT;
-                }, 3000);
-              } else {
-                statusMessage.textContent = 'Unknown status received. Please wait...';
               }
+            } else if (data.status && data.status.startsWith('failed_')) { // Generic failure from server
+                clearInterval(countdown);
+                statusMessage.innerHTML = `Payment failed or could not be confirmed (${data.status}). Please <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+                setTimeout(() => {
+                  modal.classList.add('hidden');
+                  document.body.classList.remove('popup-active');
+                  clearPaymentCookie(product.item);
+                }, 3000);
+            } else if (data.status === 'no payment') { // Specific to manual Mpesa
+              clearInterval(countdown);
+              statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+              setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                clearPaymentCookie(product.item);
+              }, 3000);
+            } else if (data.status === 'partial payment') { // Specific to manual Mpesa
+              clearInterval(countdown);
+              statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
+              setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.classList.remove('popup-active');
+                clearPaymentCookie(product.item);
+                window.location.href = WHATSAPP_REDIRECT;
+              }, 3000);
+            } else {
+              // Continue polling for pending_stk_push or other pending statuses
+              statusMessage.textContent = data.message || 'Confirming payment... Please wait.';
             }
           } catch (error) {
             console.error('Error checking order status:', error.message);
@@ -1895,8 +1781,9 @@
             progressText.textContent = 'Download failed.';
             errorText.textContent = `Error: ${xhr.statusText || 'Unknown error'}. Contact support.`;
             errorText.style.display = 'block';
-            modal.style.display = 'none';
-            document.body.classList.remove('popup-active');
+            // Don't hide modal immediately on error, let user see the message
+            // modal.style.display = 'none';
+            // document.body.classList.remove('popup-active');
             resolve(false);
           }
         };
@@ -1905,8 +1792,8 @@
           progressText.textContent = 'Download failed.';
           errorText.textContent = 'Network error occurred. Please try again or contact support.';
           errorText.style.display = 'block';
-          modal.style.display = 'none';
-          document.body.classList.remove('popup-active');
+          // modal.style.display = 'none';
+          // document.body.classList.remove('popup-active');
           resolve(false);
         };
 
@@ -1915,342 +1802,330 @@
     }
 
     function updateFooter() {
-  document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
-  document.getElementById('support-email').textContent = settings.supportEmail;
-  document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
+      document.getElementById('support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('support-email').textContent = settings.supportEmail;
+      document.getElementById('copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
 
-  const socialLinks = document.getElementById('social-links');
-  socialLinks.innerHTML = '';
-  if (settings.socials) {
-    Object.entries(settings.socials).forEach(([platform, url]) => {
-      if (url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.className = 'text-gray-500 hover:text-green-600';
-        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-        socialLinks.appendChild(a);
+      const socialLinks = document.getElementById('social-links');
+      socialLinks.innerHTML = '';
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            socialLinks.appendChild(a);
+          }
+        });
       }
-    });
-  }
 
-  const staticLinks = document.getElementById('static-links');
-  staticLinks.innerHTML = '';
-  staticPages
-    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-    .forEach(page => {
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'text-gray-500 hover:text-green-600';
-      a.textContent = page.title;
-      a.dataset.slug = page.slug;
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        const modal = document.getElementById('static-page-modal');
-        document.getElementById('static-page-title').textContent = page.title;
+      const staticLinks = document.getElementById('static-links');
+      staticLinks.innerHTML = '';
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = 'text-gray-500 hover:text-green-600';
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
 
-        // Clean Quill.js content
-        let cleanedContent = page.content
-          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-          .trim();
+            let cleanedContent = page.content
+              .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+              .trim();
 
-        const contentContainer = document.getElementById('static-page-content');
-        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+            const contentContainer = document.getElementById('static-page-content');
+            contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+            contentContainer.style.margin = '0';
+            contentContainer.style.padding = '0';
+            contentContainer.style.fontSize = '16px';
 
-        // Reset modal container styles to avoid interference
-        contentContainer.style.margin = '0';
-        contentContainer.style.padding = '0';
-        contentContainer.style.fontSize = '16px'; // Base font size for consistency
+            const paragraphs = contentContainer.querySelectorAll('p');
+            paragraphs.forEach(p => {
+              p.style.wordBreak = 'break-word';
+              p.style.margin = '0 0 1rem 0';
+              p.style.lineHeight = '1.6';
+            });
 
-        // Style Quill.js content, respecting original formatting
-        const paragraphs = contentContainer.querySelectorAll('p');
-        paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word';
-          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
-          p.style.lineHeight = '1.6'; // Improve readability
+            const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+            blankParagraphs.forEach(p => {
+              p.style.height = '1rem';
+              p.style.margin = '0';
+            });
+
+            const headers = contentContainer.querySelectorAll('h1, h2, h3');
+            headers.forEach(h => {
+              h.style.fontWeight = '600';
+              if (h.tagName.toLowerCase() === 'h1') {
+                h.style.fontSize = '1.75rem';
+              } else if (h.tagName.toLowerCase() === 'h2') {
+                h.style.fontSize = '1.5rem';
+              } else if (h.tagName.toLowerCase() === 'h3') {
+                h.style.fontSize = '1.25rem';
+              }
+              h.style.margin = '1.5rem 0 1rem 0';
+            });
+
+            const unorderedLists = contentContainer.querySelectorAll('ul');
+            unorderedLists.forEach(ul => {
+              ul.style.paddingLeft = '1.5rem';
+              ul.style.listStyleType = 'none';
+              ul.style.margin = '1rem 0';
+            });
+
+            const orderedLists = contentContainer.querySelectorAll('ol');
+            orderedLists.forEach(ol => {
+              ol.style.paddingLeft = '1.5rem';
+              if (!ol.style.listStyleType) {
+                ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+              }
+              ol.style.margin = '1rem 0';
+            });
+
+            const listItems = contentContainer.querySelectorAll('li');
+            listItems.forEach(li => {
+              const indentLevel = li.className.match(/ql-indent-(\d+)/);
+              if (indentLevel) {
+                li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+              }
+              li.style.position = 'relative';
+              li.style.paddingLeft = '1.5rem';
+              li.style.marginBottom = '0.5rem';
+
+              if (li.parentNode.tagName.toLowerCase() === 'ul') {
+                li.style.listStyleType = 'none';
+                li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+              }
+            });
+
+            const boldText = contentContainer.querySelectorAll('strong, b');
+            boldText.forEach(b => {
+              b.style.fontWeight = 'bold';
+            });
+
+            const italicText = contentContainer.querySelectorAll('em, i');
+            italicText.forEach(i => {
+              i.style.fontStyle = 'italic';
+            });
+
+            const underlineText = contentContainer.querySelectorAll('u');
+            underlineText.forEach(u => {
+              u.style.textDecoration = 'underline';
+            });
+
+            const links = contentContainer.querySelectorAll('a');
+            links.forEach(link => {
+              link.style.color = 'blue';
+              link.style.textDecoration = 'underline';
+              link.setAttribute('target', '_blank');
+            });
+
+            const blockquotes = contentContainer.querySelectorAll('blockquote');
+            blockquotes.forEach(bq => {
+              bq.style.borderLeft = '4px solid #ccc';
+              bq.style.paddingLeft = '1rem';
+              bq.style.color = '#666';
+              bq.style.margin = '1rem 0';
+            });
+
+            const codeElements = contentContainer.querySelectorAll('code');
+            codeElements.forEach(code => {
+              code.style.backgroundColor = '#f4f4f4';
+              code.style.padding = '2px 4px';
+              code.style.borderRadius = '4px';
+              code.style.fontFamily = 'monospace';
+            });
+
+            const images = contentContainer.querySelectorAll('img');
+            images.forEach(img => {
+              img.style.maxWidth = '100%';
+              img.style.height = 'auto';
+              img.style.borderRadius = '8px';
+              img.style.margin = '1rem 0';
+            });
+
+            modal.classList.remove('hidden');
+            document.body.classList.add('popup-active');
+          });
+          staticLinks.appendChild(a);
         });
 
-        // Preserve <p><br></p> as a blank line
-        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-        blankParagraphs.forEach(p => {
-          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
-          p.style.margin = '0';
-        });
+      document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
+      document.getElementById('mobile-support-email').textContent = settings.supportEmail;
+      document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
 
-        const headers = contentContainer.querySelectorAll('h1, h2, h3');
-        headers.forEach(h => {
-          h.style.fontWeight = '600';
-          // Define font sizes to match typical Quill.js rendering
-          if (h.tagName.toLowerCase() === 'h1') {
-            h.style.fontSize = '1.75rem'; // 28px
-          } else if (h.tagName.toLowerCase() === 'h2') {
-            h.style.fontSize = '1.5rem'; // 24px
-          } else if (h.tagName.toLowerCase() === 'h3') {
-            h.style.fontSize = '1.25rem'; // 20px
+      const mobileSocialLinks = document.getElementById('mobile-social-links');
+      mobileSocialLinks.innerHTML = '';
+      if (settings.socials) {
+        Object.entries(settings.socials).forEach(([platform, url]) => {
+          if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.className = 'text-gray-500 hover:text-green-600 text-sm';
+            a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+            mobileSocialLinks.appendChild(a);
           }
-          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
         });
-
-        const unorderedLists = contentContainer.querySelectorAll('ul');
-        unorderedLists.forEach(ul => {
-          ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none';
-          ul.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const orderedLists = contentContainer.querySelectorAll('ol');
-        orderedLists.forEach(ol => {
-          ol.style.paddingLeft = '1.5rem';
-          if (!ol.style.listStyleType) {
-            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-          }
-          ol.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const listItems = contentContainer.querySelectorAll('li');
-        listItems.forEach(li => {
-          const indentLevel = li.className.match(/ql-indent-(\d+)/);
-          if (indentLevel) {
-            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-          }
-          li.style.position = 'relative';
-          li.style.paddingLeft = '1.5rem';
-          li.style.marginBottom = '0.5rem'; // Spacing between list items
-
-          if (li.parentNode.tagName.toLowerCase() === 'ul') {
-            li.style.listStyleType = 'none';
-            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-          }
-        });
-
-        const boldText = contentContainer.querySelectorAll('strong, b');
-        boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
-        });
-
-        const italicText = contentContainer.querySelectorAll('em, i');
-        italicText.forEach(i => {
-          i.style.fontStyle = 'italic';
-        });
-
-        const underlineText = contentContainer.querySelectorAll('u');
-        underlineText.forEach(u => {
-          u.style.textDecoration = 'underline';
-        });
-
-        const links = contentContainer.querySelectorAll('a');
-        links.forEach(link => {
-          link.style.color = 'blue';
-          link.style.textDecoration = 'underline';
-          link.setAttribute('target', '_blank');
-        });
-
-        const blockquotes = contentContainer.querySelectorAll('blockquote');
-        blockquotes.forEach(bq => {
-          bq.style.borderLeft = '4px solid #ccc';
-          bq.style.paddingLeft = '1rem';
-          bq.style.color = '#666';
-          bq.style.margin = '1rem 0';
-        });
-
-        const codeElements = contentContainer.querySelectorAll('code');
-        codeElements.forEach(code => {
-          code.style.backgroundColor = '#f4f4f4';
-          code.style.padding = '2px 4px';
-          code.style.borderRadius = '4px';
-          code.style.fontFamily = 'monospace';
-        });
-
-        const images = contentContainer.querySelectorAll('img');
-        images.forEach(img => {
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          img.style.borderRadius = '8px';
-          img.style.margin = '1rem 0';
-        });
-
-        modal.classList.remove('hidden');
-        document.body.classList.add('popup-active');
-      });
-      staticLinks.appendChild(a);
-    });
-
-  document.getElementById('mobile-support-email').href = `mailto:${settings.supportEmail}`;
-  document.getElementById('mobile-support-email').textContent = settings.supportEmail;
-  document.getElementById('mobile-copyright-text').innerHTML = settings.copyrightText.replace(/©/g, '©');
-
-  const mobileSocialLinks = document.getElementById('mobile-social-links');
-  mobileSocialLinks.innerHTML = '';
-  if (settings.socials) {
-    Object.entries(settings.socials).forEach(([platform, url]) => {
-      if (url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.className = 'text-gray-500 hover:text-green-600 text-sm';
-        a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
-        mobileSocialLinks.appendChild(a);
       }
-    });
-  }
 
-  const mobileStaticLinks = document.getElementById('mobile-static-links');
-  mobileStaticLinks.innerHTML = '';
-  staticPages
-    .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
-    .forEach(page => {
-      const a = document.createElement('a');
-      a.href = '#';
-      a.className = 'text-gray-500 hover:text-green-600 text-sm';
-      a.textContent = page.title;
-      a.dataset.slug = page.slug;
-      a.addEventListener('click', e => {
-        e.preventDefault();
-        const modal = document.getElementById('static-page-modal');
-        document.getElementById('static-page-title').textContent = page.title;
+      const mobileStaticLinks = document.getElementById('mobile-static-links');
+      mobileStaticLinks.innerHTML = '';
+      staticPages
+        .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
+        .forEach(page => {
+          const a = document.createElement('a');
+          a.href = '#';
+          a.className = 'text-gray-500 hover:text-green-600 text-sm';
+          a.textContent = page.title;
+          a.dataset.slug = page.slug;
+          a.addEventListener('click', e => {
+            e.preventDefault();
+            const modal = document.getElementById('static-page-modal');
+            document.getElementById('static-page-title').textContent = page.title;
 
-        // Clean Quill.js content
-        let cleanedContent = page.content
-          .replace(/<span class="ql-ui"[^>]*><\/span>/g, '') // Remove Quill.js UI spans
-          .trim();
+            let cleanedContent = page.content
+              .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+              .trim();
 
-        const contentContainer = document.getElementById('static-page-content');
-        contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+            const contentContainer = document.getElementById('static-page-content');
+            contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
+            contentContainer.style.margin = '0';
+            contentContainer.style.padding = '0';
+            contentContainer.style.fontSize = '16px';
 
-        // Reset modal container styles to avoid interference
-        contentContainer.style.margin = '0';
-        contentContainer.style.padding = '0';
-        contentContainer.style.fontSize = '16px'; // Base font size for consistency
+            const paragraphs = contentContainer.querySelectorAll('p');
+            paragraphs.forEach(p => {
+              p.style.wordBreak = 'break-word';
+              p.style.margin = '0 0 1rem 0';
+              p.style.lineHeight = '1.6';
+            });
 
-        // Style Quill.js content, respecting original formatting
-        const paragraphs = contentContainer.querySelectorAll('p');
-        paragraphs.forEach(p => {
-          p.style.wordBreak = 'break-word';
-          p.style.margin = '0 0 1rem 0'; // Default paragraph spacing
-          p.style.lineHeight = '1.6'; // Improve readability
+            const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
+            blankParagraphs.forEach(p => {
+              p.style.height = '1rem';
+              p.style.margin = '0';
+            });
+
+            const headers = contentContainer.querySelectorAll('h1, h2, h3');
+            headers.forEach(h => {
+              h.style.fontWeight = '600';
+              if (h.tagName.toLowerCase() === 'h1') {
+                h.style.fontSize = '1.75rem';
+              } else if (h.tagName.toLowerCase() === 'h2') {
+                h.style.fontSize = '1.5rem';
+              } else if (h.tagName.toLowerCase() === 'h3') {
+                h.style.fontSize = '1.25rem';
+              }
+              h.style.margin = '1.5rem 0 1rem 0';
+            });
+
+            const unorderedLists = contentContainer.querySelectorAll('ul');
+            unorderedLists.forEach(ul => {
+              ul.style.paddingLeft = '1.5rem';
+              ul.style.listStyleType = 'none';
+              ul.style.margin = '1rem 0';
+            });
+
+            const orderedLists = contentContainer.querySelectorAll('ol');
+            orderedLists.forEach(ol => {
+              ol.style.paddingLeft = '1.5rem';
+              if (!ol.style.listStyleType) {
+                ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
+              }
+              ol.style.margin = '1rem 0';
+            });
+
+            const listItems = contentContainer.querySelectorAll('li');
+            listItems.forEach(li => {
+              const indentLevel = li.className.match(/ql-indent-(\d+)/);
+              if (indentLevel) {
+                li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
+              }
+              li.style.position = 'relative';
+              li.style.paddingLeft = '1.5rem';
+              li.style.marginBottom = '0.5rem';
+
+              if (li.parentNode.tagName.toLowerCase() === 'ul') {
+                li.style.listStyleType = 'none';
+                li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
+              }
+            });
+
+            const boldText = contentContainer.querySelectorAll('strong, b');
+            boldText.forEach(b => {
+              b.style.fontWeight = 'bold';
+            });
+
+            const italicText = contentContainer.querySelectorAll('em, i');
+            italicText.forEach(i => {
+              i.style.fontStyle = 'italic';
+            });
+
+            const underlineText = contentContainer.querySelectorAll('u');
+            underlineText.forEach(u => {
+              u.style.textDecoration = 'underline';
+            });
+
+            const links = contentContainer.querySelectorAll('a');
+            links.forEach(link => {
+              link.style.color = 'blue';
+              link.style.textDecoration = 'underline';
+              link.setAttribute('target', '_blank');
+            });
+
+            const blockquotes = contentContainer.querySelectorAll('blockquote');
+            blockquotes.forEach(bq => {
+              bq.style.borderLeft = '4px solid #ccc';
+              bq.style.paddingLeft = '1rem';
+              bq.style.color = '#666';
+              bq.style.margin = '1rem 0';
+            });
+
+            const codeElements = contentContainer.querySelectorAll('code');
+            codeElements.forEach(code => {
+              code.style.backgroundColor = '#f4f4f4';
+              code.style.padding = '2px 4px';
+              code.style.borderRadius = '4px';
+              code.style.fontFamily = 'monospace';
+            });
+
+            const images = contentContainer.querySelectorAll('img');
+            images.forEach(img => {
+              img.style.maxWidth = '100%';
+              img.style.height = 'auto';
+              img.style.borderRadius = '8px';
+              img.style.margin = '1rem 0';
+            });
+
+            modal.classList.remove('hidden');
+            document.body.classList.add('popup-active');
+            document.getElementById('mobile-menu').classList.remove('open');
+          });
+          mobileStaticLinks.appendChild(a);
         });
 
-        // Preserve <p><br></p> as a blank line
-        const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-        blankParagraphs.forEach(p => {
-          p.style.height = '1rem'; // Ensure blank lines are rendered with spacing
-          p.style.margin = '0';
-        });
-
-        const headers = contentContainer.querySelectorAll('h1, h2, h3');
-        headers.forEach(h => {
-          h.style.fontWeight = '600';
-          // Define font sizes to match typical Quill.js rendering
-          if (h.tagName.toLowerCase() === 'h1') {
-            h.style.fontSize = '1.75rem'; // 28px
-          } else if (h.tagName.toLowerCase() === 'h2') {
-            h.style.fontSize = '1.5rem'; // 24px
-          } else if (h.tagName.toLowerCase() === 'h3') {
-            h.style.fontSize = '1.25rem'; // 20px
-          }
-          h.style.margin = '1.5rem 0 1rem 0'; // Spacing above and below headers
-        });
-
-        const unorderedLists = contentContainer.querySelectorAll('ul');
-        unorderedLists.forEach(ul => {
-          ul.style.paddingLeft = '1.5rem';
-          ul.style.listStyleType = 'none';
-          ul.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const orderedLists = contentContainer.querySelectorAll('ol');
-        orderedLists.forEach(ol => {
-          ol.style.paddingLeft = '1.5rem';
-          if (!ol.style.listStyleType) {
-            ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-          }
-          ol.style.margin = '1rem 0'; // Spacing around lists
-        });
-
-        const listItems = contentContainer.querySelectorAll('li');
-        listItems.forEach(li => {
-          const indentLevel = li.className.match(/ql-indent-(\d+)/);
-          if (indentLevel) {
-            li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-          }
-          li.style.position = 'relative';
-          li.style.paddingLeft = '1.5rem';
-          li.style.marginBottom = '0.5rem'; // Spacing between list items
-
-          if (li.parentNode.tagName.toLowerCase() === 'ul') {
-            li.style.listStyleType = 'none';
-            li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-          }
-        });
-
-        const boldText = contentContainer.querySelectorAll('strong, b');
-        boldText.forEach(b => {
-          b.style.fontWeight = 'bold';
-        });
-
-        const italicText = contentContainer.querySelectorAll('em, i');
-        italicText.forEach(i => {
-          i.style.fontStyle = 'italic';
-        });
-
-        const underlineText = contentContainer.querySelectorAll('u');
-        underlineText.forEach(u => {
-          u.style.textDecoration = 'underline';
-        });
-
-        const links = contentContainer.querySelectorAll('a');
-        links.forEach(link => {
-          link.style.color = 'blue';
-          link.style.textDecoration = 'underline';
-          link.setAttribute('target', '_blank');
-        });
-
-        const blockquotes = contentContainer.querySelectorAll('blockquote');
-        blockquotes.forEach(bq => {
-          bq.style.borderLeft = '4px solid #ccc';
-          bq.style.paddingLeft = '1rem';
-          bq.style.color = '#666';
-          bq.style.margin = '1rem 0';
-        });
-
-        const codeElements = contentContainer.querySelectorAll('code');
-        codeElements.forEach(code => {
-          code.style.backgroundColor = '#f4f4f4';
-          code.style.padding = '2px 4px';
-          code.style.borderRadius = '4px';
-          code.style.fontFamily = 'monospace';
-        });
-
-        const images = contentContainer.querySelectorAll('img');
-        images.forEach(img => {
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          img.style.borderRadius = '8px';
-          img.style.margin = '1rem 0';
-        });
-
-        modal.classList.remove('hidden');
-        document.body.classList.add('popup-active');
-        document.getElementById('mobile-menu').classList.remove('open');
-      });
-      mobileStaticLinks.appendChild(a);
-    });
-
-  document.getElementById('static-page-close').onclick = () => {
-    document.getElementById('static-page-modal').classList.add('hidden');
-    document.body.classList.remove('popup-active');
-  };
-}
+      document.getElementById('static-page-close').onclick = () => {
+        document.getElementById('static-page-modal').classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
+    }
     
     function showUrgentMessage() {
-  const urgentMessage = document.getElementById('urgent-message');
-  const urgentText = document.getElementById('urgent-text');
-  if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
-    urgentText.innerHTML = settings.urgentMessage.text; // Use innerHTML for HTML rendering
-    urgentMessage.classList.remove('hidden');
-  }
-  document.getElementById('urgent-close').onclick = () => {
-    urgentMessage.classList.add('hidden');
-  };
-}
+      const urgentMessage = document.getElementById('urgent-message');
+      const urgentText = document.getElementById('urgent-text');
+      if (settings.urgentMessage?.enabled && settings.urgentMessage?.text) {
+        urgentText.innerHTML = settings.urgentMessage.text;
+        urgentMessage.classList.remove('hidden');
+      }
+      document.getElementById('urgent-close').onclick = () => {
+        urgentMessage.classList.add('hidden');
+      };
+    }
     async function checkPaymentCookie() {
       const cookies = document.cookie.split(';');
       const paymentCookie = cookies.find(cookie => cookie.trim().startsWith('payment_'));
@@ -2276,8 +2151,11 @@
 
     function startPolling() {
       setInterval(async () => {
-        const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal']
-          .some(modalId => !document.getElementById(modalId).classList.contains('hidden') || document.getElementById(modalId).style.display === 'flex');
+        const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal', 'payhero-modal', 'details-modal', 'payment-choice-modal']
+          .some(modalId => {
+            const modalElement = document.getElementById(modalId);
+            return modalElement && (!modalElement.classList.contains('hidden') || modalElement.style.display === 'flex');
+          });
         if (isUserActive) {
           console.log('Skipping polling: User is in an active modal');
           return;
@@ -2385,7 +2263,6 @@
   </script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327d9e2c89e53c4',t:'MTc0NTAxNzk4OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9328f5e1dc724527',t:'MTc0NTAyOTYyMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
-  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
-</script>
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9329cd351aac53cd',t:'MTc0NTAzODQ0MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
 </body>
 </html>
