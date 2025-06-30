@@ -1221,6 +1221,248 @@ app.post('/api/logout', (req, res) => {
   }
 });
 
+// Endpoint to initiate PayHero payment (new)
+app.post('/api/initiate-payhero-payment', rateLimit, async (req, res) => {
+  try {
+    const { item, amount_kes, phone, customerName } = req.body;
+
+    // Validate inputs
+    if (!item || !amount_kes || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
+    }
+
+    const product = cachedData.products.find(p => p.item === item);
+    if (!product) {
+      console.log(`[${new Date().toISOString()}] PayHero: Product not found for item: ${item}`);
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    // Server-side amount validation (important!)
+    // Fetch exchange rate if prices are in USD, or use KES price directly if stored
+    // For simplicity, assuming amount_kes is the final KES amount agreed upon.
+    // Ensure this amount matches expected KES price for the product to prevent tampering.
+    // Example: const expectedKesPrice = (product.price * await getExchangeRate()).toFixed(2);
+    // if (parseFloat(amount_kes).toFixed(2) !== expectedKesPrice) {
+    //   console.error(`[${new Date().toISOString()}] PayHero: Amount mismatch for item ${item}. Expected ${expectedKesPrice}, got ${amount_kes}`);
+    //   return res.status(400).json({ success: false, error: 'Invalid amount provided.' });
+    // }
+
+
+    const serverSideReference = `PH-SVR-${item}-${uuidv4()}`; // Unique server-generated reference
+
+    // Save order to DB *before* initiating payment with PayHero
+    const { error: insertError } = await supabase.from('orders').insert({
+      item: item,
+      ref_code: serverSideReference, // Use server-generated ref for internal tracking
+      amount: parseFloat(amount_kes),
+      timestamp: new Date().toISOString(),
+      status: 'pending_payhero', // New status for PayHero
+      downloaded: false,
+      payment_method: 'payhero'
+    });
+
+    if (insertError) {
+      console.error(`[${new Date().toISOString()}] PayHero: Error saving initial order to DB:`, insertError.message);
+      throw insertError;
+    }
+    console.log(`[${new Date().toISOString()}] PayHero: Initial order saved to DB for item ${item}, ref ${serverSideReference}`);
+
+
+    const payheroApiUrl = 'https://backend.payhero.co.ke/api/v2/payments';
+    const payheroChannelId = cachedData.settings.payheroChannelId;
+    const payheroAuthToken = cachedData.settings.payheroAuthToken;
+    const callbackUrl = `${getBaseUrl(req)}/api/payhero-callback`; // Ensure getBaseUrl is defined and working
+
+    if (!payheroAuthToken) {
+        console.error(`[${new Date().toISOString()}] PayHero auth token is not configured on the server.`);
+        return res.status(500).json({ success: false, error: 'Payment gateway not configured.' });
+    }
+    if (!payheroChannelId) {
+        console.error(`[${new Date().toISOString()}] PayHero channel ID is not configured on the server.`);
+        return res.status(500).json({ success: false, error: 'Payment gateway channel not configured.' });
+    }
+
+
+    const payheroRequestBody = {
+      amount: Math.round(parseFloat(amount_kes)), // PayHero expects integer
+      phone_number: phone.startsWith('+') ? phone : (phone.startsWith('254') ? phone : `254${phone.substring(1)}`), // Normalize phone
+      channel_id: parseInt(payheroChannelId),
+      provider: "sasapay", // As per PayHero docs for wallet/button payments
+      network_code: "63902", // Mpesa
+      external_reference: serverSideReference, // CRITICAL: This links PayHero callback to our order
+      customer_name: customerName || 'Valued Customer',
+      callback_url: callbackUrl
+    };
+
+    console.log(`[${new Date().toISOString()}] PayHero: Initiating STK push with body:`, JSON.stringify(payheroRequestBody));
+
+    const response = await fetch(payheroApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': payheroAuthToken
+      },
+      body: JSON.stringify(payheroRequestBody)
+    });
+
+    const payheroResponse = await response.json();
+
+    if (!response.ok || !payheroResponse.success || payheroResponse.status !== 'QUEUED') {
+      console.error(`[${new Date().toISOString()}] PayHero: STK Push initiation failed. Status: ${response.status}, Response:`, payheroResponse);
+      // Optionally, update order status to 'failed_initiation' or delete
+      await supabase.from('orders').update({ status: 'failed_payhero_initiation' }).eq('ref_code', serverSideReference);
+      return res.status(500).json({ success: false, error: payheroResponse.message || 'Failed to initiate PayHero payment.' });
+    }
+
+    console.log(`[${new Date().toISOString()}] PayHero: STK Push initiated successfully for ref ${serverSideReference}. Response:`, payheroResponse);
+    // The client-side will handle the PayHero SDK's iframe/popup based on this successful initiation.
+    // The actual payment confirmation comes via the /api/payhero-callback.
+    res.json({
+        success: true,
+        message: 'PayHero payment initiated. Please complete on your phone.',
+        payheroCheckoutRequestID: payheroResponse.CheckoutRequestID, // This might be useful for client
+        serverReference: serverSideReference // Send back our server reference
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] PayHero: Error in /api/initiate-payhero-payment:`, error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Server error during PayHero payment initiation.' });
+  }
+});
+
+// Endpoint for PayHero callback (new) - Adjusted for Button SDK
+app.post('/api/payhero-callback', async (req, res) => {
+  console.log(`[${new Date().toISOString()}] PayHero SDK Callback Received:`, JSON.stringify(req.body));
+  try {
+    // Payload from PayHero Button SDK callback
+    const { paymentSuccess, reference, user_reference, provider, providerReference, amount, phone, customerName, channel } = req.body;
+
+    if (typeof user_reference === 'undefined') {
+      console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Missing user_reference. Body:`, req.body);
+      return res.status(400).json({ error: 'Missing user_reference in PayHero callback' });
+    }
+
+    const clientSideReference = user_reference; // This was our reference passed to PayHero.init
+    const itemMatch = clientSideReference.match(/^PH-(.+?)-\d+$/);
+
+    if (!itemMatch || !itemMatch[1]) {
+      console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Could not extract item from user_reference: ${clientSideReference}`);
+      return res.status(400).json({ error: 'Invalid user_reference format' });
+    }
+    const item = itemMatch[1];
+
+    // Find product details from cache
+    const productDetails = cachedData.products.find(p => p.item === item);
+    if (!productDetails) {
+      console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Product details not found for item ${item} from user_reference ${clientSideReference}`);
+      return res.status(404).json({ error: 'Product not found for callback reference' });
+    }
+
+    // Try to find an existing order with this clientSideReference
+    let { data: order, error: orderFetchError } = await supabase
+      .from('orders')
+      .select('*') // Select all columns to check existing data
+      .eq('ref_code', clientSideReference)
+      .eq('payment_method', 'payhero_sdk')
+      .single();
+
+    if (orderFetchError && orderFetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+      console.error(`[${new Date().toISOString()}] PayHero SDK Callback: DB error fetching order ${clientSideReference}:`, orderFetchError.message);
+      throw orderFetchError;
+    }
+
+    if (order && order.status === 'confirmed_payhero_sdk') {
+      console.log(`[${new Date().toISOString()}] PayHero SDK Callback: Order ${clientSideReference} already confirmed. Ignoring duplicate callback.`);
+      return res.status(200).json({ message: 'Order already confirmed' });
+    }
+
+    const currentTimestamp = new Date().toISOString();
+    const mpesaReceipt = paymentSuccess ? providerReference : null;
+
+    if (!order) {
+      // Order doesn't exist, create it based on callback data
+      console.log(`[${new Date().toISOString()}] PayHero SDK Callback: Order not found for ${clientSideReference}, creating new order.`);
+      const { error: insertError } = await supabase.from('orders').insert({
+        item: item,
+        ref_code: clientSideReference,
+        amount: parseFloat(amount), // Amount from PayHero callback
+        timestamp: currentTimestamp,
+        status: paymentSuccess ? 'confirmed_payhero_sdk' : `failed_payhero_sdk_cb`,
+        downloaded: false,
+        payment_method: 'payhero_sdk',
+        mpesa_receipt: mpesaReceipt,
+        customer_name: customerName,
+        phone_number: phone // Store phone from callback
+      });
+
+      if (insertError) {
+        console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Error inserting new order for ${clientSideReference}:`, insertError.message);
+        throw insertError;
+      }
+      // Update local order variable for subsequent logic if needed (though not strictly necessary here)
+      order = {
+          item, ref_code: clientSideReference, amount: parseFloat(amount),
+          timestamp: currentTimestamp, status: paymentSuccess ? 'confirmed_payhero_sdk' : `failed_payhero_sdk_cb`,
+          payment_method: 'payhero_sdk', mpesa_receipt: mpesaReceipt
+      };
+    } else {
+      // Order exists, update it
+      const newStatus = paymentSuccess ? 'confirmed_payhero_sdk' : (order.status === 'pending_payhero_sdk' ? `failed_payhero_sdk_cb` : order.status);
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+            status: newStatus,
+            mpesa_receipt: mpesaReceipt,
+            amount: parseFloat(amount), // Update amount from callback
+            customer_name: customerName, // Update customer details
+            phone_number: phone,
+            timestamp: currentTimestamp // Update timestamp to callback time
+        })
+        .eq('ref_code', clientSideReference);
+
+      if (updateError) {
+        console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Error updating order ${clientSideReference}:`, updateError.message);
+        throw updateError;
+      }
+      order.status = newStatus; // Reflect update locally
+      order.amount = parseFloat(amount);
+    }
+
+    if (paymentSuccess === true) {
+      console.log(`[${new Date().toISOString()}] PayHero SDK Callback: Payment SUCCEEDED for order ${clientSideReference}. Amount: ${amount}, Receipt: ${mpesaReceipt}`);
+
+      // Amount validation against product price (using KES price from product or converted USD)
+      // This is a simplified check; ensure productDetails.price is in KES or convert it
+      const expectedKesAmount = parseFloat(productDetails.price_kes || (productDetails.price * (cachedData.settings.fallbackRate || 130))).toFixed(2);
+      const receivedKesAmount = parseFloat(amount).toFixed(2);
+
+      if (Math.round(parseFloat(expectedKesAmount)) !== Math.round(parseFloat(receivedKesAmount))) {
+        console.warn(`[${new Date().toISOString()}] PayHero SDK Callback: Amount mismatch for order ${clientSideReference}. Expected KES ${expectedKesAmount}, CB KES ${receivedKesAmount}. Current status: ${order.status}. Updating to 'failed_amount_mismatch'.`);
+        await supabase.from('orders').update({ status: 'failed_amount_mismatch', mpesa_receipt: mpesaReceipt }).eq('ref_code', clientSideReference);
+        return res.status(200).json({ error: 'Amount mismatch' }); // 200 to PayHero
+      }
+
+      // If status was updated to confirmed_payhero_sdk (either by insert or update)
+      if (order.status === 'confirmed_payhero_sdk') {
+         await sendOrderNotification(item, clientSideReference, amount);
+         console.log(`[${new Date().toISOString()}] PayHero SDK Callback: Order ${clientSideReference} processed as confirmed.`);
+      }
+      res.status(200).json({ success: true, message: "Callback processed successfully" });
+
+    } else {
+      // Payment failed as per paymentSuccess flag
+      console.log(`[${new Date().toISOString()}] PayHero SDK Callback: Payment FAILED for order ${clientSideReference} as per paymentSuccess flag. Payload:`, req.body);
+      // Status already set to failed_payhero_sdk_cb by insert/update logic
+      res.status(200).json({ success: false, message: "Payment not successful, status updated." }); // Still 200 to PayHero
+    }
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] PayHero SDK Callback: Error processing:`, error.message, error.stack);
+    res.status(500).json({ error: 'Internal server error processing callback' });
+  }
+});
+
+
 app.get('/:slug', async (req, res) => {
   const page = cachedData.staticPages.find(p => p.slug === `/${req.params.slug}`);
   if (!page) {
