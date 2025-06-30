@@ -1084,7 +1084,20 @@ app.post('/api/payhero-callback', async (req, res) => {
       }
     } else {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, Status: ${paymentGatewayStatus}`);
-      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`;
+      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`; // Default failure status
+
+      // Map specific ResultCodes to more descriptive statuses
+      if (ResultCode === 1) {
+        updatePayload.status = 'failed_stk_insufficient_funds';
+      } else if (ResultCode === 1032) {
+        updatePayload.status = 'failed_stk_cancelled_by_user';
+      } else if (ResultCode === 1037) {
+        updatePayload.status = 'failed_stk_timeout';
+      } else if (ResultCode === 2001) {
+        updatePayload.status = 'failed_stk_invalid_pin';
+      }
+      // For other non-zero ResultCodes, the generic failed_stk_cb_{ResultCode} will be used.
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}`);
     }
 
     await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);

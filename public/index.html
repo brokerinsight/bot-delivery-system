@@ -1678,14 +1678,48 @@
                   }, 3000);
                 }
               }
-            } else if (data.status && data.status.startsWith('failed_')) { // Generic failure from server
+            } else if (data.status && data.status.startsWith('failed_')) {
                 clearInterval(countdown);
-                statusMessage.innerHTML = `Payment failed or could not be confirmed (${data.status}). Please <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 3000);
+                let userFriendlyMessage = `Payment failed or could not be confirmed. Reason: ${data.status}.`;
+                if (data.status === 'failed_stk_cancelled_by_user') {
+                    userFriendlyMessage = "You cancelled the Mpesa payment on your phone. Please try again if you wish to proceed.";
+                } else if (data.status === 'failed_stk_insufficient_funds') {
+                    userFriendlyMessage = "Payment failed due to insufficient Mpesa funds. Please top up and try again.";
+                } else if (data.status === 'failed_stk_timeout') {
+                    userFriendlyMessage = "Mpesa payment request timed out. Please try again.";
+                } else if (data.status === 'failed_stk_invalid_pin') {
+                    userFriendlyMessage = "You entered an invalid Mpesa PIN. Please try again.";
+                } else if (data.message && data.message.includes("Amount mismatch")) { // Check for specific message from server
+                    userFriendlyMessage = "There was an issue with the payment amount. Please contact support.";
+                } else if (data.message) { // Use server message if available and more specific
+                     userFriendlyMessage = data.message;
+                }
+
+                statusMessage.innerHTML = `${userFriendlyMessage} You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
+
+                if (showRetry && retryCount < maxRetries &&
+                    (data.status === 'failed_stk_timeout' || data.status.startsWith('failed_stk_cb_') || data.status === 'failed_stk_initiation')) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.textContent = 'Retry Payment'; // Or more specific if needed
+                    retryBtn.onclick = () => {
+                        retryCount++;
+                        modal.classList.add('hidden');
+                        document.body.classList.remove('popup-active');
+                        // For STK, retrying means showing the PayHero modal again, or if it was manual, the ref code modal
+                        // This needs context of which payment flow led here.
+                        // For now, a generic retry might just re-show the payment choice.
+                        // This part might need more sophisticated retry logic based on payment_method if we want to preserve context.
+                        // Simplest retry: take them back to payment choice for the product.
+                        showPaymentChoiceModal(product, localStorage.getItem(`payment_${product.item}_kesPrice`) || (product.price * (exchangeRate || 130)).toFixed(2) );
+                    };
+                } else {
+                    setTimeout(() => {
+                        modal.classList.add('hidden');
+                        document.body.classList.remove('popup-active');
+                        clearPaymentCookie(product.item); // Clear cookies for manual Mpesa if any
+                    }, 5000); // Longer timeout for reading failure messages
+                }
+
             } else if (data.status === 'no payment') { // Specific to manual Mpesa
               clearInterval(countdown);
               statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
