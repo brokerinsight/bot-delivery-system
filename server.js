@@ -1221,80 +1221,79 @@ app.post('/api/logout', (req, res) => {
   }
 });
 
-// Endpoint to initiate PayHero payment (new)
-app.post('/api/initiate-payhero-payment', rateLimit, async (req, res) => {
+// New endpoint for server-side STK push initiation
+app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   try {
     const { item, amount_kes, phone, customerName } = req.body;
 
-    // Validate inputs
     if (!item || !amount_kes || !phone) {
       return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
     }
 
     const product = cachedData.products.find(p => p.item === item);
     if (!product) {
-      console.log(`[${new Date().toISOString()}] PayHero: Product not found for item: ${item}`);
+      console.log(`[${new Date().toISOString()}] ServerSTK: Product not found for item: ${item}`);
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    // Server-side amount validation (important!)
-    // Fetch exchange rate if prices are in USD, or use KES price directly if stored
-    // For simplicity, assuming amount_kes is the final KES amount agreed upon.
-    // Ensure this amount matches expected KES price for the product to prevent tampering.
-    // Example: const expectedKesPrice = (product.price * await getExchangeRate()).toFixed(2);
-    // if (parseFloat(amount_kes).toFixed(2) !== expectedKesPrice) {
-    //   console.error(`[${new Date().toISOString()}] PayHero: Amount mismatch for item ${item}. Expected ${expectedKesPrice}, got ${amount_kes}`);
-    //   return res.status(400).json({ success: false, error: 'Invalid amount provided.' });
-    // }
+    const roundedAmount = Math.round(parseFloat(amount_kes));
+
+    // Server-side amount validation
+    const expectedKesPrice = Math.round(parseFloat(product.price) * (settings.fallbackRate || 130)); // Assuming product.price is USD
+    // If you have a direct KES price field in product (e.g., product.price_kes), use that:
+    // const expectedKesPrice = Math.round(parseFloat(product.price_kes));
+
+    if (roundedAmount !== expectedKesPrice) {
+        console.error(`[${new Date().toISOString()}] ServerSTK: Amount mismatch for item ${item}. Expected ${expectedKesPrice}, got ${roundedAmount}.`);
+        return res.status(400).json({ success: false, error: 'Invalid amount for product.' });
+    }
+
+    const serverSideReference = `SRV-PH-${item}-${uuidv4()}`;
+    const normalizedPhone = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
 
 
-    const serverSideReference = `PH-SVR-${item}-${uuidv4()}`; // Unique server-generated reference
-
-    // Save order to DB *before* initiating payment with PayHero
     const { error: insertError } = await supabase.from('orders').insert({
       item: item,
-      ref_code: serverSideReference, // Use server-generated ref for internal tracking
-      amount: parseFloat(amount_kes),
+      ref_code: serverSideReference,
+      amount: roundedAmount,
       timestamp: new Date().toISOString(),
-      status: 'pending_payhero', // New status for PayHero
+      status: 'pending_stk_push',
       downloaded: false,
-      payment_method: 'payhero'
+      payment_method: 'payhero_server_stk',
+      phone_number: normalizedPhone,
+      customer_name: customerName || 'Valued Customer'
     });
 
     if (insertError) {
-      console.error(`[${new Date().toISOString()}] PayHero: Error saving initial order to DB:`, insertError.message);
+      console.error(`[${new Date().toISOString()}] ServerSTK: Error saving initial order to DB:`, insertError.message);
       throw insertError;
     }
-    console.log(`[${new Date().toISOString()}] PayHero: Initial order saved to DB for item ${item}, ref ${serverSideReference}`);
-
+    console.log(`[${new Date().toISOString()}] ServerSTK: Initial order saved to DB for item ${item}, ref ${serverSideReference}`);
 
     const payheroApiUrl = 'https://backend.payhero.co.ke/api/v2/payments';
     const payheroChannelId = cachedData.settings.payheroChannelId;
     const payheroAuthToken = cachedData.settings.payheroAuthToken;
-    const callbackUrl = `${getBaseUrl(req)}/api/payhero-callback`; // Ensure getBaseUrl is defined and working
+    const callbackUrl = `${getBaseUrl(req)}/api/payhero-callback`;
 
-    if (!payheroAuthToken) {
-        console.error(`[${new Date().toISOString()}] PayHero auth token is not configured on the server.`);
-        return res.status(500).json({ success: false, error: 'Payment gateway not configured.' });
+    if (!payheroAuthToken || !payheroChannelId) {
+        console.error(`[${new Date().toISOString()}] ServerSTK: PayHero auth token or channel ID is not configured.`);
+        // Update order to failed if critical config missing
+        await supabase.from('orders').update({ status: 'failed_config_error' }).eq('ref_code', serverSideReference);
+        return res.status(500).json({ success: false, error: 'Payment gateway configuration error.' });
     }
-    if (!payheroChannelId) {
-        console.error(`[${new Date().toISOString()}] PayHero channel ID is not configured on the server.`);
-        return res.status(500).json({ success: false, error: 'Payment gateway channel not configured.' });
-    }
-
 
     const payheroRequestBody = {
-      amount: Math.round(parseFloat(amount_kes)), // PayHero expects integer
-      phone_number: phone.startsWith('+') ? phone : (phone.startsWith('254') ? phone : `254${phone.substring(1)}`), // Normalize phone
+      amount: roundedAmount,
+      phone_number: normalizedPhone,
       channel_id: parseInt(payheroChannelId),
-      provider: "sasapay", // As per PayHero docs for wallet/button payments
-      network_code: "63902", // Mpesa
-      external_reference: serverSideReference, // CRITICAL: This links PayHero callback to our order
+      provider: "sasapay",
+      network_code: "63902",
+      external_reference: serverSideReference,
       customer_name: customerName || 'Valued Customer',
       callback_url: callbackUrl
     };
 
-    console.log(`[${new Date().toISOString()}] PayHero: Initiating STK push with body:`, JSON.stringify(payheroRequestBody));
+    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating STK push to PayHero with body:`, JSON.stringify(payheroRequestBody));
 
     const response = await fetch(payheroApiUrl, {
       method: 'POST',
