@@ -892,6 +892,8 @@
       </button>
       <button id="nowpayments-cancel" class="mt-2.5 w-full bg-gray-200 text-gray-700 py-2.5 px-4 rounded-lg hover:bg-gray-300 focus:ring-4 focus:ring-gray-100 transition-all duration-150 ease-in-out font-medium">Cancel</button>
 
+      <p id="nowpayments-status-message" class="text-center text-sm mt-4 font-medium"></p>
+
       <div id="nowpayments-payment-info" class="mt-6 hidden bg-gray-50 p-4 rounded-lg">
         <div id="nowpayments-timer" class="text-center font-semibold text-blue-600 mb-3"></div>
         <div id="nowpayments-payment-details-content">
@@ -904,7 +906,7 @@
             </button>
             <p class="text-xs text-gray-500 mt-3">Ensure you send the exact amount and use the correct network. Underpayments or payments to the wrong network may be lost.</p>
         </div>
-        <p id="nowpayments-status-message" class="text-center text-sm mt-4 font-medium"></p>
+        <!-- Status message moved up -->
       </div>
     </div>
   </div>
@@ -1515,14 +1517,20 @@
         const email = emailInput.value.trim();
         const selectedCurrency = currencySelect.value;
 
+        // Clear previous error messages
+        statusMessageEl.textContent = '';
+        statusMessageEl.style.color = 'inherit'; // Reset color
+
         if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-          statusMessageEl.textContent = 'Please enter a valid email address.';
+          statusMessageEl.textContent = !email ? 'Email is required.' : 'Invalid email format.';
           statusMessageEl.style.color = 'red';
+          emailInput.focus(); // Focus on email input for quick correction
           return;
         }
         if (!selectedCurrency) {
           statusMessageEl.textContent = 'Please select a cryptocurrency.';
           statusMessageEl.style.color = 'red';
+          currencySelect.focus(); // Focus on currency select
           return;
         }
 
@@ -1615,13 +1623,37 @@
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-            // Restore button if creation fails
+            const emailInput = document.getElementById('nowpayments-email');
+            const currencySelect = document.getElementById('nowpayments-currency');
+            const currencySearchInput = document.getElementById('nowpayments-currency-search');
+
+            // Restore button and inputs if creation fails
             proceedBtn.disabled = false;
             proceedBtn.innerHTML = 'Proceed to Payment';
-            document.getElementById('nowpayments-email').disabled = false;
-            document.getElementById('nowpayments-currency').disabled = false;
-            document.getElementById('nowpayments-currency-search').disabled = false;
-            throw new Error(data.error || 'Failed to create NOWPayments payment.');
+            emailInput.disabled = false;
+            currencySelect.disabled = false;
+            currencySearchInput.disabled = false;
+
+            let errorMessage = data.error || 'Failed to create NOWPayments payment.';
+            if (errorMessage.includes("is below the minimum required")) {
+                // Example: "The amount for Under 7 Bollinger Bands BOT (6.99 USD) is below the minimum required for USDTTRC20. Minimum: 9.821729 USDTTRC20. Your order's equivalent: ~6.97163 USDTTRC20. Please increase the quantity or contact support if prices seem incorrect."
+                const productNameMatch = errorMessage.match(/The amount for (.*?) \(/);
+                const originalPriceMatch = errorMessage.match(/\(([\d.]+ USD)\) is below/);
+                const cryptoCurrencyMatch = errorMessage.match(/minimum required for (\w+)\./);
+                const minimumAmountMatch = errorMessage.match(/Minimum: ([\d.]+) (\w+)\./);
+
+                if (productNameMatch && originalPriceMatch && cryptoCurrencyMatch && minimumAmountMatch && minimumAmountMatch[2] === cryptoCurrencyMatch[1]) {
+                    const productName = productNameMatch[1];
+                    const originalPrice = originalPriceMatch[1];
+                    const cryptoCurrency = cryptoCurrencyMatch[1];
+                    const minimumAmount = minimumAmountMatch[1];
+                    errorMessage = `Amount for ${productName} (${originalPrice}) is too low for ${cryptoCurrency}. Minimum: ${minimumAmount} ${cryptoCurrency}. Please choose another crypto or increase quantity.`;
+                } else {
+                    // Fallback if parsing fails, use a slightly modified generic message
+                    errorMessage = `The selected amount is below the minimum for the chosen cryptocurrency. Please choose another crypto or increase quantity. (Details: ${errorMessage})`;
+                }
+            }
+            throw new Error(errorMessage);
         }
 
         // Update UI with payment details
