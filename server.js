@@ -1462,34 +1462,9 @@ app.get('/api/nowpayments/currencies', async (req, res) => {
     const data = await currenciesResponse.json();
     // The 'full-currencies' endpoint returns an object with a 'currencies' array
     const enabledCurrencies = data.currencies.filter(c => c.enable);
-    const currenciesWithMinAmounts = [];
-
-    for (const currency of enabledCurrencies) {
-      let minAmount = null;
-      let minAmountCurrency = currency.code; // Default to the crypto's own code
-      try {
-        // Omit currency_to to let NOWPayments use the default payout currency for the selected currency_from.
-        const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${currency.code.toLowerCase()}`, {
-          headers: { 'x-api-key': apiKey }
-        });
-        if (minAmountResponse.ok) {
-          const minAmountData = await minAmountResponse.json();
-          minAmount = minAmountData.min_amount;
-          // minAmountData also returns currency_from and currency_to, which might be useful for display
-          // For now, we assume the min_amount is in terms of currency_from (the crypto itself)
-          minAmountCurrency = minAmountData.currency_from || currency.code;
-        } else {
-          const errorBody = await minAmountResponse.text();
-          console.warn(`[${new Date().toISOString()}] Failed to fetch min amount for ${currency.code}. Status: ${minAmountResponse.status}. Body: ${errorBody}`);
-          minAmount = null; // Ensure it's null if fetch fails
-        }
-      } catch (minAmountError) {
-        console.warn(`[${new Date().toISOString()}] Network error fetching min amount for ${currency.code}: ${minAmountError.message}`);
-        minAmount = null; // Ensure it's null on network error
-      }
-      currenciesWithMinAmounts.push({ ...currency, min_payment_amount: minAmount, min_payment_currency: minAmountCurrency.toUpperCase() });
-    }
-    res.json({ success: true, currencies: currenciesWithMinAmounts });
+    // Removed the loop that fetched all minimum amounts.
+    // The frontend will now request minimum amount check on demand via /api/nowpayments/create-payment
+    res.json({ success: true, currencies: enabledCurrencies });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/currencies: ${error.message}`, error.stack);
     res.status(500).json({ success: false, error: error.message || 'Failed to fetch NOWPayments currencies' });
@@ -1517,41 +1492,69 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
         return res.status(400).json({ success: false, error: 'Price mismatch. Please refresh and try again.' });
     }
 
-    // Get estimated price in crypto
-    const estimateResponse = await fetch(`https://api.nowpayments.io/v1/estimate?amount=${parseFloat(price_amount)}&currency_from=${price_currency.toLowerCase()}&currency_to=${pay_currency.toLowerCase()}`, {
-        headers: { 'x-api-key': apiKey }
-    });
-    if (!estimateResponse.ok) {
-        const estError = await estimateResponse.json();
-        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estError);
-        return res.status(500).json({ success: false, error: estError.message || 'Could not get payment estimate from NOWPayments.' });
-    }
-    const estimateData = await estimateResponse.json();
-    const estimatedCryptoAmount = estimateData.estimated_amount;
-
-    if (!estimatedCryptoAmount) {
-        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate data did not return an estimated_amount. Data:`, estimateData);
-        return res.status(500).json({ success: false, error: 'Could not retrieve estimated crypto amount from NOWPayments.'});
-    }
-
-    // Get minimum payment amount for the crypto currency (user pays in crypto, you receive in your payout currency, often USD)
-    const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${pay_currency.toLowerCase()}&currency_to=${price_currency.toLowerCase()}`, { // Assuming your payout is USD or fiat equivalent
-        headers: { 'x-api-key': apiKey }
+    // Step 1: Get minimum payment amount for the selected pay_currency
+    // currency_to should be your store's default payout currency (e.g., 'usd' if prices are in USD)
+    const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${pay_currency.toLowerCase()}&currency_to=${price_currency.toLowerCase()}`, {
+      headers: { 'x-api-key': apiKey }
     });
 
     if (!minAmountResponse.ok) {
-        const minError = await minAmountResponse.json();
-        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum payment amount for ${pay_currency}:`, minError);
-        // Proceed without strict minimum check if this API call fails, but log it. NOWPayments create_payment might still fail.
-    } else {
-        const minAmountData = await minAmountResponse.json();
-        if (minAmountData.min_amount && estimatedCryptoAmount < parseFloat(minAmountData.min_amount)) {
-            console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency} is less than minimum ${minAmountData.min_amount} ${pay_currency}.`);
-            return res.status(400).json({
-                success: false,
-                error: `The amount in ${pay_currency.toUpperCase()} is too small. Minimum is ${minAmountData.min_amount} ${pay_currency.toUpperCase()}. Estimated for your order: ${estimatedCryptoAmount} ${pay_currency.toUpperCase()}.`
-            });
+      const minErrorText = await minAmountResponse.text(); // Use text() for more flexible error parsing
+      let minErrorJson = {};
+      try {
+        minErrorJson = JSON.parse(minErrorText);
+      } catch(e) {
+        console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching minimum payment amount for ${pay_currency} to ${price_currency}: ${minErrorText}`);
+      }
+      const errorMessage = minErrorJson.message || `Failed to fetch minimum payment amount from NOWPayments (Status: ${minAmountResponse.status}, Body: ${minErrorText})`;
+      console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum payment amount for ${pay_currency} to ${price_currency}:`, minErrorJson.message || minErrorText);
+      return res.status(500).json({ success: false, error: errorMessage });
+    }
+    const minAmountData = await minAmountResponse.json();
+    const minimumCryptoAmount = parseFloat(minAmountData.min_amount);
+
+    if (!minimumCryptoAmount && minimumCryptoAmount !== 0) { // Check if it's a valid number (0 is a valid min amount)
+        console.error(`[${new Date().toISOString()}] NOWPayments: min_amount was not a valid number or not found in response for ${pay_currency} to ${price_currency}. Data:`, minAmountData);
+        return res.status(500).json({ success: false, error: `Could not determine minimum payment amount for ${pay_currency.toUpperCase()}.` });
+    }
+
+    // Step 2: Get estimated price in the selected crypto currency
+    // This is the amount the user will actually need to send in the chosen crypto.
+    const estimateResponse = await fetch(`https://api.nowpayments.io/v1/estimate?amount=${parseFloat(price_amount)}&currency_from=${price_currency.toLowerCase()}&currency_to=${pay_currency.toLowerCase()}`, {
+        headers: { 'x-api-key': apiKey }
+    });
+
+    if (!estimateResponse.ok) {
+        const estErrorText = await estimateResponse.text();
+        let estErrorJson = {};
+        try {
+            estErrorJson = JSON.parse(estErrorText);
+        } catch(e) {
+            console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}: ${estErrorText}`);
         }
+        const errorMessage = estErrorJson.message || `Could not get payment estimate from NOWPayments (Status: ${estimateResponse.status}, Body: ${estErrorText})`;
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estErrorJson.message || estErrorText);
+        return res.status(500).json({ success: false, error: errorMessage });
+    }
+    const estimateData = await estimateResponse.json();
+    const estimatedCryptoAmount = parseFloat(estimateData.estimated_amount);
+
+    if (!estimatedCryptoAmount && estimatedCryptoAmount !== 0) { // Check if it's a valid number
+        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate data did not return a valid estimated_amount for ${pay_currency}. Data:`, estimateData);
+        return res.status(500).json({ success: false, error: `Could not retrieve estimated crypto amount for ${pay_currency.toUpperCase()}.`});
+    }
+
+    // Step 3: Compare estimated crypto amount with the minimum crypto amount
+    if (estimatedCryptoAmount < minimumCryptoAmount) {
+        console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency.toUpperCase()} is less than minimum ${minimumCryptoAmount} ${pay_currency.toUpperCase()}.`);
+        return res.status(400).json({
+            success: false,
+            error: `The amount for ${product.name} (${price_amount} ${price_currency.toUpperCase()}) is below the minimum required for ${pay_currency.toUpperCase()}. Minimum: ${minimumCryptoAmount} ${pay_currency.toUpperCase()}. Your order's equivalent: ~${estimatedCryptoAmount} ${pay_currency.toUpperCase()}. Please increase the quantity or contact support if prices seem incorrect.`,
+            type: 'min_amount_error', // Add a type for easier frontend handling
+            min_amount: minimumCryptoAmount,
+            estimated_amount: estimatedCryptoAmount,
+            currency: pay_currency.toUpperCase()
+        });
     }
 
     const orderId = `NP-${item}-${uuidv4()}`; // Unique order ID for our system
