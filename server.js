@@ -315,28 +315,26 @@ async function refreshCache() {
 
 async function saveDataToDatabase() {
   try {
-    // Save Categories first due to FK constraint from products.category -> categories.name
+    // Section 1: Save Categories
     console.log(`[${new Date().toISOString()}] Attempting to save categories. Current cached categories:`, cachedData.categories);
-    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all_except_none'); // Ensure all are deleted
-
+    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all_except_none');
     if (cachedData.categories && cachedData.categories.length > 0) {
-      // Ensure categories are unique before attempting to insert
       const uniqueCategories = [...new Set(cachedData.categories.filter(c => typeof c === 'string' && c.trim() !== ''))];
       console.log(`[${new Date().toISOString()}] Unique categories to insert:`, uniqueCategories);
-
       if (uniqueCategories.length > 0) {
         const categoriesToInsert = uniqueCategories.map(c => ({ name: c }));
         const { error: catError } = await supabase.from('categories').insert(categoriesToInsert);
         if (catError) {
           console.error(`[${new Date().toISOString()}] Error inserting categories:`, catError.message, catError.details);
           throw catError;
-      }
+        } // Closes if(catError)
+      } // Closes if(uniqueCategories.length > 0)
       console.log(`[${new Date().toISOString()}] Categories saved to Supabase.`);
     } else {
       console.log(`[${new Date().toISOString()}] No categories to save to Supabase.`);
-    }
+    } // Closes if/else for cachedData.categories
 
-    // Save Settings
+    // Section 2: Save Settings
     await supabase.from('settings').delete().neq('key', 'this_is_a_dummy_condition_to_delete_all');
     if (Object.keys(cachedData.settings).length > 0) {
         const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => ({
@@ -347,14 +345,13 @@ async function saveDataToDatabase() {
         if (settingsError) {
             console.error(`[${new Date().toISOString()}] Error inserting settings:`, settingsError.message, settingsError.details);
             throw settingsError;
-        }
+        } // Closes if(settingsError)
         console.log(`[${new Date().toISOString()}] Settings saved to Supabase.`);
     } else {
         console.log(`[${new Date().toISOString()}] No settings to save to Supabase.`);
-    }
+    } // Closes if/else for cachedData.settings
 
-
-    // Save Static Pages
+    // Section 3: Save Static Pages
     await supabase.from('static_pages').delete().neq('slug', 'this_is_a_dummy_condition_to_delete_all');
     if (cachedData.staticPages.length > 0) {
       const pagesToInsert = cachedData.staticPages.map(page => ({
@@ -364,68 +361,59 @@ async function saveDataToDatabase() {
       if (pagesError) {
           console.error(`[${new Date().toISOString()}] Error inserting static pages:`, pagesError.message, pagesError.details);
           throw pagesError;
-      }
+      } // Closes if(pagesError)
       console.log(`[${new Date().toISOString()}] Static pages saved to Supabase.`);
     } else {
       console.log(`[${new Date().toISOString()}] No static pages to save to Supabase.`);
-    }
+    } // Closes if/else for cachedData.staticPages
 
-    // Save Products (depends on categories being present)
+    // Section 4: Save Products
     const { data: existingProductsDb, error: fetchError } = await supabase
       .from('products')
       .select('item, file_id, original_file_name');
-    if (fetchError) throw fetchError;
+    if (fetchError) { throw fetchError; }
     const existingProductsMap = new Map(existingProductsDb.map(p => [p.item, p]));
-
     const productsToUpsert = cachedData.products.map(p => {
       const existing = existingProductsMap.get(p.item);
-      // This mapping must EXACTLY match your Supabase 'products' table column names
       return {
-        item: p.item, // PK
+        item: p.item,
         file_id: p.fileId || existing?.file_id,
         original_file_name: p.originalFileName || existing?.original_file_name,
         price: parseFloat(p.price) || 0,
-        // price_kes removed
         name: p.name,
-        description: p.desc, // DB column is 'description'
-        image: p.img,       // DB column is 'image'
+        description: p.desc,
+        image: p.img,
         category: p.category,
         embed: p.embed,
         is_new: typeof p.isNew === 'boolean' ? p.isNew : String(p.isNew).toLowerCase() === 'true',
         is_archived: typeof p.isArchived === 'boolean' ? p.isArchived : String(p.isArchived).toLowerCase() === 'true'
-        // created_at is managed by DB default on insert, and should not be updated manually here
-        // unless specifically intended (which is not the case for general upserts).
       };
     });
-
     if (productsToUpsert.length > 0) {
         for (const product of productsToUpsert) {
           const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
           if (upsertError) {
               console.error(`[${new Date().toISOString()}] Error upserting product ${product.item}:`, upsertError.message, upsertError.details);
               throw upsertError;
-          }
-        }
+          } // Closes if(upsertError)
+        } // Closes for...of
         console.log(`[${new Date().toISOString()}] ${productsToUpsert.length} products upserted to Supabase.`);
     } else {
         console.log(`[${new Date().toISOString()}] No products to upsert in this saveDataToDatabase call.`);
-    }
+    } // Closes if/else for productsToUpsert.length
     const currentProductItems = new Set(cachedData.products.map(p => p.item));
     const productsToDelete = existingProductsDb.filter(p => !currentProductItems.has(p.item));
     if (productsToDelete.length > 0) {
       await supabase.from('products').delete().in('item', productsToDelete.map(p => p.item));
-    }
-
-    // The following blocks for Settings, Categories, and Static Pages were duplicated.
-    // They are already correctly saved *before* products. Removing this duplicated section.
+    } // Closes if for productsToDelete.length
 
     console.log(`[${new Date().toISOString()}] All data successfully saved to Supabase via saveDataToDatabase()`);
     await loadData();
-  } catch (error) {
+  } catch (error) { // This is the catch block in question
     console.error(`[${new Date().toISOString()}] Error in saveDataToDatabase:`, error.message, error.stack);
     throw error;
-  }
-}
+  } // Closes catch
+} // Closes function
 
 
 async function deleteOldOrders() {
