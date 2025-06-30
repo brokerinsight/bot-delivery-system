@@ -1534,11 +1534,19 @@
 
 
         try {
+          // The initiateNowPaymentsPayment function will be called.
+          // It is responsible for handling its own UI updates based on the backend response.
           await initiateNowPaymentsPayment(product, email, selectedCurrency);
-        } catch (error) {
-            console.error('Error initiating NOWPayments payment:', error);
-            statusMessageEl.textContent = `Error: ${error.message || 'Could not create payment.'}`;
+          // If initiateNowPaymentsPayment throws an error that is NOT related to "below minimum",
+          // it will be caught by its own internal try/catch or bubble up.
+          // If it's a "below minimum" error, it will be handled inside initiateNowPaymentsPayment.
+          // If it's another error that initiateNowPaymentsPayment doesn't catch and re-throws,
+          // then this outer catch block can handle it.
+        } catch (error) { // This catch is for unexpected errors from initiateNowPaymentsPayment itself
+            console.error('Critical Error during NOWPayments payment initiation structure:', error);
+            statusMessageEl.textContent = `Critical Error: ${error.message || 'Could not create payment due to an unexpected issue.'}`;
             statusMessageEl.style.color = 'red';
+            // Ensure UI is reset if something unexpected went wrong in initiateNowPaymentsPayment's structure
             proceedBtn.disabled = false;
             proceedBtn.innerHTML = 'Proceed to Payment';
             emailInput.disabled = false;
@@ -1572,13 +1580,13 @@
     function populateCurrencyDropdown(currencies) {
         const currencySelect = document.getElementById('nowpayments-currency');
         currencySelect.innerHTML = '<option value="">Select a currency</option>';
+        // Currencies are now expected to be an array of objects like:
+        // { code: "btc", name: "Bitcoin", logo_url: "...", network: "..." }
         currencies.sort((a, b) => (a.name || "").localeCompare(b.name || "")).forEach(currency => {
             const option = document.createElement('option');
             option.value = currency.code;
+            // Display format: "Bitcoin (BTC)"
             let displayText = `${currency.name} (${currency.code.toUpperCase()})`;
-            if (currency.min_payment_amount) {
-                displayText += ` - Min: ${parseFloat(currency.min_payment_amount).toFixed(8)} ${currency.code.toUpperCase()}`;
-            }
             option.textContent = displayText;
             currencySelect.appendChild(option);
         });
@@ -1613,16 +1621,19 @@
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-            // Restore button if creation fails
+            statusMessageEl.textContent = data.error || 'Failed to create NOWPayments payment.';
+            statusMessageEl.style.color = 'red';
+            // Re-enable form elements so user can try again or change currency
             proceedBtn.disabled = false;
             proceedBtn.innerHTML = 'Proceed to Payment';
             document.getElementById('nowpayments-email').disabled = false;
             document.getElementById('nowpayments-currency').disabled = false;
             document.getElementById('nowpayments-currency-search').disabled = false;
-            throw new Error(data.error || 'Failed to create NOWPayments payment.');
+            // Do not proceed to show payment details or start timer/polling
+            return; // Explicitly return to stop further execution in this function
         }
 
-        // Update UI with payment details
+        // If successful, Update UI with payment details
         document.getElementById('nowpayments-pay-amount').textContent = data.payment.pay_amount;
         document.getElementById('nowpayments-pay-currency').textContent = data.payment.pay_currency.toUpperCase();
         document.getElementById('nowpayments-pay-address').textContent = data.payment.pay_address;
