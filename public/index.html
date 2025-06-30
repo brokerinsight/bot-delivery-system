@@ -1635,123 +1635,108 @@
             }, 10000);
             const data = await statusRes.json();
 
-            if (!statusRes.ok) {
-              if (statusRes.status === 403) {
+            // Use data.message from server response if available, otherwise construct one
+            statusMessage.innerHTML = data.message || `Polling status... (${data.status || 'Unknown'})`;
+
+            if (!statusRes.ok && statusRes.status !== 403 && statusRes.status !== 404) { // 403/404 handled by data.message
                 clearInterval(countdown);
-                statusMessage.innerHTML = `Access denied. This ref code may have already been used. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 3000);
+                statusMessage.innerHTML = `Error checking status: ${data.error || `HTTP ${statusRes.status}`}. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                // General error, allow retry if applicable
+                if (showRetry && retryCount < maxRetries) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.textContent = 'Retry Check';
+                    retryBtn.onclick = () => {
+                        retryCount++;
+                        modal.classList.add('hidden'); document.body.classList.remove('popup-active');
+                        showStatusModal(product, refCode, 'Retrying status check...', showRetry);
+                    };
+                } else {
+                    setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 5000);
+                }
                 return;
-              }
-              throw new Error(data.error || `HTTP error! Status: ${statusRes.status}`);
             }
 
-            // Check for server-side STK specific statuses
-            if (data.success && (data.status === 'confirmed_server_stk' || data.status === 'confirmed')) { // Include 'confirmed' for manual Mpesa
-              clearInterval(countdown);
-              statusMessage.textContent = 'Payment successful! Downloading your file, do not exit the page...';
-              const downloadSuccess = await downloadFile(data.downloadLink, product.name);
-              if (downloadSuccess) {
-                setTimeout(() => {
-                  modal.classList.add('hidden');
-                  document.body.classList.remove('popup-active');
-                  clearPaymentCookie(product.item);
-                }, 2000);
-              } else {
-                statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
-                if (showRetry && retryCount < maxRetries) {
-                  retryBtn.classList.remove('hidden');
-                  retryBtn.onclick = () => {
-                    retryCount++;
-                    modal.classList.add('hidden');
-                    document.body.classList.remove('popup-active');
-                    showStatusModal(product, refCode, 'Retrying download...', showRetry);
-                  };
+            if (data.downloaded) { // Specifically check for already downloaded
+                clearInterval(countdown);
+                statusMessage.innerHTML = data.message || 'File already downloaded for this order.';
+                setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 3000);
+                return;
+            }
+
+            if (data.status === 'confirmed' || data.status === 'confirmed_server_stk') {
+              if (data.downloadLink) {
+                clearInterval(countdown);
+                statusMessage.textContent = data.message || 'Payment successful! Downloading your file, do not exit the page...';
+                const downloadSuccess = await downloadFile(data.downloadLink, product.name);
+                if (downloadSuccess) {
+                  setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 2000);
                 } else {
-                  setTimeout(() => {
-                    modal.classList.add('hidden');
-                    document.body.classList.remove('popup-active');
-                    clearPaymentCookie(product.item);
-                  }, 3000);
+                  statusMessage.innerHTML = `Error initiating download. <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Contact support.</a>`;
+                  // Allow retry for download failure specifically
+                  if (showRetry && retryCount < maxRetries) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.textContent = 'Retry Download';
+                    retryBtn.onclick = () => {
+                        retryCount++;
+                        modal.classList.add('hidden'); document.body.classList.remove('popup-active');
+                        // Re-trigger download attempt, assuming status is still confirmed
+                        showStatusModal(product, refCode, 'Retrying download...', showRetry);
+                    };
+                  } else {
+                    setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 3000);
+                  }
                 }
+              } else {
+                // Status is confirmed, but no download link (should not happen if server logic is correct)
+                statusMessage.textContent = data.message || 'Payment confirmed, but download link is missing. Contacting support...';
+                console.error("Confirmed status but no download link from server:", data);
+                setTimeout(() => { window.location.href = WHATSAPP_REDIRECT; }, 3000);
               }
             } else if (data.status && data.status.startsWith('failed_')) {
                 clearInterval(countdown);
-                let userFriendlyMessage = `Payment failed or could not be confirmed. Reason: ${data.status}.`;
-                if (data.status === 'failed_stk_cancelled_by_user') {
-                    userFriendlyMessage = "You cancelled the Mpesa payment on your phone. Please try again if you wish to proceed.";
-                } else if (data.status === 'failed_stk_insufficient_funds') {
-                    userFriendlyMessage = "Payment failed due to insufficient Mpesa funds. Please top up and try again.";
-                } else if (data.status === 'failed_stk_timeout') {
-                    userFriendlyMessage = "Mpesa payment request timed out. Please try again.";
-                } else if (data.status === 'failed_stk_invalid_pin') {
-                    userFriendlyMessage = "You entered an invalid Mpesa PIN. Please try again.";
-                } else if (data.message && data.message.includes("Amount mismatch")) { // Check for specific message from server
-                    userFriendlyMessage = "There was an issue with the payment amount. Please contact support.";
-                } else if (data.message) { // Use server message if available and more specific
-                     userFriendlyMessage = data.message;
-                }
+                statusMessage.innerHTML = `${data.message || `Payment failed: ${data.status}`}. You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
 
-                statusMessage.innerHTML = `${userFriendlyMessage} You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
+                // More specific retry logic for STK failures
+                const retryableStkFailures = ['failed_stk_timeout', 'failed_stk_initiation'];
+                // failed_stk_cb_ might also be retryable if it was a temporary PayHero issue
+                // but cancelled_by_user, insufficient_funds, invalid_pin are usually not directly retryable by simply re-polling.
 
                 if (showRetry && retryCount < maxRetries &&
-                    (data.status === 'failed_stk_timeout' || data.status.startsWith('failed_stk_cb_') || data.status === 'failed_stk_initiation')) {
+                    (retryableStkFailures.includes(data.status) || data.status.startsWith('failed_stk_cb_'))) {
                     retryBtn.classList.remove('hidden');
-                    retryBtn.textContent = 'Retry Payment'; // Or more specific if needed
+                    retryBtn.textContent = 'Retry Payment';
                     retryBtn.onclick = () => {
                         retryCount++;
-                        modal.classList.add('hidden');
-                        document.body.classList.remove('popup-active');
-                        // For STK, retrying means showing the PayHero modal again, or if it was manual, the ref code modal
-                        // This needs context of which payment flow led here.
-                        // For now, a generic retry might just re-show the payment choice.
-                        // This part might need more sophisticated retry logic based on payment_method if we want to preserve context.
-                        // Simplest retry: take them back to payment choice for the product.
-                        showPaymentChoiceModal(product, localStorage.getItem(`payment_${product.item}_kesPrice`) || (product.price * (exchangeRate || 130)).toFixed(2) );
+                        modal.classList.add('hidden'); document.body.classList.remove('popup-active');
+                        // For STK, retrying means showing the PayHero modal again.
+                        // We need product details and original KES price.
+                        const originalKesPrice = localStorage.getItem(`payment_${product.item}_kesPrice`) || (product.price * (exchangeRate || settings.fallbackRate || 130)).toFixed(2);
+                        showPayHeroModal(product, originalKesPrice);
                     };
                 } else {
-                    setTimeout(() => {
-                        modal.classList.add('hidden');
-                        document.body.classList.remove('popup-active');
-                        clearPaymentCookie(product.item); // Clear cookies for manual Mpesa if any
-                    }, 5000); // Longer timeout for reading failure messages
+                    setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 7000); // Longer for failure messages
                 }
-
-            } else if (data.status === 'no payment') { // Specific to manual Mpesa
+            } else if (data.status === 'no payment' || data.status === 'partial payment') { // Manual Mpesa specific
               clearInterval(countdown);
-              statusMessage.innerHTML = `No payment received. Please try again or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
-              setTimeout(() => {
-                modal.classList.add('hidden');
-                document.body.classList.remove('popup-active');
-                clearPaymentCookie(product.item);
-              }, 3000);
-            } else if (data.status === 'partial payment') { // Specific to manual Mpesa
-              clearInterval(countdown);
-              statusMessage.innerHTML = `You did not pay the full amount. Redirecting to support in 3 seconds... <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">Click here if not redirected.</a>`;
-              setTimeout(() => {
-                modal.classList.add('hidden');
-                document.body.classList.remove('popup-active');
-                clearPaymentCookie(product.item);
-                window.location.href = WHATSAPP_REDIRECT;
-              }, 3000);
+              statusMessage.innerHTML = `${data.message || 'There was an issue with your manual payment.'} Please <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+              setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 5000);
             } else {
               // Continue polling for pending_stk_push or other pending statuses
-              statusMessage.textContent = data.message || 'Confirming payment... Please wait.';
+              // statusMessage is already set to data.message at the start of the loop
             }
-          } catch (error) {
-            console.error('Error checking order status:', error.message);
-            statusMessage.innerHTML = `Order Status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
+          } catch (error) { // Catch for fetchWithTimeout error
+            console.error('Error checking order status (fetch or JSON parse):', error.message);
+            statusMessage.innerHTML = `Error checking status: ${error.message}. Please wait or <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
             if (showRetry && retryCount < maxRetries) {
               retryBtn.classList.remove('hidden');
+              retryBtn.textContent = 'Retry Check';
               retryBtn.onclick = () => {
                 retryCount++;
-                modal.classList.add('hidden');
-                document.body.classList.remove('popup-active');
-                showStatusModal(product, refCode, 'Retrying confirmation...', showRetry);
+                modal.classList.add('hidden'); document.body.classList.remove('popup-active');
+                showStatusModal(product, refCode, 'Retrying status check...', showRetry);
               };
+            } else {
+                 setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 5000);
             }
           }
         }

@@ -971,17 +971,21 @@
     }
 
     const productIndex = data.products.findIndex(p => p.item === originalItem);
-    if (productIndex === -1) {
-      alert('Bot not found. Please try again.');
+    if (productIndex === -1 && originalItem !== newItem) { // If originalItem not found and it's supposed to be an edit of an existing
+      alert('Original bot data not found. Cannot update if item ID was changed. Please refresh.');
+      btn.disabled = false; btn.textContent = 'Save Changes'; // Re-enable button
       return;
     }
 
-    data.products[productIndex] = {
-      ...data.products[productIndex],
+    const productPayload = {
+      // Preserve existing fileId and originalFileName unless a new file is uploaded (not handled in this form)
+      fileId: productIndex !== -1 ? data.products[productIndex].fileId : null,
+      originalFileName: productIndex !== -1 ? data.products[productIndex].originalFileName : null,
+
       item: newItem,
       name: document.getElementById('edit-name').value.trim(),
       price: parseFloat(document.getElementById('edit-price').value),
-      desc: document.getElementById('edit-desc').value,
+      desc: document.getElementById('edit-desc').value, // Synced from Quill's hidden input
       embed: document.getElementById('edit-embed').value.trim(),
       category: document.getElementById('edit-category').value,
       img: document.getElementById('edit-img').value.trim(),
@@ -989,8 +993,30 @@
       isArchived: document.getElementById('edit-isArchived').checked
     };
 
-    // Send only the updated product for saving
-    const success = await saveData({ products: [data.products[productIndex]] });
+    if (newItem !== originalItem) {
+      productPayload.originalItem = originalItem; // Add originalItem only if ID changed
+    }
+
+    // Update local cache
+    if (newItem !== originalItem) {
+      // Item ID changed: remove old, add new
+      if (productIndex !== -1) { // Should be found if originalItem was valid
+        data.products.splice(productIndex, 1); // Remove the old item entry
+      }
+      data.products.push(productPayload); // Add the product with its new ID and data
+    } else {
+      // Item ID did not change: update in place
+      if (productIndex !== -1) {
+        data.products[productIndex] = productPayload;
+      } else {
+        // This case means originalItem was not found, and newItem is the same as originalItem (i.e., trying to edit a non-existent item without changing ID)
+        alert('Bot data not found for update. Please refresh.');
+        btn.disabled = false; btn.textContent = 'Save Changes'; // Re-enable button
+        return;
+      }
+    }
+
+    const success = await saveData({ products: [productPayload] });
     if (success) {
       renderBots();
       closeEditModal();
@@ -1019,7 +1045,7 @@
     });
 
     if (document.getElementById('desc-editor')) {
-      setTimeout(() => {
+      // setTimeout(() => { // Removed setTimeout
         const descQuill = new Quill('#desc-editor', {
           theme: 'snow',
           modules: {
@@ -1037,13 +1063,13 @@
           document.getElementById('desc').value = descQuill.root.innerHTML;
         });
         window.descQuill = descQuill; // Make it globally accessible
-      }, 100);
+      // }, 100); // Removed setTimeout
     } else {
       console.warn('Element #desc-editor not found in DOM.');
     }
 
     if (document.getElementById('edit-desc-editor')) {
-      setTimeout(() => {
+      // setTimeout(() => { // Removed setTimeout
         const editDescQuill = new Quill('#edit-desc-editor', {
           theme: 'snow',
           modules: {
@@ -1061,13 +1087,13 @@
           document.getElementById('edit-desc').value = editDescQuill.root.innerHTML;
         });
         window.editDescQuill = editDescQuill;
-      }, 100);
+      // }, 100); // Removed setTimeout
     } else {
       console.warn('Element #edit-desc-editor not found in DOM.');
     }
 
     if (document.getElementById('urgent-message-editor')) {
-      setTimeout(() => {
+      // setTimeout(() => { // Removed setTimeout
         const urgentQuill = new Quill('#urgent-message-editor', {
           theme: 'snow',
           modules: {
@@ -1085,13 +1111,13 @@
           document.getElementById('urgent-message').value = urgentQuill.root.innerHTML;
         });
         window.urgentQuill = urgentQuill;
-      }, 100);
+      // }, 100); // Removed setTimeout
     } else {
       console.warn('Element #urgent-message-editor not found in DOM.');
     }
 
     if (document.getElementById('page-content-editor')) {
-      setTimeout(() => {
+      // setTimeout(() => { // Removed setTimeout
         const pageContentQuill = new Quill('#page-content-editor', {
           theme: 'snow',
           modules: {
@@ -1109,7 +1135,7 @@
           document.getElementById('page-content').value = pageContentQuill.root.innerHTML;
         });
         window.pageContentQuill = pageContentQuill;
-      }, 100);
+      // }, 100); // Removed setTimeout
     } else {
       console.warn('Element #page-content-editor not found in DOM.');
     }
@@ -1474,7 +1500,7 @@
           showButtonFeedback(btn, 'Deleting...', 'Delete');
           const slug = btn.dataset.slug;
           data.staticPages = data.staticPages.filter(p => p.slug !== slug);
-          await saveData();
+          await saveData({ staticPages: data.staticPages });
           renderPages();
           resetPageForm();
           alert('Page deleted successfully!');
@@ -1540,7 +1566,7 @@
         slug: pageSlug,
         content: pageContent
       });
-      const success = await saveData();
+      const success = await saveData({ staticPages: data.staticPages });
       if (success) {
         renderPages();
         resetPageForm();

@@ -849,21 +849,31 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
 
     const status = order.status;
     const downloaded = order.downloaded;
+    const notes = order.notes || '';
     let downloadLink = null;
+    let userFriendlyMessage = `Payment status: ${status}. ${notes}`.trim();
 
     if ((status === 'confirmed' || status === 'confirmed_server_stk') && !downloaded) {
       const product = cachedData.products.find(p => p.item === item);
       if (!product || !product.fileId) {
-        return res.status(500).json({ success: false, error: 'Product file details not found' });
+        console.error(`[${new Date().toISOString()}] Order Status: Product file details not found for item ${item} (Ref: ${refCode})`);
+        return res.status(500).json({ success: false, status, notes, error: 'Product file details not found, cannot generate download link.' });
       }
       downloadLink = `/download/${product.fileId}?item=${item}&refCode=${refCode}`;
+      userFriendlyMessage = 'Payment confirmed! Preparing download...';
     } else if (downloaded) {
-      return res.status(403).json({ success: false, error: 'Ref code already used for download' });
-    } else if (!status.startsWith('confirmed')) {
-         return res.json({ success: true, status: order.status, message: `Payment status: ${order.status}. ${order.notes || ''}`.trim() });
+      userFriendlyMessage = 'File already downloaded for this order.';
+      // Still return a success true, but with a message indicating it's already downloaded.
+      // Client can decide not to attempt download again.
+      return res.json({ success: true, status, notes, message: userFriendlyMessage, downloaded: true });
+    } else if (status.startsWith('failed_')) {
+        userFriendlyMessage = notes || `Payment failed with status: ${status}. Please contact support if issue persists.`;
+    } else if (status === 'pending_stk_push') {
+        userFriendlyMessage = notes || 'STK push sent to your phone. Please enter your M-PESA PIN to complete the payment.';
     }
+    // For any other status, the generic message `Payment status: ${status}. ${notes}` is fine.
 
-    res.json({ success: true, status, downloadLink });
+    res.json({ success: true, status, notes, downloadLink, message: userFriendlyMessage });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error checking order status:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to check order status' });
@@ -1195,12 +1205,17 @@ app.post('/api/payhero-callback', async (req, res) => {
     }
 
     const mpesaReceiptIfAvailable = MpesaReceiptNumber || null;
-    const notesForUpdate = ResultDesc || (paymentGatewayStatus !== "Success" ? paymentGatewayStatus : null);
+    const notesForUpdate = ResultDesc || (paymentGatewayStatus !== "Success" ? `${paymentGatewayStatus} (Code: ${ResultCode})` : `Unknown PayHero Status (Code: ${ResultCode})`);
 
     let updatePayload = {
-        status: '',
-        notes: notesForUpdate
+        status: order.status, // Default to current status
+        notes: order.notes, // Default to current notes
+        mpesa_receipt_number: order.mpesa_receipt_number // Default to current
     };
+
+    if (mpesaReceiptIfAvailable) {
+        updatePayload.mpesa_receipt_number = mpesaReceiptIfAvailable;
+    }
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
@@ -1214,26 +1229,55 @@ app.post('/api/payhero-callback', async (req, res) => {
         updatePayload.notes = `Amount mismatch. Expected: ${orderStoredKesAmount}, Received: ${callbackReceivedKesAmount}. Original Note: ${notesForUpdate||''}`.trim();
       } else {
         updatePayload.status = 'confirmed_server_stk';
+        updatePayload.notes = `Payment confirmed successfully via PayHero STK. ${notesForUpdate || ''}`.trim();
         await sendOrderNotification(order.item, serverSideReference, order.amount);
         console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} status updated to confirmed_server_stk.`);
       }
     } else {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, Status: ${paymentGatewayStatus}`);
-      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`;
+      // Handle various failure cases
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, OverallCallbackStatus: ${overallCallbackStatus}, PayHeroResponseStatus: ${paymentGatewayStatus}`);
 
-      if (ResultCode === 1) {
-        updatePayload.status = 'failed_stk_insufficient_funds';
-      } else if (ResultCode === 1032) {
-        updatePayload.status = 'failed_stk_cancelled_by_user';
-      } else if (ResultCode === 1037) {
-        updatePayload.status = 'failed_stk_timeout';
-      } else if (ResultCode === 2001) {
-        updatePayload.status = 'failed_stk_invalid_pin';
+      let failureStatus = `failed_stk_cb_${ResultCode || 'unknown'}`; // Generic failure status
+      let failureNote = notesForUpdate;
+
+      // More specific M-Pesa result codes from common STK push scenarios
+      switch (ResultCode) {
+        case 1: // The balance is insufficient for the transaction
+          failureStatus = 'failed_stk_insufficient_funds';
+          failureNote = `Insufficient M-Pesa funds. (PayHero: ${notesForUpdate})`;
+          break;
+        case 1032: // Request cancelled by user
+          failureStatus = 'failed_stk_cancelled_by_user';
+          failureNote = `Payment cancelled by user on phone. (PayHero: ${notesForUpdate})`;
+          break;
+        case 1037: // Timeout in completing transaction
+          failureStatus = 'failed_stk_timeout';
+          failureNote = `M-Pesa STK request timed out. (PayHero: ${notesForUpdate})`;
+          break;
+        case 2001: // Invalid M-Pesa PIN
+          failureStatus = 'failed_stk_invalid_pin';
+          failureNote = `Invalid M-Pesa PIN entered. (PayHero: ${notesForUpdate})`;
+          break;
+        // Add other common M-Pesa STK failure codes if known
+        // Example: 1019: Transaction Expired
+        // Example: 1025: Transaction not allowed for this MSISDN
+        default:
+          // Use generic failure status if code is not specifically handled
+          failureNote = `Payment failed. Reason: ${notesForUpdate || 'See PayHero dashboard for details.'}`;
+          break;
       }
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}`);
+      updatePayload.status = failureStatus;
+      updatePayload.notes = failureNote.trim();
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}, Note: ${updatePayload.notes}`);
     }
 
-    await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
+    // Only update if status or notes have changed to avoid unnecessary writes
+    if (updatePayload.status !== order.status || updatePayload.notes !== order.notes || updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number) {
+        await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} updated in DB.`);
+    } else {
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change in status or notes for order ${serverSideReference}. DB update skipped.`);
+    }
     res.status(200).json({ success: true, message: "Callback processed." });
 
   } catch (error) {
