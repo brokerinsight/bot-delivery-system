@@ -313,7 +313,6 @@ async function refreshCache() {
   }
 }
 
-async function saveDataToDatabase() {
 async function saveDataToDatabase(tasks = {}) {
   try {
     if (tasks.categories) {
