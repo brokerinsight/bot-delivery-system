@@ -531,7 +531,7 @@
 
     <!-- Edit Bot Modal -->
     <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-      <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
+      <div class="bg-white rounded-lg p-6 max-w-lg w-full relative overflow-y-auto max-h-[85vh]">
         <button class="close-modal" onclick="closeEditModal()">×</button>
         <h3 class="text-xl font-bold text-gray-900 mb-4">Edit Bot</h3>
         <form id="edit-form">
@@ -626,19 +626,22 @@
   }
 
   // Save data to server
-  async function saveData() {
+  async function saveData(payload = data) { // Default to global 'data' if no payload
     try {
       const response = await fetch('/api/save-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to save data');
+      if (!response.ok) {
+        const errorResult = await response.json().catch(() => ({ error: 'Failed to save data and parse error response.' }));
+        throw new Error(errorResult.error || 'Failed to save data');
+      }
       return true;
     } catch (error) {
       console.error('Error saving data:', error);
-      alert('Failed to save data. Please try again.');
+      alert(`Failed to save data: ${error.message}. Please try again.`);
       return false;
     }
   }
@@ -670,14 +673,14 @@
       const row = document.createElement('tr');
       row.innerHTML = `
         <td class="border p-2">${order.item}</td>
-        <td class="border p-2">${order.refCode}</td>
+        <td class="border p-2">${order.ref_code}</td>
         <td class="border p-2">${order.amount}</td>
         <td class="border p-2">${new Date(order.timestamp).toLocaleString()}</td>
         <td class="border p-2">${order.status || 'pending'}</td>
         <td class="border p-2">${order.downloaded ? 'Yes' : 'No'}</td>
-        <td class="border p-2">${order.paymentMethod || 'mpesa_till'}</td>
+        <td class="border p-2">${order.payment_method || 'mpesa_till'}</td>
         <td class="border p-2">
-          <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.refCode}">
+          <select class="status-select border rounded-md p-1" data-item="${order.item}" data-refcode="${order.ref_code}">
             <option value="" selected disabled>Update Status</option>
             <option value="confirmed">Confirmed</option>
             <option value="no payment">No Payment</option>
@@ -834,9 +837,12 @@
         const result = JSON.parse(xhr.responseText);
         if (result.success) {
           data.products.push(result.product);
-          await saveData();
+          await saveData(); // This still saves the whole 'data' object, might need refinement later
           renderBots();
           document.getElementById('product-form').reset();
+          if (window.descQuill) {
+            window.descQuill.setText(''); // Clear Quill editor
+          }
           progressContainer.classList.add('hidden');
           alert('Bot added successfully!');
         } else {
@@ -1017,6 +1023,7 @@
         descQuill.on('text-change', () => {
           document.getElementById('desc').value = descQuill.root.innerHTML;
         });
+        window.descQuill = descQuill; // Make it globally accessible
       }, 100);
     } else {
       console.warn('Element #desc-editor not found in DOM.');
@@ -1180,11 +1187,13 @@
       return;
     }
     showButtonFeedback(btn, 'Saving...', 'Save Message');
-    data.settings.urgentMessage = {
+    const urgentMessageData = {
       enabled: urgentToggle.checked,
       text: document.getElementById('urgent-message').value
     };
-    const success = await saveData();
+    // Update local cache before saving, so UI reflects change if save is slow but successful
+    data.settings.urgentMessage = urgentMessageData;
+    const success = await saveData({ settings: { urgentMessage: urgentMessageData } });
     if (success) {
       alert('Urgent message saved!');
     }
@@ -1193,63 +1202,70 @@
   document.getElementById('save-email').addEventListener('click', async () => {
     const btn = document.getElementById('save-email');
     showButtonFeedback(btn, 'Saving...', 'Save Email');
-    data.settings.supportEmail = document.getElementById('support-email').value.trim();
-    await saveData();
-    alert('Support email saved!');
+    const supportEmailValue = document.getElementById('support-email').value.trim();
+    data.settings.supportEmail = supportEmailValue; // Update local cache
+    const success = await saveData({ settings: { supportEmail: supportEmailValue } });
+    if (success) alert('Support email saved!');
   });
 
   document.getElementById('save-copyright').addEventListener('click', async () => {
     const btn = document.getElementById('save-copyright');
     showButtonFeedback(btn, 'Saving...', 'Save Copyright');
-    data.settings.copyrightText = document.getElementById('copyright-text').value.trim();
-    await saveData();
-    alert('Copyright text saved!');
+    const copyrightTextValue = document.getElementById('copyright-text').value.trim();
+    data.settings.copyrightText = copyrightTextValue; // Update local cache
+    const success = await saveData({ settings: { copyrightText: copyrightTextValue } });
+    if (success) alert('Copyright text saved!');
   });
 
   document.getElementById('save-logo').addEventListener('click', async () => {
     const btn = document.getElementById('save-logo');
     showButtonFeedback(btn, 'Saving...', 'Save Logo');
-    data.settings.logoUrl = document.getElementById('logo-url').value.trim();
-    await saveData();
-    alert('Logo URL saved!');
+    const logoUrlValue = document.getElementById('logo-url').value.trim();
+    data.settings.logoUrl = logoUrlValue; // Update local cache
+    const success = await saveData({ settings: { logoUrl: logoUrlValue } });
+    if (success) alert('Logo URL saved!');
   });
 
   document.getElementById('save-mpesa-till').addEventListener('click', async () => {
     const btn = document.getElementById('save-mpesa-till');
     showButtonFeedback(btn, 'Saving...', 'Save Till Number');
-    data.settings.mpesaTill = document.getElementById('mpesa-till').value.trim();
-    await saveData();
-    alert('MPESA Till Number saved!');
+    const mpesaTillValue = document.getElementById('mpesa-till').value.trim();
+    data.settings.mpesaTill = mpesaTillValue; // Update local cache
+    const success = await saveData({ settings: { mpesaTill: mpesaTillValue } });
+    if (success) alert('MPESA Till Number saved!');
   });
 
   document.getElementById('save-payhero-channel-id').addEventListener('click', async () => {
     const btn = document.getElementById('save-payhero-channel-id');
     showButtonFeedback(btn, 'Saving...', 'Save Channel ID');
-    data.settings.payheroChannelId = document.getElementById('payhero-channel-id').value.trim();
-    await saveData();
-    alert('Pay Hero Channel ID saved!');
+    const payheroChannelIdValue = document.getElementById('payhero-channel-id').value.trim();
+    data.settings.payheroChannelId = payheroChannelIdValue; // Update local cache
+    const success = await saveData({ settings: { payheroChannelId: payheroChannelIdValue } });
+    if (success) alert('Pay Hero Channel ID saved!');
   });
 
   document.getElementById('save-payhero-payment-url').addEventListener('click', async () => {
     const btn = document.getElementById('save-payhero-payment-url');
     showButtonFeedback(btn, 'Saving...', 'Save Payment URL');
-    data.settings.payheroPaymentUrl = document.getElementById('payhero-payment-url').value.trim();
-    await saveData();
-    alert('Pay Hero Payment URL saved!');
+    const payheroPaymentUrlValue = document.getElementById('payhero-payment-url').value.trim();
+    data.settings.payheroPaymentUrl = payheroPaymentUrlValue; // Update local cache
+    const success = await saveData({ settings: { payheroPaymentUrl: payheroPaymentUrlValue } });
+    if (success) alert('Pay Hero Payment URL saved!');
   });
 
   document.getElementById('save-payhero-auth-token').addEventListener('click', async () => {
     const btn = document.getElementById('save-payhero-auth-token');
     showButtonFeedback(btn, 'Saving...', 'Save Auth Token');
-    data.settings.payheroAuthToken = document.getElementById('payhero-auth-token').value.trim();
-    await saveData();
-    alert('Pay Hero Auth Token saved!');
+    const payheroAuthTokenValue = document.getElementById('payhero-auth-token').value.trim();
+    data.settings.payheroAuthToken = payheroAuthTokenValue; // Update local cache
+    const success = await saveData({ settings: { payheroAuthToken: payheroAuthTokenValue } });
+    if (success) alert('Pay Hero Auth Token saved!');
   });
 
   document.getElementById('save-socials').addEventListener('click', async () => {
     const btn = document.getElementById('save-socials');
     showButtonFeedback(btn, 'Saving...', 'Save Socials');
-    data.settings.socials = {
+    const socialsData = {
       tiktok: document.getElementById('tiktok').value.trim(),
       whatsapp: document.getElementById('whatsapp').value.trim(),
       call: document.getElementById('call').value.trim(),
@@ -1258,16 +1274,18 @@
       facebook: document.getElementById('facebook').value.trim(),
       youtube: document.getElementById('youtube').value.trim()
     };
-    await saveData();
-    alert('Social media links saved!');
+    data.settings.socials = socialsData; // Update local cache
+    const success = await saveData({ settings: { socials: socialsData } });
+    if (success) alert('Social media links saved!');
   });
 
   document.getElementById('save-fallback-rate').addEventListener('click', async () => {
     const btn = document.getElementById('save-fallback-rate');
     showButtonFeedback(btn, 'Saving...', 'Save Rate');
-    data.settings.fallbackRate = parseFloat(document.getElementById('fallback-rate').value);
-    await saveData();
-    alert('Fallback rate saved!');
+    const fallbackRateValue = parseFloat(document.getElementById('fallback-rate').value);
+    data.settings.fallbackRate = fallbackRateValue; // Update local cache
+    const success = await saveData({ settings: { fallbackRate: fallbackRateValue } });
+    if (success) alert('Fallback rate saved!');
   });
 
   document.getElementById('change-credentials').addEventListener('click', async () => {
@@ -1276,15 +1294,41 @@
     const newEmail = document.getElementById('new-email').value.trim();
     const newPassword = document.getElementById('new-password').value.trim();
     const confirmPassword = document.getElementById('confirm-password').value.trim();
+
     if (newPassword !== confirmPassword) {
       alert('Passwords do not match!');
+      // Re-enable button immediately for correction
+      btn.disabled = false;
+      btn.textContent = 'Change Credentials';
       return;
     }
-    if (newEmail) data.settings.adminEmail = newEmail;
-    if (newPassword) data.settings.adminPassword = newPassword;
-    const saveSuccess = await saveData();
+
+    const settingsPayload = {};
+    let credsChanged = false;
+
+    if (newEmail && newEmail !== data.settings.adminEmail) {
+      settingsPayload.adminEmail = newEmail;
+      credsChanged = true;
+    }
+    if (newPassword) { // Only include password if it's new and not empty
+      settingsPayload.adminPassword = newPassword;
+      credsChanged = true;
+    }
+
+    if (!credsChanged) {
+      alert('No changes to credentials detected.');
+      btn.disabled = false;
+      btn.textContent = 'Change Credentials';
+      return;
+    }
+
+    // Optimistically update local cache for email for immediate UI reflection if needed,
+    // password is not stored directly in `data.settings` in plain text after this point.
+    if (settingsPayload.adminEmail) data.settings.adminEmail = settingsPayload.adminEmail;
+
+    const saveSuccess = await saveData({ settings: settingsPayload });
     if (!saveSuccess) {
-      alert('Failed to update credentials. Please try again.');
+      // Error already alerted by saveData
       return;
     }
 
