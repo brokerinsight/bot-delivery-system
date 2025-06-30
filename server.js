@@ -182,6 +182,8 @@ let cachedData = {
     payheroChannelId: process.env.PAYHERO_CHANNEL_ID || '2332',
     payheroPaymentUrl: process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/2003',
     payheroAuthToken: process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg==',
+    adminEmail: '',
+    adminPassword: ''
   },
   staticPages: []
 };
@@ -223,8 +225,8 @@ async function loadData() {
       item: row.item,
       fileId: row.file_id,
       originalFileName: row.original_file_name,
-      price: parseFloat(row.price), // Assuming this is USD price
-      price_kes: row.price_kes ? parseFloat(row.price_kes) : null, // Optional direct KES price
+      price: parseFloat(row.price),
+      price_kes: row.price_kes ? parseFloat(row.price_kes) : null,
       name: row.name,
       desc: row.description || '',
       img: row.image || 'https://via.placeholder.com/300',
@@ -236,24 +238,42 @@ async function loadData() {
 
     const settingsRes = await supabase.from('settings').select('key, value');
     const settingsData = Object.fromEntries(settingsRes.data?.map(row => [row.key, row.value]) || []);
-    const settings = {
-      supportEmail: settingsData.supportEmail || 'kaylie254.business@gmail.com',
-      copyrightText: settingsData.copyrightText || '© 2025 Deriv Bot Store',
-      logoUrl: settingsData.logoUrl || '',
-      socials: settingsData.socials ? JSON.parse(settingsData.socials) : {},
-      urgentMessage: settingsData.urgentMessage ? JSON.parse(settingsData.urgentMessage) : { enabled: false, text: '' },
-      fallbackRate: parseFloat(settingsData.fallbackRate) || 130,
-      adminEmail: settingsData.adminEmail || '',
-      adminPassword: settingsData.adminPassword || '',
-      mpesaTill: settingsData.mpesaTill || '4933614',
-      payheroChannelId: settingsData.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '2332',
-      payheroPaymentUrl: settingsData.payheroPaymentUrl || process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5', // This is for Button SDK, maybe not needed now
-      payheroAuthToken: settingsData.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg=='
+
+    let loadedSettings = {
+        supportEmail: 'kaylie254.business@gmail.com',
+        copyrightText: '© 2025 Deriv Bot Store',
+        logoUrl: '',
+        socials: {},
+        urgentMessage: { enabled: false, text: '' },
+        fallbackRate: 130,
+        adminEmail: '',
+        adminPassword: '',
+        mpesaTill: '4933614',
+        payheroChannelId: process.env.PAYHERO_CHANNEL_ID || '2332',
+        payheroPaymentUrl: process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5',
+        payheroAuthToken: process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg=='
     };
+
+    for (const key in loadedSettings) {
+        if (settingsData.hasOwnProperty(key)) {
+            if (key === 'socials' || key === 'urgentMessage') {
+                try {
+                    loadedSettings[key] = JSON.parse(settingsData[key]);
+                } catch (e) {
+                    console.warn(`[${new Date().toISOString()}] Failed to parse JSON for setting ${key}:`, settingsData[key]);
+                }
+            } else if (key === 'fallbackRate') {
+                loadedSettings[key] = parseFloat(settingsData[key]) || loadedSettings[key];
+            } else {
+                loadedSettings[key] = settingsData[key];
+            }
+        }
+    }
+    loadedSettings.socials = loadedSettings.socials || {};
+    loadedSettings.urgentMessage = loadedSettings.urgentMessage || { enabled: false, text: '' };
 
     const categoriesRes = await supabase.from('categories').select('name');
     const categories = [...new Set(categoriesRes.data?.map(row => row.name) || ['General'])];
-    console.log(`[${new Date().toISOString()}] Loaded categories (after deduplication):`, categories);
 
     const pagesRes = await supabase.from('static_pages').select('*');
     let staticPages = pagesRes.data?.map(row => ({
@@ -269,7 +289,7 @@ async function loadData() {
       staticPages.push(fallbackRefCodeModal);
     }
 
-    cachedData = { products, categories, settings, staticPages };
+    cachedData = { products, categories, settings: loadedSettings, staticPages };
     await redisClient.set('cachedData', JSON.stringify(cachedData), { EX: 900 });
     console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Valkey`);
   } catch (error) {
@@ -293,77 +313,57 @@ async function refreshCache() {
   }
 }
 
-async function saveData() {
+async function saveDataToDatabase() {
   try {
     const { data: existingProductsDb, error: fetchError } = await supabase
       .from('products')
-      .select('item, file_id, original_file_name'); // Select only necessary fields
+      .select('item, file_id, original_file_name');
     if (fetchError) throw fetchError;
-
     const existingProductsMap = new Map(existingProductsDb.map(p => [p.item, p]));
-
     const productsToUpsert = cachedData.products.map(p => {
       const existing = existingProductsMap.get(p.item);
       return {
         item: p.item,
         file_id: existing?.file_id || p.fileId,
         original_file_name: existing?.original_file_name || p.originalFileName,
-        price: p.price,
-        price_kes: p.price_kes, // Save KES price if available
-        name: p.name,
-        description: p.desc,
-        image: p.img,
-        category: p.category,
-        embed: p.embed,
-        is_new: p.isNew,
-        is_archived: p.isArchived
+        price: p.price, price_kes: p.price_kes, name: p.name,
+        description: p.desc, image: p.img, category: p.category,
+        embed: p.embed, is_new: p.isNew, is_archived: p.isArchived
       };
     });
-
     for (const product of productsToUpsert) {
-      const { error: upsertError } = await supabase
-        .from('products')
-        .upsert(product, { onConflict: 'item' });
+      const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
       if (upsertError) throw upsertError;
     }
-
     const currentProductItems = new Set(cachedData.products.map(p => p.item));
     const productsToDelete = existingProductsDb.filter(p => !currentProductItems.has(p.item));
     if (productsToDelete.length > 0) {
-        await supabase
-            .from('products')
-            .delete()
-            .in('item', productsToDelete.map(p => p.item));
+      await supabase.from('products').delete().in('item', productsToDelete.map(p => p.item));
     }
 
-    await supabase.from('settings').delete().neq('key', null);
-    await supabase.from('settings').insert(
-      Object.entries(cachedData.settings).map(([key, value]) => ({
+    await supabase.from('settings').delete().neq('key', 'this_is_a_dummy_condition_to_delete_all');
+    const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value) // Ensure value is stringified if object, or cast to string
-      }))
-    );
+        value: typeof value === 'object' ? JSON.stringify(value) : String(value)
+    }));
+    await supabase.from('settings').insert(settingsToInsert);
 
-    await supabase.from('categories').delete().neq('name', null);
+    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all');
     if (cachedData.categories.length > 0) {
-      await supabase.from('categories').insert(
-        cachedData.categories.map(c => ({ name: c }))
-      );
+      await supabase.from('categories').insert(cachedData.categories.map(c => ({ name: c })));
     }
 
-    await supabase.from('static_pages').delete().neq('slug', null);
+    await supabase.from('static_pages').delete().neq('slug', 'this_is_a_dummy_condition_to_delete_all');
     if (cachedData.staticPages.length > 0) {
       await supabase.from('static_pages').insert(cachedData.staticPages.map(page => ({
-          title: page.title,
-          slug: page.slug,
-          content: page.content
+          title: page.title, slug: page.slug, content: page.content
       })));
     }
 
-    console.log(`[${new Date().toISOString()}] Data saved to Supabase`);
-    await loadData(); // Reload cache after saving
+    console.log(`[${new Date().toISOString()}] All data successfully saved to Supabase via saveDataToDatabase()`);
+    await loadData();
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error saving data:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error in saveDataToDatabase:`, error.message, error.stack);
     throw error;
   }
 }
@@ -399,7 +399,6 @@ async function selfCheck() {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to connect to Supabase database:`, error.message);
   }
-  // ... (other self-check items)
 }
 
 app.get('/api/check-session', (req, res) => {
@@ -433,10 +432,10 @@ app.get('/api/data', async (req, res) => {
   try {
     const cached = await redisClient.get('cachedData');
     if (cached) {
-      cachedData = JSON.parse(cached); // Ensure global cachedData is updated
+      cachedData = JSON.parse(cached);
       console.log(`[${new Date().toISOString()}] Served /api/data from Valkey cache`);
     } else {
-      await loadData(); // This updates global cachedData and sets it in Redis
+      await loadData();
       console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Valkey`);
     }
     res.json(cachedData);
@@ -448,60 +447,104 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    cachedData = {
-      ...req.body,
-      products: req.body.products.map(p => ({
-        ...p,
-        fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
-        originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName,
-        desc: p.desc
-      })),
-      staticPages: req.body.staticPages
-    };
+    console.log(`[${new Date().toISOString()}] Received payload for /api/save-data:`, JSON.stringify(req.body, null, 2));
+    let dataChanged = false;
 
-    const { data: existingCategories, error: catError } = await supabase
-      .from('categories')
-      .select('name');
-    if (catError) throw catError;
-
-    const newCategories = cachedData.categories || [];
-    const existingCategoryNames = existingCategories.map(c => c.name);
-    const deletedCategories = existingCategoryNames.filter(c => !newCategories.includes(c));
-
-    if (deletedCategories.length > 0) {
-      await supabase.from('categories').delete().in('name', deletedCategories);
-    }
-    const addedCategories = newCategories.filter(c => !existingCategoryNames.includes(c));
-    if (addedCategories.length > 0) {
-      await supabase.from('categories').insert(addedCategories.map(c => ({ name: c })));
+    if (req.body.products) {
+        cachedData.products = req.body.products.map(p => ({
+            ...p,
+            fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
+            originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName,
+            price: parseFloat(p.price) || 0,
+            price_kes: p.price_kes ? parseFloat(p.price_kes) : null
+        }));
+        dataChanged = true;
+        console.log(`[${new Date().toISOString()}] Products data updated in cache.`);
     }
 
-    const incomingPassword = req.body.settings?.adminPassword;
-    if (incomingPassword && incomingPassword.trim() !== '') {
-      const saltRounds = 10;
-      cachedData.settings.adminPassword = await bcrypt.hash(incomingPassword, saltRounds);
-    } else if (req.body.settings && !('adminPassword' in req.body.settings)) {
-      // If adminPassword is not in the incoming settings, keep the old one from cachedData
-      // This handles the case where the admin password field is left blank on the frontend,
-      // intending not to change it.
-      // cachedData.settings.adminPassword remains unchanged.
+    if (req.body.categories) {
+        cachedData.categories = [...new Set(req.body.categories)];
+        dataChanged = true;
+        console.log(`[${new Date().toISOString()}] Categories data updated in cache.`);
     }
 
-
-    if (cachedData.settings.urgentMessage && typeof cachedData.settings.urgentMessage === 'string') {
-      cachedData.settings.urgentMessage = JSON.parse(cachedData.settings.urgentMessage);
-    } else if (!cachedData.settings.urgentMessage) {
-      cachedData.settings.urgentMessage = { enabled: false, text: '' };
+    if (req.body.staticPages) {
+        cachedData.staticPages = req.body.staticPages;
+        dataChanged = true;
+        console.log(`[${new Date().toISOString()}] Static pages data updated in cache.`);
     }
 
-    cachedData.settings.payheroChannelId = req.body.settings.payheroChannelId || cachedData.settings.payheroChannelId || process.env.PAYHERO_CHANNEL_ID || '2332';
-    cachedData.settings.payheroAuthToken = req.body.settings.payheroAuthToken || cachedData.settings.payheroAuthToken || process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg==';
+    if (req.body.settings) {
+        const newSettings = req.body.settings;
+        let individualSettingUpdated = false;
 
-    await saveData();
-    res.json({ success: true });
+        let currentPasswordHash = cachedData.settings.adminPassword;
+        if (newSettings.hasOwnProperty('adminPassword') && typeof newSettings.adminPassword === 'string' && newSettings.adminPassword.trim() !== '') {
+            const saltRounds = 10;
+            const newPasswordHash = await bcrypt.hash(newSettings.adminPassword.trim(), saltRounds);
+            if (newPasswordHash !== currentPasswordHash) {
+                cachedData.settings.adminPassword = newPasswordHash;
+                individualSettingUpdated = true;
+                console.log(`[${new Date().toISOString()}] Admin password has been updated.`);
+            }
+        } else if (newSettings.hasOwnProperty('adminPassword') && (newSettings.adminPassword === null || newSettings.adminPassword.trim() === '')) {
+            console.log(`[${new Date().toISOString()}] Admin password field was present but empty; password NOT updated, existing hash preserved.`);
+        }
+
+        const updatableSimpleSettings = [
+            'supportEmail', 'copyrightText', 'logoUrl',
+            'fallbackRate', 'mpesaTill',
+            'payheroChannelId', 'payheroAuthToken', 'payheroPaymentUrl',
+            'adminEmail'
+        ];
+
+        for (const key of updatableSimpleSettings) {
+            if (newSettings.hasOwnProperty(key)) {
+                 let newValue = newSettings[key];
+                 if (key === 'fallbackRate') newValue = parseFloat(newValue) || cachedData.settings.fallbackRate;
+
+                 if (newValue !== cachedData.settings[key]) {
+                    cachedData.settings[key] = newValue;
+                    individualSettingUpdated = true;
+                    console.log(`[${new Date().toISOString()}] Setting updated: ${key} = ${newValue}`);
+                 }
+            }
+        }
+
+        if (newSettings.hasOwnProperty('socials') && typeof newSettings.socials === 'object') {
+            if (JSON.stringify(newSettings.socials) !== JSON.stringify(cachedData.settings.socials)) {
+                cachedData.settings.socials = newSettings.socials; // Simple overwrite, or use a deep merge if needed
+                individualSettingUpdated = true;
+                console.log(`[${new Date().toISOString()}] Socials settings updated.`);
+            }
+        }
+        if (newSettings.hasOwnProperty('urgentMessage') && typeof newSettings.urgentMessage === 'object') {
+             if (JSON.stringify(newSettings.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
+                cachedData.settings.urgentMessage = newSettings.urgentMessage; // Simple overwrite
+                individualSettingUpdated = true;
+                console.log(`[${new Date().toISOString()}] Urgent message settings updated.`);
+             }
+        }
+
+        if (individualSettingUpdated) {
+            dataChanged = true;
+        } else if (Object.keys(newSettings).length > 0) {
+            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no values differed from current settings.`);
+        }
+    }
+
+    if (dataChanged) {
+        await saveDataToDatabase();
+        res.json({ success: true, message: "Data saved successfully." });
+        console.log(`[${new Date().toISOString()}] Data saved successfully via /api/save-data.`);
+    } else {
+        res.json({ success: true, message: "No changes detected in the provided data." });
+        console.log(`[${new Date().toISOString()}] /api/save-data called, but no data changed in cache.`);
+    }
+
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to save data' });
+    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to save data due to a server error.' });
   }
 });
 
@@ -541,8 +584,8 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
       item,
       file_id: fileId,
       original_file_name: originalFileName,
-      price: parseFloat(price), // USD price
-      price_kes: price_kes ? parseFloat(price_kes) : null, // KES price
+      price: parseFloat(price),
+      price_kes: price_kes ? parseFloat(price_kes) : null,
       name,
       description: desc,
       image: img,
@@ -553,7 +596,7 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     };
 
     await supabase.from('products').insert(productData);
-    await loadData(); // Refresh cache
+    await loadData();
     res.json({ success: true, product: productData });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
@@ -578,7 +621,7 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
         await supabase.storage.from('bots').remove([product.file_id]);
     }
     await supabase.from('products').delete().eq('item', item);
-    await loadData(); // Refresh cache
+    await loadData();
     res.json({ success: true });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
@@ -590,7 +633,7 @@ async function sendOrderNotification(item, refCode, amount) {
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER, // Send to admin
+      to: process.env.EMAIL_USER,
       subject: `New Order - KES ${parseFloat(amount).toFixed(2)}`,
       text: `M-PESA Ref/Order Ref: ${refCode}\nItem Number: ${item}\nAmount: KES ${parseFloat(amount).toFixed(2)}`
     });
@@ -602,7 +645,7 @@ async function sendOrderNotification(item, refCode, amount) {
 
 app.post('/api/submit-ref', rateLimit, async (req, res) => {
   try {
-    const { item, refCode, amount, timestamp } = req.body; // amount is KES from client
+    const { item, refCode, amount, timestamp } = req.body;
     const product = cachedData.products.find(p => p.item === item);
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
@@ -612,7 +655,7 @@ app.post('/api/submit-ref', rateLimit, async (req, res) => {
       .from('orders')
       .select('*')
       .eq('item', item)
-      .eq('ref_code', refCode) // For manual Mpesa, refCode is the Mpesa code
+      .eq('ref_code', refCode)
       .single();
     if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (existingOrder) {
@@ -622,7 +665,7 @@ app.post('/api/submit-ref', rateLimit, async (req, res) => {
     await supabase.from('orders').insert({
         item, 
         ref_code: refCode, 
-        amount: parseFloat(amount), // Store KES amount
+        amount: parseFloat(amount),
         timestamp, 
         status: 'pending', 
         downloaded: false,
@@ -674,7 +717,7 @@ app.get('/api/order-status/:item/:refCode', async (req, res) => {
       downloadLink = `/download/${product.fileId}?item=${item}&refCode=${refCode}`;
     } else if (downloaded) {
       return res.status(403).json({ success: false, error: 'Ref code already used for download' });
-    } else if (!status.startsWith('confirmed')) { // Covers pending, failed etc.
+    } else if (!status.startsWith('confirmed')) {
          return res.json({ success: true, status: order.status, message: `Payment status: ${order.status}. ${order.notes || ''}`.trim() });
     }
 
@@ -689,8 +732,8 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
   try {
     const { item, refCode, status } = req.body;
     const validStatuses = ['confirmed', 'no payment', 'partial payment', 'pending_stk_push', 'confirmed_server_stk', 'failed_stk_initiation', 'failed_stk_cb_timeout', 'failed_amount_mismatch', 'failed_config_error'];
-    if (!validStatuses.some(s => status.startsWith(s))) { // Allow for dynamic failure codes like failed_stk_cb_1032
-        if (!status.startsWith('failed_stk_cb_')) { // Check if it's not a specific failure code we want to allow
+    if (!validStatuses.some(s => status.startsWith(s))) {
+        if (!status.startsWith('failed_stk_cb_')) {
             return res.status(400).json({ success: false, error: 'Invalid status value provided' });
         }
     }
@@ -714,7 +757,6 @@ app.post('/api/update-order-status', isAuthenticated, async (req, res) => {
   }
 });
 
-// This endpoint might be redundant if manual confirmation flow is changed, but keeping for now.
 app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
@@ -725,17 +767,12 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 
     const { data: signedUrlData, error: urlError } = await supabase.storage
       .from('bots')
-      .createSignedUrl(product.fileId, 60); // 60-second validity
+      .createSignedUrl(product.fileId, 60);
     if (urlError) throw urlError;
     const downloadLink = signedUrlData.signedUrl;
 
-    // This was originally for sending email with download link.
-    // Now, download link is generated by /api/order-status.
-    // This endpoint might just mark order as confirmed if used by admin.
-
-    // For now, just logging and returning success.
     console.log(`[${new Date().toISOString()}] Admin manually confirmed order for item: ${item}, ref: ${refCode}`);
-    res.json({ success: true, downloadLink }); // Still sending link for now
+    res.json({ success: true, downloadLink });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to confirm order' });
@@ -743,7 +780,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
 });
 
 
-app.post('/deliver-bot', async (req, res) => { // Used by Test Mode
+app.post('/deliver-bot', async (req, res) => {
   try {
     const { item, price, payment_method } = req.body;
     if (!item || typeof price === 'undefined' || !payment_method) {
@@ -754,7 +791,6 @@ app.post('/deliver-bot', async (req, res) => { // Used by Test Mode
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
-    // In test mode, price might be USD. The client sends product.price directly.
     if (parseFloat(price) !== parseFloat(product.price)) {
       return res.status(400).json({ success: false, error: 'Invalid price for test mode' });
     }
@@ -765,7 +801,7 @@ app.post('/deliver-bot', async (req, res) => { // Used by Test Mode
 
     const { data: signedUrlData, error: urlError } = await supabase.storage
       .from('bots')
-      .createSignedUrl(product.fileId, 60 * 5); // 5-minute validity for test download
+      .createSignedUrl(product.fileId, 60 * 5);
     if (urlError) throw urlError;
 
     res.json({ success: true, downloadLink: signedUrlData.signedUrl });
@@ -867,7 +903,7 @@ app.post('/api/logout', (req, res) => {
 // New endpoint for server-side STK push initiation
 app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   try {
-    const { item, amount_kes, phone, customerName, used_exchange_rate } = req.body; // Added used_exchange_rate
+    const { item, amount_kes, phone, customerName, used_exchange_rate } = req.body;
 
     if (!item || !amount_kes || !phone) {
       return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
@@ -914,8 +950,6 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       status: 'pending_stk_push',
       downloaded: false,
       payment_method: 'payhero_server_stk'
-      // Removed customer_name from here as it's not in the 'orders' table schema
-      // Removed phone_number from here as it's not in the 'orders' table schema
     });
 
     if (insertError) {
@@ -1020,16 +1054,16 @@ app.post('/api/payhero-callback', async (req, res) => {
         return res.status(200).json({ message: `Order already processed as ${order.status}` });
     }
 
-    const mpesaReceiptIfAvailable = MpesaReceiptNumber || null; // Keep for logging, but not for DB insert unless column exists
+    const mpesaReceiptIfAvailable = MpesaReceiptNumber || null;
     const notesForUpdate = ResultDesc || (paymentGatewayStatus !== "Success" ? paymentGatewayStatus : null);
 
     let updatePayload = {
         status: '',
         notes: notesForUpdate
     };
-    // Do not include mpesa_receipt in updatePayload by default:
+    // If you add mpesa_receipt column to 'orders' table, uncomment below:
     // if (mpesaReceiptIfAvailable) {
-    //    updatePayload.mpesa_receipt = mpesaReceiptIfAvailable; // Only add if you have the column
+    //    updatePayload.mpesa_receipt = mpesaReceiptIfAvailable;
     // }
 
 
@@ -1086,32 +1120,22 @@ app.get('/virus.html', (req, res) => {
 
 app.get('/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
-  // Serve index.html for any top-level slug that isn't an API route or known file,
-  // letting client-side routing handle it if it's a page defined in staticPages.
-  // This prevents direct loading of static page content outside the modal.
-  if (staticPages.some(p => p.slug === slug && p.slug !== '/payment-modal' && p.slug !== '/ref-code-modal')) {
-      // If you want to render static pages server-side directly at their slug, implement that here.
-      // For now, redirecting to root to let client handle via modals or show products.
-      // Or, send index.html and let client JS figure out it's a static page from URL.
-      // For simplicity with current setup, we'll let client handle via modals.
-      // If you want true static pages at /slug URLs, this needs more advanced SSR or templating.
+  if (cachedData.staticPages.some(p => p.slug === slug && p.slug !== '/payment-modal' && p.slug !== '/ref-code-modal')) {
       console.log(`[${new Date().toISOString()}] Request for static page slug ${slug}, serving index.html for client-side handling.`);
       res.sendFile(path.join(publicPath, 'index.html'));
       return;
   }
-  // Fallback for other slugs to also serve index.html (for client-side routing if any)
-  // or handle as 404 if preferred.
   console.log(`[${new Date().toISOString()}] Unhandled slug ${slug}, serving index.html.`);
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 
 async function initialize() {
-  await selfCheck(); // Basic checks
-  await loadData();   // Initial data load
-  await deleteOldOrders(); // Initial cleanup
-  setInterval(deleteOldOrders, 24 * 60 * 60 * 1000); // Daily cleanup
-  setInterval(refreshCache, 15 * 60 * 1000); // Refresh cache every 15 mins
+  await selfCheck();
+  await loadData();
+  await deleteOldOrders();
+  setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
+  setInterval(refreshCache, 15 * 60 * 1000);
 }
 
 initialize().catch(error => {
