@@ -1236,9 +1236,23 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 });
 
 app.post('/api/payhero-callback', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received:`, JSON.stringify(req.body));
+  console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // Enhanced RAW BODY Log
   try {
+    // It's crucial to handle cases where req.body or req.body.response might be undefined or not structured as expected.
+    if (!req.body || typeof req.body !== 'object') {
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Received empty or invalid body:`, req.body);
+        return res.status(400).json({ error: 'Invalid callback body from PayHero' });
+    }
+
     const { response: payheroResponseData, status: overallCallbackStatus } = req.body;
+
+    if (!payheroResponseData || typeof payheroResponseData !== 'object') {
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Invalid or missing 'response' object in callback. Body:`, req.body);
+        // Still try to get ExternalReference if it's at the top level for logging, though unlikely for PayHero.
+        const topLevelExternalRef = req.body.ExternalReference || req.body.external_reference;
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Potentially missing ExternalReference. Top-level ref found: ${topLevelExternalRef}`);
+        return res.status(400).json({ error: 'Invalid callback structure from PayHero: missing response object' });
+    }
 
     if (!payheroResponseData || typeof payheroResponseData !== 'object') {
         console.error(`[${new Date().toISOString()}] DirectAPI CB: Invalid 'response' structure. Body:`, req.body);
@@ -1289,8 +1303,10 @@ app.post('/api/payhero-callback', async (req, res) => {
         updatePayload.mpesa_receipt_number = mpesaReceiptIfAvailable;
     }
 
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: Initial order details for ${serverSideReference} - Status: ${order.status}, Amount: ${order.amount}, PayHero CB Amount: ${Amount}, ResultCode: ${ResultCode}, PayHeroStatus: ${paymentGatewayStatus}, OverallCBStatus: ${overallCallbackStatus}`);
+
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
 
       const orderStoredKesAmount = Math.round(parseFloat(order.amount));
       const callbackReceivedKesAmount = Math.round(parseFloat(Amount));
@@ -1343,15 +1359,18 @@ app.post('/api/payhero-callback', async (req, res) => {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}, Note: ${updatePayload.notes}`);
     }
 
-    // Only update if status or notes have changed to avoid unnecessary writes
+    // Log the decision process
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Intending to update with payload:`, JSON.stringify(updatePayload, null, 2));
+
     let dbUpdateError = null;
     if (updatePayload.status !== order.status || updatePayload.notes !== order.notes || updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number) {
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: Differences detected. Proceeding with DB update for ${serverSideReference}.`);
         try {
             const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
             if (updateError) {
-                throw updateError;
+                throw updateError; // Caught by catch (supaError)
             }
-            console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} successfully updated in DB to status: ${updatePayload.status}.`);
+            console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} successfully updated in DB to status: '${updatePayload.status}'.`);
 
             // Send email ONLY if status was updated to confirmed_server_stk AND DB update was successful
             if (updatePayload.status === 'confirmed_server_stk') {
@@ -1365,7 +1384,7 @@ app.post('/api/payhero-callback', async (req, res) => {
             // The status in DB remains the old one.
         }
     } else {
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change in status or notes for order ${serverSideReference}. DB update skipped. Current status: ${order.status}`);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change needed for order ${serverSideReference} (payload matches existing DB state or no new info). DB update skipped. Current status: '${order.status}'.`);
     }
 
     if (dbUpdateError) {
