@@ -914,8 +914,8 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       status: 'pending_stk_push',
       downloaded: false,
       payment_method: 'payhero_server_stk',
-      phone_number: normalizedPhone,
-      customer_name: customerName || 'Valued Customer'
+      phone_number: normalizedPhone
+      // Removed customer_name from here as it's not in the 'orders' table schema
     });
 
     if (insertError) {
