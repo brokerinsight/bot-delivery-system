@@ -416,27 +416,8 @@ async function saveDataToDatabase() {
       await supabase.from('products').delete().in('item', productsToDelete.map(p => p.item));
     }
 
-    // Save Settings
-    await supabase.from('settings').delete().neq('key', 'this_is_a_dummy_condition_to_delete_all');
-    const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => ({
-        key,
-        value: typeof value === 'object' ? JSON.stringify(value) : String(value)
-    }));
-    await supabase.from('settings').insert(settingsToInsert);
-
-    // Save Categories
-    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all');
-    if (cachedData.categories.length > 0) {
-      await supabase.from('categories').insert(cachedData.categories.map(c => ({ name: c })));
-    }
-
-    // Save Static Pages
-    await supabase.from('static_pages').delete().neq('slug', 'this_is_a_dummy_condition_to_delete_all');
-    if (cachedData.staticPages.length > 0) {
-      await supabase.from('static_pages').insert(cachedData.staticPages.map(page => ({
-          title: page.title, slug: page.slug, content: page.content
-      })));
-    }
+    // The following blocks for Settings, Categories, and Static Pages were duplicated.
+    // They are already correctly saved *before* products. Removing this duplicated section.
 
     console.log(`[${new Date().toISOString()}] All data successfully saved to Supabase via saveDataToDatabase()`);
     await loadData();
