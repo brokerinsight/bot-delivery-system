@@ -913,9 +913,9 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       timestamp: new Date().toISOString(),
       status: 'pending_stk_push',
       downloaded: false,
-      payment_method: 'payhero_server_stk',
-      phone_number: normalizedPhone
+      payment_method: 'payhero_server_stk'
       // Removed customer_name from here as it's not in the 'orders' table schema
+      // Removed phone_number from here as it's not in the 'orders' table schema
     });
 
     if (insertError) {
@@ -1020,28 +1020,40 @@ app.post('/api/payhero-callback', async (req, res) => {
         return res.status(200).json({ message: `Order already processed as ${order.status}` });
     }
 
-    const mpesaReceipt = MpesaReceiptNumber || null;
+    const mpesaReceiptIfAvailable = MpesaReceiptNumber || null; // Keep for logging, but not for DB insert unless column exists
     const notesForUpdate = ResultDesc || (paymentGatewayStatus !== "Success" ? paymentGatewayStatus : null);
 
+    let updatePayload = {
+        status: '',
+        notes: notesForUpdate
+    };
+    // Do not include mpesa_receipt in updatePayload by default:
+    // if (mpesaReceiptIfAvailable) {
+    //    updatePayload.mpesa_receipt = mpesaReceiptIfAvailable; // Only add if you have the column
+    // }
+
+
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceipt}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
 
       const orderStoredKesAmount = Math.round(parseFloat(order.amount));
       const callbackReceivedKesAmount = Math.round(parseFloat(Amount));
 
       if (orderStoredKesAmount !== callbackReceivedKesAmount) {
         console.warn(`[${new Date().toISOString()}] DirectAPI CB: Amount mismatch for order ${serverSideReference}. Order KES: ${orderStoredKesAmount}, PayHero CB KES: ${callbackReceivedKesAmount}. Updating to 'failed_amount_mismatch'.`);
-        await supabase.from('orders').update({ status: 'failed_amount_mismatch', mpesa_receipt: mpesaReceipt, notes: `Amount mismatch. Expected: ${orderStoredKesAmount}, Received: ${callbackReceivedKesAmount}. ${notesForUpdate||''}`.trim() }).eq('ref_code', serverSideReference);
+        updatePayload.status = 'failed_amount_mismatch';
+        updatePayload.notes = `Amount mismatch. Expected: ${orderStoredKesAmount}, Received: ${callbackReceivedKesAmount}. Original Note: ${notesForUpdate||''}`.trim();
       } else {
-        await supabase.from('orders').update({ status: 'confirmed_server_stk', mpesa_receipt: mpesaReceipt, notes: notesForUpdate }).eq('ref_code', serverSideReference);
+        updatePayload.status = 'confirmed_server_stk';
         await sendOrderNotification(order.item, serverSideReference, order.amount);
         console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} status updated to confirmed_server_stk.`);
       }
     } else {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, Status: ${paymentGatewayStatus}`);
-      await supabase.from('orders').update({ status: `failed_stk_cb_${ResultCode || 'unknown'}`, mpesa_receipt: mpesaReceipt, notes: notesForUpdate }).eq('ref_code', serverSideReference);
+      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`;
     }
 
+    await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
     res.status(200).json({ success: true, message: "Callback processed." });
 
   } catch (error) {
