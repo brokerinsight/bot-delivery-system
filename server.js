@@ -1439,6 +1439,299 @@ app.post('/api/payhero-callback', async (req, res) => {
   }
 });
 
+// NOWPayments API Endpoints
+app.get('/api/nowpayments/currencies', async (req, res) => {
+  try {
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) {
+      console.error(`[${new Date().toISOString()}] NOWPayments API key is not set.`);
+      return res.status(500).json({ success: false, error: 'Server configuration error for payments.' });
+    }
+    // It's good practice to check API status first, though not strictly required for just getting currencies.
+    // const statusResponse = await fetch('https://api.nowpayments.io/v1/status');
+    // if (!statusResponse.ok) throw new Error('NOWPayments API is not available');
+
+    const currenciesResponse = await fetch('https://api.nowpayments.io/v1/full-currencies', {
+      headers: { 'x-api-key': apiKey }
+    });
+    if (!currenciesResponse.ok) {
+      const errorData = await currenciesResponse.json();
+      console.error(`[${new Date().toISOString()}] Error fetching NOWPayments currencies:`, errorData);
+      throw new Error(errorData.message || `Failed to fetch currencies from NOWPayments API (Status: ${currenciesResponse.status})`);
+    }
+    const data = await currenciesResponse.json();
+    // The 'full-currencies' endpoint returns an object with a 'currencies' array
+    res.json({ success: true, currencies: data.currencies.filter(c => c.enable) });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/currencies: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch NOWPayments currencies' });
+  }
+});
+
+app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
+  try {
+    const { item, price_amount, price_currency, pay_currency, email, order_description } = req.body;
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    const ipnSecretKey = process.env.NOWPAYMENTS_IPN_KEY; // Though not used in this request, ensure it's configured for IPN handling
+
+    if (!apiKey || !ipnSecretKey) {
+      console.error(`[${new Date().toISOString()}] NOWPayments API key or IPN secret key is not set.`);
+      return res.status(500).json({ success: false, error: 'Server configuration error for payments.' });
+    }
+
+    const product = cachedData.products.find(p => p.item === item);
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    // Verify price_amount against product.price (which should be in USD)
+    if (parseFloat(price_amount) !== parseFloat(product.price)) {
+        console.warn(`[${new Date().toISOString()}] NOWPayments price mismatch for item ${item}. Client sent: ${price_amount}, Server expected: ${product.price}`);
+        return res.status(400).json({ success: false, error: 'Price mismatch. Please refresh and try again.' });
+    }
+
+    const orderId = `NP-${item}-${uuidv4()}`; // Unique order ID for our system
+    const ipnCallbackUrl = `${getBaseUrl(req)}/api/nowpayments/ipn`;
+
+    const nowPaymentsRequestBody = {
+      price_amount: parseFloat(price_amount),
+      price_currency: price_currency, // e.g., 'usd'
+      pay_currency: pay_currency,     // e.g., 'btc'
+      ipn_callback_url: ipnCallbackUrl,
+      order_id: orderId, // Our internal unique order ID
+      order_description: order_description || product.name,
+      // You might want to add is_fixed_rate: true if you want to lock the exchange rate for a period
+    };
+
+    const paymentResponse = await fetch('https://api.nowpayments.io/v1/payment', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(nowPaymentsRequestBody)
+    });
+
+    const paymentData = await paymentResponse.json();
+
+    if (!paymentResponse.ok || !paymentData.payment_id) {
+      console.error(`[${new Date().toISOString()}] Error creating NOWPayments payment:`, paymentData);
+      throw new Error(paymentData.message || `Failed to create payment with NOWPayments (Status: ${paymentResponse.status})`);
+    }
+
+    // Store order in our database
+    await supabase.from('orders').insert({
+      item: item,
+      ref_code: orderId, // Using our generated orderId as ref_code
+      nowpayments_payment_id: paymentData.payment_id, // Store NOWPayments' payment_id
+      amount: parseFloat(price_amount), // Store the original USD amount
+      currency_paid: pay_currency.toLowerCase(), // Store the crypto currency used for payment
+      email: email, // Store customer's email
+      timestamp: new Date().toISOString(),
+      status: 'pending_nowpayments', // Initial status
+      downloaded: false,
+      payment_method: 'nowpayments'
+    });
+
+    // For QR code, you might need a library or use a service.
+    // NOWPayments doesn't directly provide a QR code image URL in the create_payment response.
+    // The QR code is typically generated by the merchant using the pay_address and pay_amount.
+    // For simplicity, we'll send back the details and let the client generate QR if needed,
+    // or the client can just display the address and amount.
+    // If you use a QR code generation library on the server (e.g., 'qrcode'):
+    // const qrCodeDataURL = await QRCode.toDataURL(paymentData.pay_address);
+    // For now, we'll just return the payment details.
+
+    res.json({
+      success: true,
+      orderId: orderId, // Our internal order ID
+      payment: paymentData, // Full response from NOWPayments create_payment
+      // qrCodeUrl: qrCodeDataURL // If you generate QR on server
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/create-payment: ${error.message}`, error.stack);
+    res.status(500).json({ success: false, error: error.message || 'Failed to create NOWPayments payment' });
+  }
+});
+
+app.get('/api/nowpayments/payment-status/:orderId', async (req, res) => {
+  const { orderId } = req.params; // This is our internal orderId (ref_code)
+  const apiKey = process.env.NOWPAYMENTS_API_KEY;
+
+  if (!apiKey) {
+    console.error(`[${new Date().toISOString()}] NOWPayments API key is not set for status check.`);
+    return res.status(500).json({ success: false, error: 'Server configuration error.' });
+  }
+
+  try {
+    const { data: localOrder, error: dbError } = await supabase
+      .from('orders')
+      .select('nowpayments_payment_id, item, status, downloaded, email') // Include email
+      .eq('ref_code', orderId)
+      .single();
+
+    if (dbError || !localOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found in local database.' });
+    }
+
+    if (!localOrder.nowpayments_payment_id) {
+        return res.status(400).json({ success: false, error: 'NOWPayments payment ID not associated with this order.' });
+    }
+
+    // If already confirmed and downloaded, or confirmed by IPN, no need to poll NOWPayments again.
+    if (localOrder.status === 'confirmed_nowpayments' && localOrder.downloaded) {
+        return res.json({ success: true, payment_status: 'finished', message: 'File already downloaded.', downloaded: true });
+    }
+    if (localOrder.status === 'confirmed_nowpayments' && !localOrder.downloaded) {
+        const product = cachedData.products.find(p => p.item === localOrder.item);
+        if (product && product.fileId) {
+            const downloadLink = `/download/${product.fileId}?item=${localOrder.item}&refCode=${orderId}`;
+            return res.json({ success: true, payment_status: 'finished', message: 'Payment confirmed, download ready.', downloadLink });
+        }
+    }
+
+
+    const statusResponse = await fetch(`https://api.nowpayments.io/v1/payment/${localOrder.nowpayments_payment_id}`, {
+      headers: { 'x-api-key': apiKey }
+    });
+    const statusData = await statusResponse.json();
+
+    if (!statusResponse.ok) {
+      console.error(`[${new Date().toISOString()}] Error fetching NOWPayments status for ${localOrder.nowpayments_payment_id}:`, statusData);
+      throw new Error(statusData.message || `Failed to get payment status from NOWPayments (Status: ${statusResponse.status})`);
+    }
+
+    let newLocalStatus = localOrder.status;
+    let message = statusData.message || `NOWPayments status: ${statusData.payment_status}`;
+    let downloadLink = null;
+
+    if (statusData.payment_status === 'finished' && localOrder.status !== 'confirmed_nowpayments') {
+      newLocalStatus = 'confirmed_nowpayments';
+      await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments status: finished. Actually paid: ${statusData.actually_paid} ${statusData.pay_currency}` }).eq('ref_code', orderId);
+
+      // Send email notification
+      const product = cachedData.products.find(p => p.item === localOrder.item);
+      if (product && localOrder.email) {
+          await sendOrderNotification(localOrder.item, orderId, `${statusData.actually_paid} ${statusData.pay_currency.toUpperCase()} (Email: ${localOrder.email})`);
+      }
+      message = 'Payment successful! Preparing download...';
+    } else if (['failed', 'refunded', 'expired'].includes(statusData.payment_status) && localOrder.status !== `failed_nowpayments_${statusData.payment_status}`) {
+      newLocalStatus = `failed_nowpayments_${statusData.payment_status}`;
+      await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments status: ${statusData.payment_status}` }).eq('ref_code', orderId);
+      message = `Payment ${statusData.payment_status}.`;
+    }
+    // Other statuses like 'waiting', 'confirming', 'sending' don't usually change our 'pending_nowpayments' status until final.
+
+    if (newLocalStatus === 'confirmed_nowpayments' && !localOrder.downloaded) {
+        const product = cachedData.products.find(p => p.item === localOrder.item);
+        if (product && product.fileId) {
+            downloadLink = `/download/${product.fileId}?item=${localOrder.item}&refCode=${orderId}`;
+        } else {
+            console.error(`[${new Date().toISOString()}] Product or fileId not found for confirmed NOWPayment order ${orderId}, item ${localOrder.item}`);
+            message = "Payment confirmed, but error preparing download. Contact support.";
+        }
+    }
+
+    res.json({ success: true, payment_status: statusData.payment_status, current_local_status: newLocalStatus, message, downloadLink });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/payment-status/${orderId}: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message || 'Failed to get NOWPayments status' });
+  }
+});
+
+const crypto = require('crypto'); // For IPN verification
+
+app.post('/api/nowpayments/ipn', async (req, res) => {
+  const ipnSecretKey = process.env.NOWPAYMENTS_IPN_KEY;
+  if (!ipnSecretKey) {
+    console.error(`[${new Date().toISOString()}] NOWPayments IPN Secret Key not configured. IPN ignored.`);
+    return res.status(500).send('IPN configuration error.');
+  }
+
+  const receivedHmac = req.headers['x-nowpayments-sig'];
+  const requestBody = req.body; // Assuming express.json() middleware is used
+
+  if (!receivedHmac || !requestBody) {
+    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Missing signature or body.`);
+    return res.status(400).send('Missing signature or body.');
+  }
+
+  try {
+    // Verify signature (using Node.js example from NOWPayments docs)
+    const sortedBody = {};
+    Object.keys(requestBody).sort().forEach(key => {
+      sortedBody[key] = requestBody[key];
+    });
+    const stringifiedBody = JSON.stringify(sortedBody);
+
+    const hmac = crypto.createHmac('sha512', ipnSecretKey);
+    hmac.update(stringifiedBody);
+    const calculatedSignature = hmac.digest('hex');
+
+    if (calculatedSignature !== receivedHmac) {
+      console.warn(`[${new Date().toISOString()}] NOWPayments IPN: HMAC signature mismatch. Received: ${receivedHmac}, Calculated: ${calculatedSignature}. Body:`, JSON.stringify(requestBody));
+      return res.status(403).send('Invalid signature.');
+    }
+
+    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Signature VERIFIED. Processing IPN for order_id: ${requestBody.order_id}, payment_id: ${requestBody.payment_id}, status: ${requestBody.payment_status}`);
+
+    const orderId = requestBody.order_id; // This is our internal orderId
+    const nowpaymentsPaymentId = requestBody.payment_id;
+    const paymentStatus = requestBody.payment_status;
+    const payAmount = requestBody.pay_amount;
+    const actuallyPaid = requestBody.actually_paid;
+    const payCurrency = requestBody.pay_currency;
+
+    const { data: order, error: dbError } = await supabase
+      .from('orders')
+      .select('item, status, email, downloaded') // Include email
+      .eq('ref_code', orderId)
+      .eq('nowpayments_payment_id', nowpaymentsPaymentId)
+      .single();
+
+    if (dbError || !order) {
+      console.error(`[${new Date().toISOString()}] NOWPayments IPN: Order not found for ref_code ${orderId} and NP payment_id ${nowpaymentsPaymentId}. DB Error:`, dbError);
+      // Still respond 200 to NOWPayments to prevent retries for non-existent orders.
+      return res.status(200).send('Order not found, IPN acknowledged.');
+    }
+
+    let newLocalStatus = order.status;
+    let notificationSent = false;
+
+    if (paymentStatus === 'finished' && order.status !== 'confirmed_nowpayments') {
+      newLocalStatus = 'confirmed_nowpayments';
+      await supabase.from('orders').update({
+          status: newLocalStatus,
+          notes: `NOWPayments IPN: finished. Paid: ${actuallyPaid} ${payCurrency}`,
+          amount_paid_crypto: parseFloat(actuallyPaid) // Store the actual amount paid in crypto
+      }).eq('ref_code', orderId);
+
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+
+      // Send email notification
+      const product = cachedData.products.find(p => p.item === order.item);
+      if (product && order.email && !order.downloaded) { // Only send if not already downloaded (prevents re-sending if IPN is late)
+          await sendOrderNotification(order.item, orderId, `${actuallyPaid} ${payCurrency.toUpperCase()} (Email: ${order.email})`);
+          notificationSent = true;
+      }
+    } else if (['failed', 'refunded', 'expired'].includes(paymentStatus) && order.status !== `failed_nowpayments_${paymentStatus}`) {
+      newLocalStatus = `failed_nowpayments_${paymentStatus}`;
+      await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments IPN: ${paymentStatus}` }).eq('ref_code', orderId);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+    } else {
+        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status ${paymentStatus} received, no change to local status ${order.status} or already processed.`);
+    }
+
+    res.status(200).send('IPN received and processed.');
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] NOWPayments IPN: Error processing IPN: ${error.message}`, error.stack, "Request Body:", JSON.stringify(requestBody));
+    res.status(500).send('Error processing IPN.');
+  }
+});
+
+
 app.get('/api/page/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
   let page = cachedData.staticPages.find(p => p.slug === slug);
