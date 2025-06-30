@@ -1021,15 +1021,21 @@
     async function fetchModalContent() {
       const paymentModalContent = staticPages.find(page => page.slug === '/payment-modal');
       const refCodeModalContent = staticPages.find(page => page.slug === '/ref-code-modal');
+
       if (typeof sanitizeHtml !== 'function') {
         console.error('sanitizeHtml is not available. Skipping modal content rendering.');
         return;
       }
-      if (paymentModalContent) {
+      if (typeof marked !== 'function') {
+        console.error('marked is not available. Skipping modal content rendering.');
+        return;
+      }
+
+      if (paymentModalContent && typeof paymentModalContent.content === 'string') {
         const paymentModalDiv = document.getElementById('payment-modal').querySelector('.bg-white');
         paymentModalDiv.innerHTML = sanitizeHtml(marked(paymentModalContent.content));
       }
-      if (refCodeModalContent) {
+      if (refCodeModalContent && typeof refCodeModalContent.content === 'string') {
         const refCodeModalDiv = document.getElementById('ref-code-modal').querySelector('.bg-white');
         refCodeModalDiv.innerHTML = sanitizeHtml(marked(refCodeModalContent.content));
       }
@@ -2234,7 +2240,7 @@
         showUrgentMessage();
         checkPaymentCookie();
         startPolling();
-        await fetchModalContent();
+        await fetchModalContent(); // Ensure fetchModalContent is called
       }
 
       document.getElementById('mobile-menu-button').onclick = () => {
