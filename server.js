@@ -1461,9 +1461,37 @@ app.get('/api/nowpayments/currencies', async (req, res) => {
     }
     const data = await currenciesResponse.json();
     // The 'full-currencies' endpoint returns an object with a 'currencies' array
-    res.json({ success: true, currencies: data.currencies.filter(c => c.enable) });
+    const enabledCurrencies = data.currencies.filter(c => c.enable);
+    const currenciesWithMinAmounts = [];
+
+    for (const currency of enabledCurrencies) {
+      let minAmount = null;
+      try {
+        // Assuming default conversion is from USD.
+        // currency.code should be the crypto (e.g., 'btc', 'eth')
+        // We want minimum for USD -> crypto, so currency_from=usd, currency_to=currency.code
+        // However, the /min-amount endpoint expects currency_from to be the crypto if currency_to is your payout currency.
+        // Let's assume the user pays in `currency.code` and you receive in USD (or your configured payout currency).
+        // The API doc says: "Get the minimum payment amount for a specific pair. You can provide both currencies in the pair or just currency_from,
+        // and we will calculate the minimum payment amount for currency_from and currency which you have specified as the outcome in the Payment Settings."
+        // So, we should use currency_from = currency.code and let NOWPayments use our default payout currency for currency_to.
+        const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${currency.code.toLowerCase()}&currency_to=usd`, { // Assuming payout is effectively USD or you want the USD equivalent minimum. Adjust currency_to if your payout is different.
+          headers: { 'x-api-key': apiKey }
+        });
+        if (minAmountResponse.ok) {
+          const minAmountData = await minAmountResponse.json();
+          minAmount = minAmountData.min_amount;
+        } else {
+          console.warn(`[${new Date().toISOString()}] Failed to fetch min amount for ${currency.code}: ${minAmountResponse.status}`);
+        }
+      } catch (minAmountError) {
+        console.warn(`[${new Date().toISOString()}] Error fetching min amount for ${currency.code}: ${minAmountError.message}`);
+      }
+      currenciesWithMinAmounts.push({ ...currency, min_payment_amount: minAmount });
+    }
+    res.json({ success: true, currencies: currenciesWithMinAmounts });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/currencies: ${error.message}`);
+    console.error(`[${new Date().toISOString()}] Error in /api/nowpayments/currencies: ${error.message}`, error.stack);
     res.status(500).json({ success: false, error: error.message || 'Failed to fetch NOWPayments currencies' });
   }
 });
@@ -1487,6 +1515,43 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     if (parseFloat(price_amount) !== parseFloat(product.price)) {
         console.warn(`[${new Date().toISOString()}] NOWPayments price mismatch for item ${item}. Client sent: ${price_amount}, Server expected: ${product.price}`);
         return res.status(400).json({ success: false, error: 'Price mismatch. Please refresh and try again.' });
+    }
+
+    // Get estimated price in crypto
+    const estimateResponse = await fetch(`https://api.nowpayments.io/v1/estimate?amount=${parseFloat(price_amount)}&currency_from=${price_currency.toLowerCase()}&currency_to=${pay_currency.toLowerCase()}`, {
+        headers: { 'x-api-key': apiKey }
+    });
+    if (!estimateResponse.ok) {
+        const estError = await estimateResponse.json();
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estError);
+        return res.status(500).json({ success: false, error: estError.message || 'Could not get payment estimate from NOWPayments.' });
+    }
+    const estimateData = await estimateResponse.json();
+    const estimatedCryptoAmount = estimateData.estimated_amount;
+
+    if (!estimatedCryptoAmount) {
+        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate data did not return an estimated_amount. Data:`, estimateData);
+        return res.status(500).json({ success: false, error: 'Could not retrieve estimated crypto amount from NOWPayments.'});
+    }
+
+    // Get minimum payment amount for the crypto currency (user pays in crypto, you receive in your payout currency, often USD)
+    const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${pay_currency.toLowerCase()}&currency_to=${price_currency.toLowerCase()}`, { // Assuming your payout is USD or fiat equivalent
+        headers: { 'x-api-key': apiKey }
+    });
+
+    if (!minAmountResponse.ok) {
+        const minError = await minAmountResponse.json();
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum payment amount for ${pay_currency}:`, minError);
+        // Proceed without strict minimum check if this API call fails, but log it. NOWPayments create_payment might still fail.
+    } else {
+        const minAmountData = await minAmountResponse.json();
+        if (minAmountData.min_amount && estimatedCryptoAmount < parseFloat(minAmountData.min_amount)) {
+            console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency} is less than minimum ${minAmountData.min_amount} ${pay_currency}.`);
+            return res.status(400).json({
+                success: false,
+                error: `The amount in ${pay_currency.toUpperCase()} is too small. Minimum is ${minAmountData.min_amount} ${pay_currency.toUpperCase()}. Estimated for your order: ${estimatedCryptoAmount} ${pay_currency.toUpperCase()}.`
+            });
+        }
     }
 
     const orderId = `NP-${item}-${uuidv4()}`; // Unique order ID for our system
@@ -1701,26 +1766,40 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
 
     if (paymentStatus === 'finished' && order.status !== 'confirmed_nowpayments') {
       newLocalStatus = 'confirmed_nowpayments';
-      await supabase.from('orders').update({
-          status: newLocalStatus,
-          notes: `NOWPayments IPN: finished. Paid: ${actuallyPaid} ${payCurrency}`,
-          amount_paid_crypto: parseFloat(actuallyPaid) // Store the actual amount paid in crypto
-      }).eq('ref_code', orderId);
+      const updatePayload = {
+        status: newLocalStatus,
+        notes: `NOWPayments IPN: finished. Paid: ${actuallyPaid} ${payCurrency}. Original pay amount: ${payAmount} ${payCurrency}.`,
+        amount_paid_crypto: parseFloat(actuallyPaid)
+      };
+      if (parseFloat(actuallyPaid) < parseFloat(payAmount)) {
+        updatePayload.notes += ` Potential partial payment detected.`;
+        // You might want a different status for partial payments if you decide to handle them distinctly
+        // e.g., newLocalStatus = 'partially_paid_nowpayments';
+      }
+      await supabase.from('orders').update(updatePayload).eq('ref_code', orderId);
 
       console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
 
-      // Send email notification
       const product = cachedData.products.find(p => p.item === order.item);
-      if (product && order.email && !order.downloaded) { // Only send if not already downloaded (prevents re-sending if IPN is late)
+      if (product && order.email && !order.downloaded) {
           await sendOrderNotification(order.item, orderId, `${actuallyPaid} ${payCurrency.toUpperCase()} (Email: ${order.email})`);
           notificationSent = true;
       }
-    } else if (['failed', 'refunded', 'expired'].includes(paymentStatus) && order.status !== `failed_nowpayments_${paymentStatus}`) {
+    } else if (paymentStatus === 'partially_paid' && order.status !== 'partially_paid_nowpayments') {
+      newLocalStatus = 'partially_paid_nowpayments';
+      await supabase.from('orders').update({
+          status: newLocalStatus,
+          notes: `NOWPayments IPN: partially_paid. Paid: ${actuallyPaid} ${payCurrency} of expected ${payAmount} ${payCurrency}.`,
+          amount_paid_crypto: parseFloat(actuallyPaid)
+      }).eq('ref_code', orderId);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+      // Decide if you want to email for partial payments. Usually not for delivery.
+    } else if (['failed', 'refunded', 'expired'].includes(paymentStatus) && !order.status.startsWith('failed_nowpayments_') && order.status !== 'confirmed_nowpayments' && order.status !== 'partially_paid_nowpayments') {
       newLocalStatus = `failed_nowpayments_${paymentStatus}`;
       await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments IPN: ${paymentStatus}` }).eq('ref_code', orderId);
       console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
     } else {
-        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status ${paymentStatus} received, no change to local status ${order.status} or already processed.`);
+        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status '${paymentStatus}' received. Local status is '${order.status}'. No specific action or already processed.`);
     }
 
     res.status(200).send('IPN received and processed.');
