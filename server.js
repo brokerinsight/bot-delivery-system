@@ -533,72 +533,78 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     }
 
     // Handle Settings (granular updates)
-    if (req.body.settings) {
-        const newSettings = req.body.settings;
-        let settingsValuesChanged = false;
+    if (req.body.settings && typeof req.body.settings === 'object') {
+        const newSettingsRequest = req.body.settings;
+        let settingsValuesChangedInThisRequest = false;
 
-        let currentPasswordHash = cachedData.settings.adminPassword;
-        if (newSettings.hasOwnProperty('adminPassword')) { // Check if adminPassword key exists in request
-            if (typeof newSettings.adminPassword === 'string' && newSettings.adminPassword.trim() !== '') {
+        // Explicitly handle adminPassword first
+        if (newSettingsRequest.hasOwnProperty('adminPassword')) {
+            const newPassword = newSettingsRequest.adminPassword;
+            if (typeof newPassword === 'string' && newPassword.trim() !== '') {
                 const saltRounds = 10;
-                const newPasswordHash = await bcrypt.hash(newSettings.adminPassword.trim(), saltRounds);
-                if (newPasswordHash !== currentPasswordHash) {
+                const newPasswordHash = await bcrypt.hash(newPassword.trim(), saltRounds);
+                if (newPasswordHash !== cachedData.settings.adminPassword) {
                     cachedData.settings.adminPassword = newPasswordHash;
-                    settingsValuesChanged = true;
+                    settingsValuesChangedInThisRequest = true;
+                    overallDataChanged = true; // Mark overall change
                     console.log(`[${new Date().toISOString()}] Admin password has been updated.`);
                 }
-            } else { // Password field sent but empty or null - explicitly do not change
-                console.log(`[${new Date().toISOString()}] Admin password field was present but empty/null; password NOT updated.`);
+            } else if (newPassword === '') { // Explicitly empty password sent
+                console.log(`[${new Date().toISOString()}] Admin password field was sent as an empty string; password NOT updated.`);
+                // Do nothing, retain existing hash
             }
+            // If adminPassword is not in newSettingsRequest, it's not touched.
         }
-        // If adminPassword was not in newSettings, currentPasswordHash (from cachedData.settings.adminPassword) is preserved implicitly.
 
         const updatableSimpleSettings = [
             'supportEmail', 'copyrightText', 'logoUrl',
             'fallbackRate', 'mpesaTill',
             'payheroChannelId', 'payheroAuthToken', 'payheroPaymentUrl',
-            'adminEmail'
+            'adminEmail' // adminEmail can be updated like any other simple setting
         ];
 
         for (const key of updatableSimpleSettings) {
-            if (newSettings.hasOwnProperty(key)) {
-                 let newValue = newSettings[key];
-                 if (key === 'fallbackRate') {
-                     const parsedRate = parseFloat(newValue);
-                     newValue = isNaN(parsedRate) ? cachedData.settings.fallbackRate : parsedRate;
-                 }
+            if (newSettingsRequest.hasOwnProperty(key)) {
+                let newValue = newSettingsRequest[key];
+                if (key === 'fallbackRate') {
+                    const parsedRate = parseFloat(newValue);
+                    // Use existing if new value is NaN, otherwise use new value (even if it's null/empty string from form)
+                    newValue = isNaN(parsedRate) ? cachedData.settings.fallbackRate : (parsedRate);
+                }
 
-                 if (newValue !== cachedData.settings[key]) {
+                if (newValue !== cachedData.settings[key]) {
                     cachedData.settings[key] = newValue;
-                    settingsValuesChanged = true;
+                    settingsValuesChangedInThisRequest = true;
+                    overallDataChanged = true; // Mark overall change
                     console.log(`[${new Date().toISOString()}] Setting updated: ${key} = ${newValue}`);
-                 }
+                }
             }
         }
 
-        if (newSettings.hasOwnProperty('socials')) {
-            if (typeof newSettings.socials === 'object' && JSON.stringify(newSettings.socials) !== JSON.stringify(cachedData.settings.socials)) {
-                cachedData.settings.socials = newSettings.socials;
-                settingsValuesChanged = true;
+        if (newSettingsRequest.hasOwnProperty('socials')) {
+            if (typeof newSettingsRequest.socials === 'object' && JSON.stringify(newSettingsRequest.socials) !== JSON.stringify(cachedData.settings.socials)) {
+                cachedData.settings.socials = newSettingsRequest.socials;
+                settingsValuesChangedInThisRequest = true;
+                overallDataChanged = true; // Mark overall change
                 console.log(`[${new Date().toISOString()}] Socials settings updated.`);
-            } else if (typeof newSettings.socials !== 'object') {
-                 console.warn(`[${new Date().toISOString()}] Received non-object for socials settings, ignoring.`);
+            } else if (typeof newSettingsRequest.socials !== 'object') {
+                console.warn(`[${new Date().toISOString()}] Received non-object for socials settings, ignoring.`);
             }
         }
-        if (newSettings.hasOwnProperty('urgentMessage')) {
-             if (typeof newSettings.urgentMessage === 'object' && JSON.stringify(newSettings.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
-                cachedData.settings.urgentMessage = newSettings.urgentMessage;
-                settingsValuesChanged = true;
+
+        if (newSettingsRequest.hasOwnProperty('urgentMessage')) {
+            if (typeof newSettingsRequest.urgentMessage === 'object' && JSON.stringify(newSettingsRequest.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
+                cachedData.settings.urgentMessage = newSettingsRequest.urgentMessage;
+                settingsValuesChangedInThisRequest = true;
+                overallDataChanged = true; // Mark overall change
                 console.log(`[${new Date().toISOString()}] Urgent message settings updated.`);
-             } else if (typeof newSettings.urgentMessage !== 'object') {
-                 console.warn(`[${new Date().toISOString()}] Received non-object for urgentMessage settings, ignoring.`);
-             }
+            } else if (typeof newSettingsRequest.urgentMessage !== 'object') {
+                console.warn(`[${new Date().toISOString()}] Received non-object for urgentMessage settings, ignoring.`);
+            }
         }
 
-        if (settingsValuesChanged) {
-            overallDataChanged = true;
-        } else if (Object.keys(newSettings).length > 0) {
-            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no individual setting values differed from current cache.`);
+        if (!settingsValuesChangedInThisRequest && Object.keys(newSettingsRequest).length > 0) {
+            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no individual setting values differed from current cache for this specific save operation.`);
         }
     }
 
