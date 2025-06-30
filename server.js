@@ -313,7 +313,6 @@ async function refreshCache() {
   }
 }
 
-async function saveDataToDatabase() {
 async function saveDataToDatabase(tasks = {}) {
   try {
     if (tasks.categories) {
@@ -1410,3 +1409,4 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
 });
+
