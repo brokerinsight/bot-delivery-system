@@ -1636,8 +1636,27 @@
             }, 10000);
             const data = await statusRes.json();
 
-            // Use data.message from server response if available, otherwise construct one
-            statusMessage.innerHTML = data.message || `Polling status... (${data.status || 'Unknown'})`;
+            let currentStatusDisplay = `Polling status... (${data.status || 'Unknown'})`; // Default
+            if (data.message) {
+                currentStatusDisplay = data.message;
+            }
+
+            // More specific messages based on known statuses
+            if (data.status === 'QUEUED' || data.status === 'pending_stk_push') {
+                currentStatusDisplay = data.message || "STK push sent. Waiting for you to complete the transaction on your phone...";
+            } else if (data.status === 'SUCCESS' || data.status === 'confirmed' || data.status === 'confirmed_server_stk') {
+                if (!data.downloadLink) {
+                    currentStatusDisplay = data.message || "Payment confirmed! Preparing your download...";
+                } else {
+                    currentStatusDisplay = data.message || "Payment successful! Downloading your file...";
+                }
+            } else if (data.status && (data.status.startsWith('failed_') || data.status === 'FAILED')) {
+                currentStatusDisplay = data.message || `Payment ${data.status}. Please check details or contact support.`;
+            }
+            // ... any other specific statuses from your backend for /api/order-status
+
+            statusMessage.innerHTML = currentStatusDisplay; // Update the message
+
 
             if (!statusRes.ok && statusRes.status !== 403 && statusRes.status !== 404) { // 403/404 handled by data.message
                 clearInterval(countdown);
