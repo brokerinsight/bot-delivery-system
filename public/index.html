@@ -1502,12 +1502,13 @@
       };
 
 
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-      // Ensure modal is scrollable
-      const nowPaymentsModalContent = modal.querySelector('.bg-white');
-      nowPaymentsModalContent.style.maxHeight = '90vh';
-      nowPaymentsModalContent.style.overflowY = 'auto';
+      // The following block was redundant and caused the error.
+      // modal.classList.remove('hidden');
+      // document.body.classList.add('popup-active');
+      // // Ensure modal is scrollable
+      // const nowPaymentsModalContent = modal.querySelector('.bg-white');
+      // nowPaymentsModalContent.style.maxHeight = '90vh';
+      // nowPaymentsModalContent.style.overflowY = 'auto';
 
 
       proceedBtn.onclick = async () => {
