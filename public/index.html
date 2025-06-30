@@ -1456,7 +1456,8 @@
               item: product.item,
               amount_kes: roundedAmount,
               phone: phone,
-              customerName: customerName
+              customerName: customerName,
+              used_exchange_rate: exchangeRate // Send the exchange rate used by client
             }),
             credentials: 'include'
           }, 20000);
