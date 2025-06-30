@@ -835,9 +835,16 @@
     xhr.onload = async () => {
       if (xhr.status === 200) {
         const result = JSON.parse(xhr.responseText);
-        if (result.success) {
-          data.products.push(result.product);
-          await saveData(); // This still saves the whole 'data' object, might need refinement later
+        if (result.success && result.product) {
+          // Server successfully added the bot and returned the new product data (reflecting DB state)
+          // Update client-side 'data.products' with the authoritative version from server
+          const existingProductIndex = data.products.findIndex(p => p.item === result.product.item);
+          if (existingProductIndex > -1) {
+            data.products[existingProductIndex] = result.product; // Update if somehow item number was reused (should not happen for new)
+          } else {
+            data.products.push(result.product);
+          }
+          // No need for an additional global saveData() here as /api/add-bot already updated DB and server cache.
           renderBots();
           document.getElementById('product-form').reset();
           if (window.descQuill) {
@@ -846,10 +853,13 @@
           progressContainer.classList.add('hidden');
           alert('Bot added successfully!');
         } else {
-          throw new Error('Failed to add bot');
+          // Error from server after upload (e.g., DB insert issue not caught by server's orphan file cleanup)
+          alert(`Failed to finalize bot addition: ${result.error || 'Unknown error'}`);
+          progressContainer.classList.add('hidden');
         }
-      } else {
-        throw new Error('Upload failed');
+      } else { // xhr.status !== 200
+        alert(`Upload failed. Server responded with ${xhr.status}: ${xhr.statusText}`);
+        progressContainer.classList.add('hidden');
       }
     };
 
@@ -922,16 +932,19 @@
           });
           const result = await response.json();
           if (result.success) {
+            // Server confirmed deletion and updated its cache.
+            // Client updates its local 'data.products' and re-renders.
             data.products = data.products.filter(p => p.item !== item);
-            await saveData();
+            // No need for an additional global saveData() here.
             renderBots();
             alert('Bot deleted successfully!');
           } else {
-            throw new Error(result.error || 'Failed to delete bot');
+            // Server indicated failure to delete.
+            alert(`Failed to delete bot: ${result.error || 'Unknown error'}`);
           }
-        } catch (error) {
+        } catch (error) { // Network error or JSON parsing error
           console.error('Error deleting bot:', error);
-          alert('Failed to delete bot. Please try again.');
+          alert(`Failed to delete bot: ${error.message}. Please try again.`);
         }
       });
     });
@@ -976,14 +989,14 @@
       isArchived: document.getElementById('edit-isArchived').checked
     };
 
-    const success = await saveData();
+    // Send only the updated product for saving
+    const success = await saveData({ products: [data.products[productIndex]] });
     if (success) {
       renderBots();
       closeEditModal();
       alert('Bot updated successfully!');
-    } else {
-      alert('Failed to update bot. Please try again.');
     }
+    // else: Error is already alerted by saveData(), button state handled by showButtonFeedback
   });
 
   document.getElementById('edit-cancel').addEventListener('click', () => {
@@ -1129,11 +1142,18 @@
           const category = btn.dataset.category;
           data.categories = data.categories.filter(c => c !== category);
           data.products.forEach(p => {
-            if (p.category === category) p.category = 'General';
+            if (p.category === category) p.category = 'General'; // Update products using the deleted category
           });
-          await saveData();
-          renderCategories();
-          renderBots();
+          // Send updated categories and products
+          const success = await saveData({ categories: data.categories, products: data.products });
+          if (success) {
+            renderCategories();
+            renderBots();
+            alert('Category deleted and product categories updated successfully!');
+          } else {
+            // Error already alerted by saveData. Consider reverting optimistic updates if critical.
+            // For simplicity here, we rely on a full refresh if things go very wrong.
+          }
         }
       });
     });
@@ -1141,16 +1161,42 @@
 
   document.getElementById('add-category').addEventListener('click', async () => {
     const btn = document.getElementById('add-category');
-    showButtonFeedback(btn, 'Adding...', 'Add Category');
-    const newCategory = document.getElementById('new-category').value.trim();
-    if (newCategory && !data.categories.includes(newCategory)) {
-      data.categories.push(newCategory);
-      await saveData();
-      renderCategories();
-      document.getElementById('new-category').value = '';
-      alert('Category added successfully!');
+    const originalButtonText = btn.textContent; // Store original button text
+    showButtonFeedback(btn, 'Adding...', originalButtonText);
+    const newCategoryInput = document.getElementById('new-category');
+    const newCategory = newCategoryInput.value.trim();
+
+    if (newCategory) {
+      const isDuplicate = data.categories.some(cat => cat.toLowerCase() === newCategory.toLowerCase());
+      if (!isDuplicate) {
+        data.categories.push(newCategory); // Optimistic update
+        const success = await saveData({ categories: data.categories }); // Correct: Send categories at top-level
+
+        if (success) {
+          renderCategories(); // Re-render from the current data.categories
+          newCategoryInput.value = '';
+          alert('Category added successfully!');
+          // showButtonFeedback will re-enable the button and restore text after timeout
+        } else {
+          // Revert optimistic update
+          const index = data.categories.findIndex(cat => cat.toLowerCase() === newCategory.toLowerCase());
+          if (index > -1) {
+            data.categories.splice(index, 1);
+          }
+          // Error message is already shown by saveData()
+          // Ensure button is re-enabled and text restored immediately on failure
+          btn.disabled = false;
+          btn.textContent = originalButtonText;
+        }
+      } else {
+        alert(`Category "${newCategory}" (or a case-variant) already exists.`);
+        btn.disabled = false;
+        btn.textContent = originalButtonText;
+      }
     } else {
-      alert('Category already exists or is invalid.');
+      alert('Category name cannot be empty.');
+      btn.disabled = false;
+      btn.textContent = originalButtonText;
     }
   });
 
@@ -1159,18 +1205,50 @@
   const urgentMessage = document.getElementById('urgent-message');
 
   function initializeUrgentMessage() {
-    if (!urgentToggle || !window.urgentQuill) {
-      console.error('Urgent message elements or Quill editor not found');
+    const localUrgentToggle = document.getElementById('urgent-toggle'); // Re-fetch within function scope for safety
+
+    // Check if Quill editor instance for urgent message is available
+    if (!window.urgentQuill) {
+      console.warn('Urgent Quill editor (window.urgentQuill) not ready yet in initializeUrgentMessage. Will retry or rely on later initialization.');
+      // Optionally, set a timeout to retry, or rely on the main initialize() flow
       return;
     }
-    urgentToggle.checked = data.settings.urgentMessage?.enabled || false;
+    // Check if the toggle element itself is found
+    if (!localUrgentToggle) {
+        console.error('Urgent toggle element (#urgent-toggle) not found in initializeUrgentMessage.');
+        return;
+    }
+
+    localUrgentToggle.checked = data.settings.urgentMessage?.enabled || false;
     window.urgentQuill.enable(data.settings.urgentMessage?.enabled || false);
     window.urgentQuill.root.innerHTML = data.settings.urgentMessage?.text || '<p></p>';
+    console.log('Urgent message editor initialized and populated.');
   }
 
-  urgentToggle.addEventListener('change', () => {
-    if (!window.urgentQuill) {
-      console.error('Urgent message Quill editor not found');
+  // Ensure event listener for urgentToggle also checks for Quill instance
+  const urgentToggleElement = document.getElementById('urgent-toggle');
+  if (urgentToggleElement) {
+    urgentToggleElement.addEventListener('change', () => {
+      if (!window.urgentQuill) {
+        console.error('Urgent message Quill editor not found during toggle change.');
+        return;
+      }
+      window.urgentQuill.enable(urgentToggleElement.checked);
+      if (urgentToggleElement.checked) {
+        window.urgentQuill.focus();
+      }
+    });
+  } else {
+    console.error("Failed to find #urgent-toggle to attach change listener.");
+  }
+
+  document.getElementById('save-urgent').addEventListener('click', async () => {
+    const btn = document.getElementById('save-urgent');
+    const localUrgentToggle = document.getElementById('urgent-toggle'); // Re-fetch for safety
+    const urgentMessageInput = document.getElementById('urgent-message'); // Hidden input
+
+    if (!localUrgentToggle || !urgentMessageInput) { // Check DOM elements
+      console.error('Urgent message DOM elements not found for save.');
       return;
     }
     window.urgentQuill.enable(urgentToggle.checked);
@@ -1445,7 +1523,8 @@
         slug: pageSlug,
         content: pageContent
       });
-      const success = await saveData();
+      // Send the entire (potentially modified) staticPages array
+      const success = await saveData({ staticPages: data.staticPages });
       if (success) {
         renderPages();
         resetPageForm();
