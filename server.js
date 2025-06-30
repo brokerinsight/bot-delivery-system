@@ -1132,6 +1132,21 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
     }
 
+    const normalizedPhoneForRateLimit = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
+    const rateLimitKey = `stk_pending:${normalizedPhoneForRateLimit}`;
+    const STK_RATE_LIMIT_TTL = 5 * 60; // 5 minutes in seconds
+
+    try {
+      const existingRequest = await redisClient.get(rateLimitKey);
+      if (existingRequest) {
+        console.log(`[${new Date().toISOString()}] ServerSTK: Rate limit hit for phone ${normalizedPhoneForRateLimit}. Existing request found.`);
+        return res.status(429).json({ success: false, error: 'You have a pending payment. Please complete it or wait 5 minutes to try again.' });
+      }
+    } catch (redisError) {
+      console.error(`[${new Date().toISOString()}] ServerSTK: Redis GET error for rate limiting for phone ${normalizedPhoneForRateLimit}:`, redisError.message);
+      // Proceed without rate limiting if Redis read fails, to not block payment.
+    }
+
     const product = cachedData.products.find(p => p.item === item);
     if (!product) {
       console.log(`[${new Date().toISOString()}] ServerSTK: Product not found for item: ${item}`);
@@ -1218,8 +1233,18 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 
     if (!response.ok || !payheroResponse.success || payheroResponse.status !== 'QUEUED') {
       console.error(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiation API call failed. Status: ${response.status}, Response:`, payheroResponse);
+      // Do NOT set rate limit key if PayHero initiation failed, allow user to retry sooner.
       await supabase.from('orders').update({ status: 'failed_stk_initiation', notes: JSON.stringify(payheroResponse) }).eq('ref_code', serverSideReference);
       return res.status(500).json({ success: false, error: payheroResponse.message || 'Failed to initiate payment with PayHero.' });
+    }
+
+    // If PayHero STK push was successfully initiated, set the rate limit key in Redis
+    try {
+      await redisClient.set(rateLimitKey, 'true', { EX: STK_RATE_LIMIT_TTL });
+      console.log(`[${new Date().toISOString()}] ServerSTK: Rate limit key set for phone ${normalizedPhoneForRateLimit} with TTL ${STK_RATE_LIMIT_TTL}s.`);
+    } catch (redisError) {
+      console.error(`[${new Date().toISOString()}] ServerSTK: Redis SET error for rate limiting for phone ${normalizedPhoneForRateLimit}:`, redisError.message);
+      // Continue with successful response even if Redis SET fails, as payment was initiated.
     }
 
     console.log(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiated successfully for ref ${serverSideReference}. PayHero Response:`, payheroResponse);
@@ -1236,7 +1261,7 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 });
 
 app.post('/api/payhero-callback', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // RAW BODY Log RESTORED
+  // console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // RAW BODY Log REMOVED as requested
   try {
     // It's crucial to handle cases where req.body or req.body.response might be undefined or not structured as expected.
     if (!req.body || typeof req.body !== 'object') {
@@ -1259,7 +1284,7 @@ app.post('/api/payhero-callback', async (req, res) => {
         return res.status(400).json({ error: 'Invalid callback structure from PayHero' });
     }
 
-    const { ExternalReference, ResultCode, ResultDesc, Status: paymentGatewayStatus, MpesaReceiptNumber, Amount } = payheroResponseData;
+    const { ExternalReference, ResultCode, ResultDesc, Status: paymentGatewayStatus, MpesaReceiptNumber, Amount, Phone: PayerPhone } = payheroResponseData; // Added PayerPhone
 
     if (!ExternalReference) {
       console.error(`[${new Date().toISOString()}] DirectAPI CB: Missing ExternalReference. Body:`, req.body);
@@ -1296,17 +1321,21 @@ app.post('/api/payhero-callback', async (req, res) => {
     let updatePayload = {
         status: order.status, // Default to current status
         notes: order.notes, // Default to current notes
-        mpesa_receipt_number: order.mpesa_receipt_number // Default to current
+        mpesa_receipt_number: order.mpesa_receipt_number, // Default to current
+        payer_phone_number: order.payer_phone_number // Default to current
     };
 
     if (mpesaReceiptIfAvailable) {
         updatePayload.mpesa_receipt_number = mpesaReceiptIfAvailable;
     }
+    if (PayerPhone) { // Add payer_phone_number if available from callback
+        updatePayload.payer_phone_number = PayerPhone;
+    }
 
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: Initial order details for ${serverSideReference} - Status: ${order.status}, Amount: ${order.amount}, PayHero CB Amount: ${Amount}, ResultCode: ${ResultCode}, PayHeroStatus: ${paymentGatewayStatus}, OverallCBStatus: ${overallCallbackStatus}`);
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: Initial order details for ${serverSideReference} - Status: ${order.status}, Amount: ${order.amount}, Payer Phone from CB: ${PayerPhone}, PayHero CB Amount: ${Amount}, ResultCode: ${ResultCode}, PayHeroStatus: ${paymentGatewayStatus}, OverallCBStatus: ${overallCallbackStatus}`);
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}, PayerPhone: ${PayerPhone}`);
 
       const orderStoredKesAmount = Math.round(parseFloat(order.amount));
       const callbackReceivedKesAmount = Math.round(parseFloat(Amount));
@@ -1363,10 +1392,14 @@ app.post('/api/payhero-callback', async (req, res) => {
     console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Intending to update with payload:`, JSON.stringify(updatePayload, null, 2));
 
     let dbUpdateError = null;
-    if (updatePayload.status !== order.status || updatePayload.notes !== order.notes || updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number) {
+    // Check if any relevant field has changed before attempting update
+    if (updatePayload.status !== order.status ||
+        updatePayload.notes !== order.notes ||
+        updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number ||
+        updatePayload.payer_phone_number !== order.payer_phone_number) {
         console.log(`[${new Date().toISOString()}] DirectAPI CB: Differences detected. Proceeding with DB update for ${serverSideReference}.`);
         try {
-            console.log(`[${new Date().toISOString()}] DirectAPI CB: Attempting DB update for ${serverSideReference} with payload:`, JSON.stringify(updatePayload, null, 2));
+            // console.log(`[${new Date().toISOString()}] DirectAPI CB: Attempting DB update for ${serverSideReference} with payload:`, JSON.stringify(updatePayload, null, 2)); // REMOVED - Duplicates above log
             const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
             if (updateError) {
                 throw updateError; // Caught by catch (supaError)
