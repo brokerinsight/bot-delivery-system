@@ -1236,7 +1236,7 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 });
 
 app.post('/api/payhero-callback', async (req, res) => {
-  // console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // RAW BODY Log REMOVED
+  console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // RAW BODY Log RESTORED
   try {
     // It's crucial to handle cases where req.body or req.body.response might be undefined or not structured as expected.
     if (!req.body || typeof req.body !== 'object') {
@@ -1366,6 +1366,7 @@ app.post('/api/payhero-callback', async (req, res) => {
     if (updatePayload.status !== order.status || updatePayload.notes !== order.notes || updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number) {
         console.log(`[${new Date().toISOString()}] DirectAPI CB: Differences detected. Proceeding with DB update for ${serverSideReference}.`);
         try {
+            console.log(`[${new Date().toISOString()}] DirectAPI CB: Attempting DB update for ${serverSideReference} with payload:`, JSON.stringify(updatePayload, null, 2));
             const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
             if (updateError) {
                 throw updateError; // Caught by catch (supaError)
@@ -1379,7 +1380,7 @@ app.post('/api/payhero-callback', async (req, res) => {
             }
         } catch (supaError) {
             dbUpdateError = supaError;
-            console.error(`[${new Date().toISOString()}] DirectAPI CB: DATABASE UPDATE FAILED for order ${serverSideReference}. Error:`, supaError.message, supaError.stack);
+            console.error(`[${new Date().toISOString()}] DirectAPI CB: DATABASE UPDATE FAILED for order ${serverSideReference}. Full Error Object:`, JSON.stringify(supaError, Object.getOwnPropertyNames(supaError), 2));
             // Do NOT send email if DB update failed.
             // The status in DB remains the old one.
         }
