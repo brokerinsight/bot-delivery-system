@@ -1511,6 +1511,7 @@
       amountDisplay.textContent = parseFloat(kesPrice).toFixed(2);
       payheroStatusMessage.textContent = ''; // Clear previous messages
       payHeroPaymentContainer.innerHTML = ''; // Clear previous button
+      amountDisplay.textContent = Math.round(parseFloat(kesPrice)).toFixed(2); // Round to nearest whole number for display
 
       modal.style.display = 'flex';
       document.body.classList.add('popup-active');
@@ -1518,54 +1519,59 @@
       closeButton.onclick = () => {
         modal.style.display = 'none';
         document.body.classList.remove('popup-active');
-        // Potentially clear PayHero.init() if it leaves listeners
+        // If PayHero SDK adds listeners to window or body, they might need cleanup.
+        // However, the SDK should manage its own button listeners.
       };
 
       // Generate a unique reference for this transaction attempt
       const clientSideReference = `PH-${product.item}-${Date.now()}`;
+      const roundedAmount = Math.round(parseFloat(kesPrice)); // PayHero expects integer
+
+      // Get name and phone ONCE before init. We will go with Option A: simplify and remove these inputs
+      // and let PayHero's interface collect the phone. Name can be default.
+      // customerNameInput.value = ''; // Optional: Clear if you decide to remove the field
+      // phoneNumberInput.value = ''; // Optional: Clear if you decide to remove the field
+
+      // For Option A (simplified):
+      const customerNameToPass = customerNameInput.value.trim() || "Valued Customer"; // Use input if provided, else default
+      const phoneNumberToPass = phoneNumberInput.value.trim(); // Pass if provided, PayHero form will ask if empty
+
+      // Hide our name and phone inputs as PayHero's form will handle it or they are optional
+      customerNameInput.style.display = 'none';
+      phoneNumberInput.style.display = 'none';
+      // Also hide their labels if they exist
+      const nameLabel = document.querySelector('label[for="payhero-customer-name"]');
+      if (nameLabel) nameLabel.style.display = 'none';
+      const phoneLabel = document.querySelector('label[for="payhero-phone-number"]');
+      if (phoneLabel) phoneLabel.style.display = 'none';
+
 
       PayHero.init({
-        paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003",
-        width: "100%",
-        height: "auto", // Let button size itself
-        containerId: "payhero-payment-container", // ID of the div to inject the button
-        channelID: parseInt(settings.payheroChannelId) || 2332,
-        amount: parseFloat(kesPrice).toFixed(2), // Ensure it's a number
-        phone: phoneNumberInput.value, // Get current value
-        name: customerNameInput.value, // Get current value
-        reference: clientSideReference,
-        buttonName: `Pay KES ${parseFloat(kesPrice).toFixed(2)}`,
-        buttonColor: "#00a884",
-        successUrl: null, // Handle via event listener
-        failedUrl: null,  // Handle via event listener
-        callbackUrl: `${BASE_URL}/api/payhero-callback` // Server-side callback
+        paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003", // From settings
+        width: "100%", // SDK will manage button width within the container
+        height: "auto",
+        containerId: "payhero-payment-container",
+        channelID: parseInt(settings.payheroChannelId) || 2332, // From settings
+        amount: roundedAmount, // Integer amount
+        phone: phoneNumberToPass, // Optional: pre-fill if provided by user
+        name: customerNameToPass, // Optional: pre-fill if provided
+        reference: clientSideReference, // Our unique reference for this transaction attempt
+        buttonName: `Pay KES ${roundedAmount.toFixed(2)}`,
+        buttonColor: "#00a884", // Green color
+        successUrl: null, // We handle this via window.addEventListener('message')
+        failedUrl: null,  // We handle this via window.addEventListener('message')
+        callbackUrl: `${BASE_URL}/api/payhero-callback` // Server-to-server notification URL
       });
 
-      // Update PayHero SDK parameters if phone or name changes
-      const updatePayHeroParams = () => {
-        PayHero.init({ // Re-init or update if SDK supports it
-            paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003",
-            width: "100%",
-            height: "auto",
-            containerId: "payhero-payment-container",
-            channelID: parseInt(settings.payheroChannelId) || 2332,
-            amount: parseFloat(kesPrice).toFixed(2),
-            phone: phoneNumberInput.value.trim(),
-            name: customerNameInput.value.trim(),
-            reference: clientSideReference,
-            buttonName: `Pay KES ${parseFloat(kesPrice).toFixed(2)}`,
-            buttonColor: "#00a884",
-            successUrl: null,
-            failedUrl: null,
-            callbackUrl: `${BASE_URL}/api/payhero-callback`
-        });
-      };
-
-      phoneNumberInput.addEventListener('input', updatePayHeroParams);
-      customerNameInput.addEventListener('input', updatePayHeroParams);
+      // Remove event listeners that caused re-initialization
+      // phoneNumberInput.removeEventListener('input', updatePayHeroParams);
+      // customerNameInput.removeEventListener('input', updatePayHeroParams);
+      // The updatePayHeroParams function is also removed as it's no longer needed.
     }
 
-    // Centralized PayHero event listener
+    // Centralized PayHero event listener - ENSURE THIS IS ONLY ADDED ONCE GLOBALLY
+    // If it's already global, this is fine. If it was inside a function called multiple times,
+    // it could lead to multiple listeners. Assuming it's correctly placed globally.
     window.addEventListener('message', async function(event) {
         if (event.data.paymentSuccess) {
             console.log("PayHero Payment Successful (Client-side):", event.data);
