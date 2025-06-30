@@ -1425,47 +1425,50 @@
       const currencySelect = document.getElementById('nowpayments-currency');
       const proceedBtn = document.getElementById('nowpayments-proceed');
       const cancelBtn = document.getElementById('nowpayments-cancel');
-      const paymentDetailsDiv = document.getElementById('nowpayments-payment-details');
+      // const paymentDetailsDiv = document.getElementById('nowpayments-payment-details'); // Not directly used for showing/hiding
       const statusMessageEl = document.getElementById('nowpayments-status-message');
       const currencySearchInput = document.getElementById('nowpayments-currency-search');
       const timerDisplay = document.getElementById('nowpayments-timer');
-      const paymentInfoSection = document.getElementById('nowpayments-payment-info'); // The new div for payment details + timer
+      const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+      const modalContentElement = modal.querySelector('.bg-white'); // Renamed and correctly scoped
 
       emailInput.value = '';
       paymentInfoSection.classList.add('hidden');
       statusMessageEl.textContent = '';
+      statusMessageEl.style.color = 'inherit'; // Reset color
       proceedBtn.disabled = false;
-      proceedBtn.innerHTML = 'Proceed to Payment'; // Reset button text/spinner
+      proceedBtn.innerHTML = 'Proceed to Payment';
       currencySearchInput.value = '';
       timerDisplay.textContent = '';
       if (window.nowPaymentsTimerIntervalId) {
         clearInterval(window.nowPaymentsTimerIntervalId);
         window.nowPaymentsTimerIntervalId = null;
       }
+      if (window.nowPaymentsPollIntervalId) { // Clear polling interval as well
+        clearInterval(window.nowPaymentsPollIntervalId);
+        window.nowPaymentsPollIntervalId = null;
+      }
 
-
-      // Enable inputs initially
       emailInput.disabled = false;
       currencySelect.disabled = false;
       currencySearchInput.disabled = false;
 
-      // Fetch available currencies for NOWPayments
       currencySelect.innerHTML = '<option value="">Loading currencies...</option>';
       proceedBtn.disabled = true;
-      // Spinner for the main proceed button of NOWPayments modal, not the choice modal button
       const nowPaymentsProceedBtnSpinner = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>';
       proceedBtn.innerHTML = `${nowPaymentsProceedBtnSpinner}Loading Currencies...`;
 
-
-      modal.classList.remove('hidden'); // Show modal immediately
+      modal.classList.remove('hidden');
       document.body.classList.add('popup-active');
-      // Ensure modal is scrollable
-      const nowPaymentsModalContent = modal.querySelector('.bg-white');
-      nowPaymentsModalContent.style.maxHeight = '90vh';
-      nowPaymentsModalContent.style.overflowY = 'auto';
+
+      // Ensure modal is scrollable - This is the single, correct place for this logic.
+      if (modalContentElement) {
+        modalContentElement.style.maxHeight = '90vh';
+        modalContentElement.style.overflowY = 'auto';
+      }
 
       try {
-        const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/currencies`, {}, 20000); // Increased timeout for currency fetching
+        const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/currencies`, {}, 20000);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({error: `HTTP error ${response.status}`}));
             throw new Error(errorData.error || 'Failed to load currencies from server.');
@@ -1479,8 +1482,8 @@
           currencySelect.innerHTML = '<option value="">Error: Could not load currencies.</option>';
           statusMessageEl.textContent = data.error || 'Error loading currencies.';
           statusMessageEl.style.color = 'red';
-          proceedBtn.innerHTML = 'Proceed to Payment'; // Re-enable but show error
-          proceedBtn.disabled = true; // Keep disabled if currencies failed to load
+          proceedBtn.innerHTML = 'Proceed to Payment';
+          proceedBtn.disabled = true;
         }
       } catch (error) {
         console.error('Error fetching NOWPayments currencies (showNowPaymentsModal):', error.message, error.name);
@@ -1495,20 +1498,16 @@
           const searchTerm = currencySearchInput.value.toLowerCase();
           const options = currencySelect.options;
           for (let i = 0; i < options.length; i++) {
-              if (options[i].value === "") continue; // Skip "Select a currency" or loading messages
+              if (options[i].value === "") continue;
               const optionText = options[i].text.toLowerCase();
               options[i].style.display = optionText.includes(searchTerm) ? '' : 'none';
           }
       };
 
-
-      modal.classList.remove('hidden');
-      document.body.classList.add('popup-active');
-      // Ensure modal is scrollable
-      const nowPaymentsModalContent = modal.querySelector('.bg-white');
-      nowPaymentsModalContent.style.maxHeight = '90vh';
-      nowPaymentsModalContent.style.overflowY = 'auto';
-
+      // The redundant block that was causing the "Identifier already declared" error
+      // (which previously might have been around line 1512-1514 in an older version of the file)
+      // has been removed by ensuring the logic for modal display and scrollability
+      // using `modalContentElement` is handled only once, correctly, at the top of this function.
 
       proceedBtn.onclick = async () => {
         const email = emailInput.value.trim();
