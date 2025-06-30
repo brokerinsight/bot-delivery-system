@@ -1299,11 +1299,11 @@ app.post('/api/payhero-callback', async (req, res) => {
         console.warn(`[${new Date().toISOString()}] DirectAPI CB: Amount mismatch for order ${serverSideReference}. Order KES: ${orderStoredKesAmount}, PayHero CB KES: ${callbackReceivedKesAmount}. Updating to 'failed_amount_mismatch'.`);
         updatePayload.status = 'failed_amount_mismatch';
         updatePayload.notes = `Amount mismatch. Expected: ${orderStoredKesAmount}, Received: ${callbackReceivedKesAmount}. Original Note: ${notesForUpdate||''}`.trim();
+        // No email for amount mismatch
       } else {
         updatePayload.status = 'confirmed_server_stk';
         updatePayload.notes = `Payment confirmed successfully via PayHero STK. ${notesForUpdate || ''}`.trim();
-        await sendOrderNotification(order.item, serverSideReference, order.amount);
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} status updated to confirmed_server_stk.`);
+        // Email will be sent after successful DB update
       }
     } else {
       // Handle various failure cases
@@ -1344,16 +1344,44 @@ app.post('/api/payhero-callback', async (req, res) => {
     }
 
     // Only update if status or notes have changed to avoid unnecessary writes
+    let dbUpdateError = null;
     if (updatePayload.status !== order.status || updatePayload.notes !== order.notes || updatePayload.mpesa_receipt_number !== order.mpesa_receipt_number) {
-        await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} updated in DB.`);
+        try {
+            const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('ref_code', serverSideReference);
+            if (updateError) {
+                throw updateError;
+            }
+            console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} successfully updated in DB to status: ${updatePayload.status}.`);
+
+            // Send email ONLY if status was updated to confirmed_server_stk AND DB update was successful
+            if (updatePayload.status === 'confirmed_server_stk') {
+                await sendOrderNotification(order.item, serverSideReference, order.amount);
+                console.log(`[${new Date().toISOString()}] DirectAPI CB: Order notification email sent for ${serverSideReference} after DB confirmation.`);
+            }
+        } catch (supaError) {
+            dbUpdateError = supaError;
+            console.error(`[${new Date().toISOString()}] DirectAPI CB: DATABASE UPDATE FAILED for order ${serverSideReference}. Error:`, supaError.message, supaError.stack);
+            // Do NOT send email if DB update failed.
+            // The status in DB remains the old one.
+        }
     } else {
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change in status or notes for order ${serverSideReference}. DB update skipped.`);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change in status or notes for order ${serverSideReference}. DB update skipped. Current status: ${order.status}`);
     }
-    res.status(200).json({ success: true, message: "Callback processed." });
+
+    if (dbUpdateError) {
+        // If DB update failed, we should consider how to respond to PayHero.
+        // Responding 500 might cause PayHero to retry, which might be good if the error was temporary.
+        // However, for this debugging, let's first ensure logging is clear.
+        // For now, still respond 200 to PayHero to avoid retry loops during debugging, but log the critical failure.
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Critical - DB update failed for ${serverSideReference} but responding 200 to PayHero to prevent immediate retry. MANUAL INTERVENTION MAY BE NEEDED.`);
+        res.status(200).json({ success: false, message: "Callback acknowledged, but internal processing error occurred." });
+    } else {
+        res.status(200).json({ success: true, message: "Callback processed." });
+    }
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] DirectAPI CB: Error processing:`, error.message, error.stack);
+    // This outer catch handles errors like fetching the order, or other unexpected errors before DB update attempt
+    console.error(`[${new Date().toISOString()}] DirectAPI CB: General error processing callback for ${ExternalReference || 'unknown ref'}:`, error.message, error.stack);
     res.status(500).json({ error: 'Internal server error processing callback' });
   }
 });
