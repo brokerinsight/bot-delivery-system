@@ -1591,9 +1591,9 @@
       document.body.classList.add('popup-active');
       retryBtn.classList.add('hidden');
 
-      let timeLeft = 5 * 60;
-      const pollInterval = 15;
-      let elapsed = 0;
+      let timeLeft = 5 * 60; // 5 minutes timeout for the modal itself
+      const pollInterval = 3; // Check status every 3 seconds
+      let elapsedSinceLastPoll = 0; // Tracks time since last status poll
       let retryCount = 0;
       const maxRetries = 3;
 
@@ -1626,8 +1626,9 @@
         const percentage = (timeLeft / (5 * 60)) * 100;
         statusTimerBar.style.width = `${percentage}%`;
 
-        elapsed += 1;
-        if (refCode && elapsed % pollInterval === 0) {
+        elapsedSinceLastPoll += 1;
+        if (refCode && elapsedSinceLastPoll >= pollInterval) {
+          elapsedSinceLastPoll = 0; // Reset counter for next poll interval
           try {
             const statusRes = await fetchWithTimeout(`${BASE_URL}/api/order-status/${product.item}/${refCode}`, {
               credentials: 'include',
