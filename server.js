@@ -380,52 +380,55 @@ async function saveDataToDatabase(tasks = {}) {
     if (tasks.products) {
       console.log(`[${new Date().toISOString()}] Saving products...`);
       const productsToProcess = Array.isArray(tasks.products) ? tasks.products : cachedData.products;
-      // If tasks.products is an array, it means specific products were sent for update (e.g. from edit product)
-      // In this case, we only want to upsert these specific products.
-      // If tasks.products is just `true`, we process all from cachedData.products (e.g. after deleting a category affecting products).
 
-      const { data: existingProductsDb, error: fetchProdError } = await supabase
+      const { data: existingProductsDbData, error: fetchProdError } = await supabase
         .from('products')
         .select('item, file_id, original_file_name');
       if (fetchProdError) throw fetchProdError;
-      const existingProductsMap = new Map(existingProductsDb.map(p => [p.item, p]));
+      const existingProductsMap = new Map(existingProductsDbData.map(p => [p.item, p]));
 
-      const productsToUpsert = productsToProcess.map(p => {
-        const originalItemIfChanged = p.originalItem && p.originalItem !== p.item ? p.originalItem : p.item;
-        const existingDbProduct = existingProductsMap.get(originalItemIfChanged);
+      const productsToUpsert = productsToProcess.map(productBeingProcessed => {
+        // productBeingProcessed is from client if tasks.products is an array, or from cachedData otherwise.
+        // It might have an .originalItem property if client sent it (for ID changes).
+        const itemForDbLookup = productBeingProcessed.originalItem && productBeingProcessed.originalItem !== productBeingProcessed.item
+                               ? productBeingProcessed.originalItem
+                               : productBeingProcessed.item;
+        const existingDbProduct = existingProductsMap.get(itemForDbLookup);
 
         return {
-          item: p.item, // This is the new item ID if it changed
-          file_id: p.fileId || existingDbProduct?.file_id,
-          original_file_name: p.originalFileName || existingDbProduct?.original_file_name,
-          price: parseFloat(p.price) || 0,
-          name: p.name,
-          description: p.desc,
-          image: p.img,
-          category: p.category,
-          embed: p.embed,
-          is_new: typeof p.isNew === 'boolean' ? p.isNew : String(p.isNew).toLowerCase() === 'true',
-          is_archived: typeof p.isArchived === 'boolean' ? p.isArchived : String(p.isArchived).toLowerCase() === 'true'
+          item: productBeingProcessed.item,
+          file_id: productBeingProcessed.fileId || existingDbProduct?.file_id,
+          original_file_name: productBeingProcessed.originalFileName || existingDbProduct?.original_file_name,
+          price: parseFloat(productBeingProcessed.price) || 0,
+          name: productBeingProcessed.name,
+          description: productBeingProcessed.desc,
+          image: productBeingProcessed.img,
+          category: productBeingProcessed.category,
+          embed: productBeingProcessed.embed,
+          is_new: typeof productBeingProcessed.isNew === 'boolean' ? productBeingProcessed.isNew : String(productBeingProcessed.isNew).toLowerCase() === 'true',
+          is_archived: typeof productBeingProcessed.isArchived === 'boolean' ? productBeingProcessed.isArchived : String(productBeingProcessed.isArchived).toLowerCase() === 'true',
+          originalItem: productBeingProcessed.originalItem // Carry over originalItem if present
         };
       });
 
       if (productsToUpsert.length > 0) {
-        for (const product of productsToUpsert) {
-          // If item ID changed, we need to delete the old record first if it exists
-          const originalItem = tasks.products === true ? null : productsToProcess.find(p => p.item === product.item)?.originalItem;
-          if (originalItem && originalItem !== product.item) {
-            const { error: deleteOldError } = await supabase.from('products').delete().eq('item', originalItem);
+        for (const productDataToUpsert of productsToUpsert) { // Renamed loop variable
+          const originalItemToDelete = productDataToUpsert.originalItem;
+
+          if (originalItemToDelete && originalItemToDelete !== productDataToUpsert.item) {
+            const { error: deleteOldError } = await supabase.from('products').delete().eq('item', originalItemToDelete);
             if (deleteOldError) {
-                console.warn(`[${new Date().toISOString()}] Failed to delete old product record for item ${originalItem} during ID change: ${deleteOldError.message}`);
-                // Decide if this should be a hard error or just a warning
+                console.warn(`[${new Date().toISOString()}] Failed to delete old product record for item ${originalItemToDelete} during ID change: ${deleteOldError.message}`);
             } else {
-                console.log(`[${new Date().toISOString()}] Deleted old product record for item ${originalItem} due to ID change to ${product.item}`);
+                console.log(`[${new Date().toISOString()}] Deleted old product record for item ${originalItemToDelete} due to ID change to ${productDataToUpsert.item}`);
             }
           }
-          // Now upsert. If it was an ID change, this will be an insert. Otherwise, an update or insert.
-          const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
+
+          // Remove originalItem before upserting as it's not a DB column
+          const { originalItem, ...dbProductPayload } = productDataToUpsert;
+          const { error: upsertError } = await supabase.from('products').upsert(dbProductPayload, { onConflict: 'item' });
           if (upsertError) {
-            console.error(`[${new Date().toISOString()}] Error upserting product ${product.item}:`, upsertError.message, upsertError.details);
+            console.error(`[${new Date().toISOString()}] Error upserting product ${dbProductPayload.item}:`, upsertError.message, upsertError.details);
             throw upsertError;
           }
         }
@@ -680,9 +683,16 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     }
 
     const saveTasks = {};
-    if (req.body.hasOwnProperty('products') && overallDataChanged) {
-      saveTasks.products = true;
+    if (req.body.hasOwnProperty('products') && Array.isArray(req.body.products) && overallDataChanged) {
+      // Pass the actual array of products if it's a specific update
+      saveTasks.products = req.body.products;
+    } else if (req.body.hasOwnProperty('products') && overallDataChanged) {
+      // Fallback or if products key is present but not an array (e.g. indicating full sync from cache)
+      // This case needs careful consideration based on client behavior.
+      // For now, assume if 'products' key is there, it implies cachedData.products might have changed.
+      saveTasks.products = true; // Indicates full sync from cachedData.products
     }
+
     if (req.body.hasOwnProperty('categories') && overallDataChanged) {
       saveTasks.categories = true;
     }
