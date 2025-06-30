@@ -315,25 +315,38 @@ async function refreshCache() {
 
 async function saveDataToDatabase() {
   try {
+    // Save Products
     const { data: existingProductsDb, error: fetchError } = await supabase
       .from('products')
       .select('item, file_id, original_file_name');
     if (fetchError) throw fetchError;
     const existingProductsMap = new Map(existingProductsDb.map(p => [p.item, p]));
+
     const productsToUpsert = cachedData.products.map(p => {
       const existing = existingProductsMap.get(p.item);
+      // This mapping must EXACTLY match your Supabase 'products' table column names
       return {
-        item: p.item,
-        file_id: existing?.file_id || p.fileId,
-        original_file_name: existing?.original_file_name || p.originalFileName,
-        price: p.price, price_kes: p.price_kes, name: p.name,
-        description: p.desc, image: p.img, category: p.category,
-        embed: p.embed, is_new: p.isNew, is_archived: p.isArchived
+        item: p.item, // PK
+        file_id: p.fileId || existing?.file_id, // Use new fileId if present (e.g. from /api/add-bot), else existing
+        original_file_name: p.originalFileName || existing?.original_file_name,
+        price: parseFloat(p.price) || 0,
+        price_kes: p.price_kes ? parseFloat(p.price_kes) : null,
+        name: p.name,
+        description: p.desc, // Assuming DB column is 'description' for cached 'desc'
+        image: p.img,       // Assuming DB column is 'image' for cached 'img'
+        category: p.category,
+        embed: p.embed,
+        is_new: typeof p.isNew === 'boolean' ? p.isNew : (p.isNew === 'true'), // Ensure boolean
+        is_archived: typeof p.isArchived === 'boolean' ? p.isArchived : (p.isArchived === 'true') // Ensure boolean
       };
     });
+
     for (const product of productsToUpsert) {
       const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
-      if (upsertError) throw upsertError;
+      if (upsertError) {
+          console.error(`[${new Date().toISOString()}] Error upserting product ${product.item}:`, upsertError.message, upsertError.details);
+          throw upsertError;
+      }
     }
     const currentProductItems = new Set(cachedData.products.map(p => p.item));
     const productsToDelete = existingProductsDb.filter(p => !currentProductItems.has(p.item));
@@ -341,6 +354,7 @@ async function saveDataToDatabase() {
       await supabase.from('products').delete().in('item', productsToDelete.map(p => p.item));
     }
 
+    // Save Settings
     await supabase.from('settings').delete().neq('key', 'this_is_a_dummy_condition_to_delete_all');
     const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => ({
         key,
@@ -348,11 +362,13 @@ async function saveDataToDatabase() {
     }));
     await supabase.from('settings').insert(settingsToInsert);
 
+    // Save Categories
     await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all');
     if (cachedData.categories.length > 0) {
       await supabase.from('categories').insert(cachedData.categories.map(c => ({ name: c })));
     }
 
+    // Save Static Pages
     await supabase.from('static_pages').delete().neq('slug', 'this_is_a_dummy_condition_to_delete_all');
     if (cachedData.staticPages.length > 0) {
       await supabase.from('static_pages').insert(cachedData.staticPages.map(page => ({
@@ -367,6 +383,7 @@ async function saveDataToDatabase() {
     throw error;
   }
 }
+
 
 async function deleteOldOrders() {
   try {
@@ -448,48 +465,93 @@ app.get('/api/data', async (req, res) => {
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
     console.log(`[${new Date().toISOString()}] Received payload for /api/save-data:`, JSON.stringify(req.body, null, 2));
-    let dataChanged = false;
+    let overallDataChanged = false; // Flag to track if any part of cachedData changed
 
-    if (req.body.products) {
-        cachedData.products = req.body.products.map(p => ({
-            ...p,
-            fileId: p.fileId || cachedData.products.find(cp => cp.item === p.item)?.fileId,
-            originalFileName: p.originalFileName || cachedData.products.find(cp => cp.item === p.item)?.originalFileName,
-            price: parseFloat(p.price) || 0,
-            price_kes: p.price_kes ? parseFloat(p.price_kes) : null
-        }));
-        dataChanged = true;
-        console.log(`[${new Date().toISOString()}] Products data updated in cache.`);
+    // Handle Products: Merge updates or replace if a full list is sent.
+    // This assumes `virus.html` sends product updates within an array `req.body.products`.
+    // If `req.body.products` is intended to be a complete replacement:
+    if (req.body.hasOwnProperty('products') && Array.isArray(req.body.products)) {
+        console.log(`[${new Date().toISOString()}] Processing products update...`);
+        // Create a map of existing products for efficient lookup and update
+        const productCacheMap = new Map(cachedData.products.map(p => [p.item, p]));
+        let productsChangedThisSave = false;
+
+        req.body.products.forEach(incomingProduct => {
+            const existingProduct = productCacheMap.get(incomingProduct.item);
+            const productDataForCache = {
+                item: incomingProduct.item,
+                fileId: incomingProduct.fileId || existingProduct?.fileId,
+                originalFileName: incomingProduct.originalFileName || existingProduct?.originalFileName,
+                price: parseFloat(incomingProduct.price) || 0,
+                price_kes: incomingProduct.price_kes ? parseFloat(incomingProduct.price_kes) : null,
+                name: incomingProduct.name,
+                desc: incomingProduct.desc,
+                img: incomingProduct.img,
+                category: incomingProduct.category,
+                embed: incomingProduct.embed,
+                isNew: incomingProduct.isNew === true || String(incomingProduct.isNew).toLowerCase() === 'true',
+                isArchived: incomingProduct.isArchived === true || String(incomingProduct.isArchived).toLowerCase() === 'true'
+            };
+
+            if (existingProduct) {
+                // Update existing product in map
+                productCacheMap.set(incomingProduct.item, { ...existingProduct, ...productDataForCache });
+            } else {
+                // Add new product to map
+                productCacheMap.set(incomingProduct.item, productDataForCache);
+            }
+            productsChangedThisSave = true; // Assume change if products array is processed
+        });
+
+        // If the admin panel sends the *entire* list of products every time it saves one product,
+        // then simply replacing cachedData.products is fine.
+        // If it sends only *changed/new* products, we need a more careful merge or rely on item IDs.
+        // The current logic using productCacheMap aims to merge/update.
+        // Convert map back to array
+        cachedData.products = Array.from(productCacheMap.values());
+        if(productsChangedThisSave) overallDataChanged = true;
+        console.log(`[${new Date().toISOString()}] Products data updated in cache. Total products: ${cachedData.products.length}`);
     }
 
-    if (req.body.categories) {
-        cachedData.categories = [...new Set(req.body.categories)];
-        dataChanged = true;
-        console.log(`[${new Date().toISOString()}] Categories data updated in cache.`);
+
+    // Handle Categories: Assume req.body.categories is the full new list
+    if (req.body.hasOwnProperty('categories') && Array.isArray(req.body.categories)) {
+        if (JSON.stringify(cachedData.categories) !== JSON.stringify(req.body.categories)) {
+            cachedData.categories = [...new Set(req.body.categories)];
+            overallDataChanged = true;
+            console.log(`[${new Date().toISOString()}] Categories data updated in cache.`);
+        }
     }
 
-    if (req.body.staticPages) {
-        cachedData.staticPages = req.body.staticPages;
-        dataChanged = true;
-        console.log(`[${new Date().toISOString()}] Static pages data updated in cache.`);
+    // Handle Static Pages: Assume req.body.staticPages is the full new list
+    if (req.body.hasOwnProperty('staticPages') && Array.isArray(req.body.staticPages)) {
+         if (JSON.stringify(cachedData.staticPages) !== JSON.stringify(req.body.staticPages)) {
+            cachedData.staticPages = req.body.staticPages;
+            overallDataChanged = true;
+            console.log(`[${new Date().toISOString()}] Static pages data updated in cache.`);
+        }
     }
 
+    // Handle Settings (granular updates)
     if (req.body.settings) {
         const newSettings = req.body.settings;
-        let individualSettingUpdated = false;
+        let settingsValuesChanged = false;
 
         let currentPasswordHash = cachedData.settings.adminPassword;
-        if (newSettings.hasOwnProperty('adminPassword') && typeof newSettings.adminPassword === 'string' && newSettings.adminPassword.trim() !== '') {
-            const saltRounds = 10;
-            const newPasswordHash = await bcrypt.hash(newSettings.adminPassword.trim(), saltRounds);
-            if (newPasswordHash !== currentPasswordHash) {
-                cachedData.settings.adminPassword = newPasswordHash;
-                individualSettingUpdated = true;
-                console.log(`[${new Date().toISOString()}] Admin password has been updated.`);
+        if (newSettings.hasOwnProperty('adminPassword')) { // Check if adminPassword key exists in request
+            if (typeof newSettings.adminPassword === 'string' && newSettings.adminPassword.trim() !== '') {
+                const saltRounds = 10;
+                const newPasswordHash = await bcrypt.hash(newSettings.adminPassword.trim(), saltRounds);
+                if (newPasswordHash !== currentPasswordHash) {
+                    cachedData.settings.adminPassword = newPasswordHash;
+                    settingsValuesChanged = true;
+                    console.log(`[${new Date().toISOString()}] Admin password has been updated.`);
+                }
+            } else { // Password field sent but empty or null - explicitly do not change
+                console.log(`[${new Date().toISOString()}] Admin password field was present but empty/null; password NOT updated.`);
             }
-        } else if (newSettings.hasOwnProperty('adminPassword') && (newSettings.adminPassword === null || newSettings.adminPassword.trim() === '')) {
-            console.log(`[${new Date().toISOString()}] Admin password field was present but empty; password NOT updated, existing hash preserved.`);
         }
+        // If adminPassword was not in newSettings, currentPasswordHash (from cachedData.settings.adminPassword) is preserved implicitly.
 
         const updatableSimpleSettings = [
             'supportEmail', 'copyrightText', 'logoUrl',
@@ -501,45 +563,52 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
         for (const key of updatableSimpleSettings) {
             if (newSettings.hasOwnProperty(key)) {
                  let newValue = newSettings[key];
-                 if (key === 'fallbackRate') newValue = parseFloat(newValue) || cachedData.settings.fallbackRate;
+                 if (key === 'fallbackRate') {
+                     const parsedRate = parseFloat(newValue);
+                     newValue = isNaN(parsedRate) ? cachedData.settings.fallbackRate : parsedRate;
+                 }
 
                  if (newValue !== cachedData.settings[key]) {
                     cachedData.settings[key] = newValue;
-                    individualSettingUpdated = true;
+                    settingsValuesChanged = true;
                     console.log(`[${new Date().toISOString()}] Setting updated: ${key} = ${newValue}`);
                  }
             }
         }
 
-        if (newSettings.hasOwnProperty('socials') && typeof newSettings.socials === 'object') {
-            if (JSON.stringify(newSettings.socials) !== JSON.stringify(cachedData.settings.socials)) {
-                cachedData.settings.socials = newSettings.socials; // Simple overwrite, or use a deep merge if needed
-                individualSettingUpdated = true;
+        if (newSettings.hasOwnProperty('socials')) {
+            if (typeof newSettings.socials === 'object' && JSON.stringify(newSettings.socials) !== JSON.stringify(cachedData.settings.socials)) {
+                cachedData.settings.socials = newSettings.socials;
+                settingsValuesChanged = true;
                 console.log(`[${new Date().toISOString()}] Socials settings updated.`);
+            } else if (typeof newSettings.socials !== 'object') {
+                 console.warn(`[${new Date().toISOString()}] Received non-object for socials settings, ignoring.`);
             }
         }
-        if (newSettings.hasOwnProperty('urgentMessage') && typeof newSettings.urgentMessage === 'object') {
-             if (JSON.stringify(newSettings.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
-                cachedData.settings.urgentMessage = newSettings.urgentMessage; // Simple overwrite
-                individualSettingUpdated = true;
+        if (newSettings.hasOwnProperty('urgentMessage')) {
+             if (typeof newSettings.urgentMessage === 'object' && JSON.stringify(newSettings.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
+                cachedData.settings.urgentMessage = newSettings.urgentMessage;
+                settingsValuesChanged = true;
                 console.log(`[${new Date().toISOString()}] Urgent message settings updated.`);
+             } else if (typeof newSettings.urgentMessage !== 'object') {
+                 console.warn(`[${new Date().toISOString()}] Received non-object for urgentMessage settings, ignoring.`);
              }
         }
 
-        if (individualSettingUpdated) {
-            dataChanged = true;
+        if (settingsValuesChanged) {
+            overallDataChanged = true;
         } else if (Object.keys(newSettings).length > 0) {
-            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no values differed from current settings.`);
+            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no individual setting values differed from current cache.`);
         }
     }
 
-    if (dataChanged) {
+    if (overallDataChanged) {
         await saveDataToDatabase();
         res.json({ success: true, message: "Data saved successfully." });
-        console.log(`[${new Date().toISOString()}] Data saved successfully via /api/save-data.`);
+        console.log(`[${new Date().toISOString()}] Data saved successfully via /api/save-data due to detected changes.`);
     } else {
-        res.json({ success: true, message: "No changes detected in the provided data." });
-        console.log(`[${new Date().toISOString()}] /api/save-data called, but no data changed in cache.`);
+        res.json({ success: true, message: "No changes detected in the provided data to save." });
+        console.log(`[${new Date().toISOString()}] /api/save-data called, but no data changed in cache; DB save skipped.`);
     }
 
   } catch (error) {
@@ -547,6 +616,7 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to save data due to a server error.' });
   }
 });
+
 
 app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
@@ -580,26 +650,44 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
     }
     if (!uploadSuccess) throw new Error('Failed to upload file: too many collisions');
 
-    const productData = {
+    const productData = { // This is for cachedData
       item,
-      file_id: fileId,
-      original_file_name: originalFileName,
-      price: parseFloat(price),
+      fileId: fileId, // from upload
+      originalFileName: originalFileName, // from upload
+      price: parseFloat(price) || 0,
       price_kes: price_kes ? parseFloat(price_kes) : null,
       name,
-      description: desc,
-      image: img,
+      desc, // field name in cachedData
+      img,  // field name in cachedData
       category,
       embed,
-      is_new: isNew === 'true',
-      is_archived: false
+      isNew: isNew === 'true' || isNew === true,
+      isArchived: false
     };
 
-    await supabase.from('products').insert(productData);
+    // Directly insert into DB, then update cache via loadData()
+    // DB schema mapping:
+    const productForDB = {
+        item: productData.item,
+        file_id: productData.fileId,
+        original_file_name: productData.originalFileName,
+        price: productData.price,
+        price_kes: productData.price_kes,
+        name: productData.name,
+        description: productData.desc, // Map to DB column 'description'
+        image: productData.img,       // Map to DB column 'image'
+        category: productData.category,
+        embed: productData.embed,
+        is_new: productData.isNew,
+        is_archived: productData.isArchived
+    };
+
+    await supabase.from('products').insert(productForDB);
     await loadData();
-    res.json({ success: true, product: productData });
+    res.json({ success: true, product: productData }); // Return the cachedData structure
+    console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message, error.stack);
     res.status(500).json({ success: false, error: 'Failed to add bot' });
   }
 });
@@ -900,7 +988,6 @@ app.post('/api/logout', (req, res) => {
   }
 });
 
-// New endpoint for server-side STK push initiation
 app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   try {
     const { item, amount_kes, phone, customerName, used_exchange_rate } = req.body;
@@ -1012,7 +1099,6 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   }
 });
 
-// Modified endpoint for PayHero callback (to handle Direct API STK Push callback)
 app.post('/api/payhero-callback', async (req, res) => {
   console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received:`, JSON.stringify(req.body));
   try {
@@ -1061,11 +1147,6 @@ app.post('/api/payhero-callback', async (req, res) => {
         status: '',
         notes: notesForUpdate
     };
-    // If you add mpesa_receipt column to 'orders' table, uncomment below:
-    // if (mpesaReceiptIfAvailable) {
-    //    updatePayload.mpesa_receipt = mpesaReceiptIfAvailable;
-    // }
-
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}`);
@@ -1084,9 +1165,8 @@ app.post('/api/payhero-callback', async (req, res) => {
       }
     } else {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, Status: ${paymentGatewayStatus}`);
-      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`; // Default failure status
+      updatePayload.status = `failed_stk_cb_${ResultCode || 'unknown'}`;
 
-      // Map specific ResultCodes to more descriptive statuses
       if (ResultCode === 1) {
         updatePayload.status = 'failed_stk_insufficient_funds';
       } else if (ResultCode === 1032) {
@@ -1096,7 +1176,6 @@ app.post('/api/payhero-callback', async (req, res) => {
       } else if (ResultCode === 2001) {
         updatePayload.status = 'failed_stk_invalid_pin';
       }
-      // For other non-zero ResultCodes, the generic failed_stk_cb_{ResultCode} will be used.
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}`);
     }
 
