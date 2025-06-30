@@ -15,6 +15,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+  <script src="https://applet.payherokenya.com/cdn/button_sdk.js?v=3.1"></script>
   <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -595,6 +596,193 @@
       display: none;
     }
   }
+
+  /* PayHero Styles */
+  .payhero-button {
+    background-color: #00a884;
+    color: #fff;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .payhero-button:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .payhero-button:active {
+    transform: translateY(0);
+    filter: brightness(0.95);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .payhero-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.7);
+    animation: payheroFadeIn 0.3s ease;
+    backdrop-filter: blur(3px);
+  }
+
+  .payhero-modal-content {
+    background-color: #fff;
+    margin: 2vh auto;
+    padding: 0;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    max-width: 400px; /* Adjusted for a more compact form */
+    max-height: 90%;
+    animation: payheroSlideIn 0.3s ease;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .payhero-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eaeaea;
+  }
+
+  .payhero-modal-title {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+    font-weight: 600;
+  }
+
+  .payhero-close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: #999;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: color 0.2s;
+  }
+
+  .payhero-close-button:hover {
+    color: #333;
+  }
+
+  .payhero-form-container {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Spacing between form elements */
+  }
+
+  .payhero-form-container label {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 5px;
+  }
+
+  .payhero-form-container input[type="text"],
+  .payhero-form-container input[type="tel"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+    box-sizing: border-box; /* Ensures padding doesn't affect width */
+  }
+
+  .payhero-form-container .amount-display {
+    font-size: 18px;
+    font-weight: bold;
+    color: #16a34a;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .payhero-iframe-wrapper {
+    flex: 1;
+    width: 100%;
+    height: calc(100% - 53px); /* Adjusted for header */
+    overflow: hidden;
+  }
+
+  #paymentFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: none; /* Initially hidden */
+  }
+
+  .payhero-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: calc(100% - 53px); /* Adjusted for header */
+    flex-shrink: 0;
+  }
+
+  .payhero-spinner-dot {
+    width: 12px;
+    height: 12px;
+    margin: 0 4px;
+    background-color: #00a884;
+    border-radius: 50%;
+    display: inline-block;
+    animation: payheroBounceDot 1.4s infinite ease-in-out both;
+  }
+
+  .payhero-spinner-dot:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+
+  .payhero-spinner-dot:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+
+  @keyframes payheroBounceDot {
+    0%, 80%, 100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1.0);
+    }
+  }
+
+  @keyframes payheroFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes payheroSlideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @media (max-width: 768px) {
+    .payhero-modal-content {
+      width: 95% !important;
+      /* height: 85% !important; */ /* Let height be auto based on content */
+      margin: 5vh auto;
+    }
+  }
 </style>
 </head>
 <body class="bg-gray-100">
@@ -748,26 +936,72 @@
     </div>
   </div>
 
+  <!-- Payment Choice Modal -->
+  <div id="payment-choice-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+      <h3 class="text-xl font-bold text-gray-900 mb-4">Choose Payment Method</h3>
+      <p id="payment-choice-product-name" class="text-gray-700 mb-1"></p>
+      <p id="payment-choice-amount" class="text-green-600 font-bold mb-6"></p>
+      <button id="manual-mpesa-choice" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-3">Pay with Mpesa Till (Manual)</button>
+      <button id="payhero-choice" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Pay with Pay Hero (Instant)</button>
+      <button id="payment-choice-cancel" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
   <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-  <div class="bg-white rounded-lg p-6 w-full max-w-md">
-    <div id="countdown-timer" class="mb-4">
-      <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
-      <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-        <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+      <div id="countdown-timer" class="mb-4">
+        <p class="text-gray-600">Time remaining: <span id="timer-text">10:00</span></p>
+        <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div id="timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+      </div>
+      <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
+      <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
+      <div class="flex items-center space-x-2">
+        <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
+        <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+      </div>
+      <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
+      <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
+      <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+      <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+    </div>
+  </div>
+
+  <!-- PayHero Modal -->
+  <div id="payhero-modal" class="payhero-modal">
+    <div class="payhero-modal-content">
+      <div class="payhero-modal-header">
+        <h3 class="payhero-modal-title">Pay with Pay Hero</h3>
+        <button id="payhero-close-button" class="payhero-close-button" aria-label="Close payment form">×</button>
+      </div>
+      <div class="payhero-form-container">
+        <p class="amount-display">Amount: KES <span id="payhero-amount-display">0.00</span></p>
+        <div>
+          <label for="payhero-customer-name">Name (Optional):</label>
+          <input type="text" id="payhero-customer-name" placeholder="Enter your name">
+        </div>
+        <div>
+          <label for="payhero-phone-number">Mpesa Number:</label>
+          <input type="tel" id="payhero-phone-number" placeholder="e.g., 0712345678 or 254712345678">
+        </div>
+        <div id="payhero-payment-container">
+          <!-- PayHero SDK will inject button here -->
+        </div>
+         <p id="payhero-status-message" class="text-center text-sm mt-2"></p>
+      </div>
+      <div class="payhero-spinner" id="paymentSpinner" style="display: none;">
+        <div class="payhero-spinner-dot"></div>
+        <div class="payhero-spinner-dot"></div>
+        <div class="payhero-spinner-dot"></div>
+      </div>
+      <div class="payhero-iframe-wrapper">
+        <iframe id="paymentFrame" title="Payment Form" sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation allow-popups" style="display: none;"></iframe>
       </div>
     </div>
-    <h3 id="payment-title" class="text-xl font-bold text-gray-900 mb-4"></h3>
-    <p class="text-gray-600 mb-4">Please send the payment via MPESA to:</p>
-    <div class="flex items-center space-x-2">
-      <p class="font-semibold text-gray-900">Till Number: <span id="mpesa-till-number">4933614</span></p>
-      <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
-    </div>
-    <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-    <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
-    <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
-    <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   </div>
-</div>
+
   <div id="ref-code-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-md">
       <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Ref Code</h3>
@@ -1125,15 +1359,9 @@
       buyNowBtn.dataset.item = item;
       buyNowBtn.dataset.kesPrice = kesPrice;
       buyNowBtn.onclick = () => {
-        modal.classList.add('hidden');
-        document.body.classList.remove('popup-active');
-        showPaymentModal(product, kesPrice);
-        const confirmPaymentBtn = document.getElementById('confirm-payment');
-        confirmPaymentBtn.dataset.item = item;
-        confirmPaymentBtn.dataset.kesPrice = kesPrice;
-        const submitRefCodeBtn = document.getElementById('submit-ref-code');
-        submitRefCodeBtn.dataset.item = item;
-        submitRefCodeBtn.dataset.kesPrice = kesPrice;
+        // modal.classList.add('hidden'); // Keep details modal open for now, or close based on UX preference
+        // document.body.classList.remove('popup-active'); // Manage this based on whether details modal closes
+        showPaymentChoiceModal(product, kesPrice);
       };
 
       const testPayBtn = document.getElementById('details-test-pay');
@@ -1169,6 +1397,35 @@
 
     function filterProducts(category) {
       debouncedFilterProducts(category);
+    }
+
+    function showPaymentChoiceModal(product, kesPrice) {
+      const choiceModal = document.getElementById('payment-choice-modal');
+      document.getElementById('payment-choice-product-name').textContent = `Product: ${product.name}`;
+      document.getElementById('payment-choice-amount').textContent = `Amount: ${kesPrice} KES`;
+      choiceModal.classList.remove('hidden');
+      document.body.classList.add('popup-active');
+
+      const manualMpesaChoiceBtn = document.getElementById('manual-mpesa-choice');
+      const payheroChoiceBtn = document.getElementById('payhero-choice');
+      const cancelBtn = document.getElementById('payment-choice-cancel');
+
+      manualMpesaChoiceBtn.onclick = () => {
+        choiceModal.classList.add('hidden');
+        // document.body.classList.remove('popup-active'); // Manage based on next modal
+        showPaymentModal(product, kesPrice);
+      };
+
+      payheroChoiceBtn.onclick = () => {
+        choiceModal.classList.add('hidden');
+        // document.body.classList.remove('popup-active'); // Manage based on next modal
+        showPayHeroModal(product, kesPrice);
+      };
+
+      cancelBtn.onclick = () => {
+        choiceModal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
+      };
     }
 
     async function showPaymentModal(product, kesPrice) {
@@ -1221,7 +1478,8 @@
         });
       };
 
-      document.getElementById('confirm-payment').onclick = () => {
+      const confirmPaymentBtn = document.getElementById('confirm-payment');
+      confirmPaymentBtn.onclick = () => {
         clearInterval(countdown);
         const expiry = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
         document.cookie = `payment_${product.item}=initiated; expires=${expiry}; path=/`;
@@ -1230,6 +1488,9 @@
         document.body.classList.remove('popup-active');
         showRefCodeModal(product, kesPrice);
       };
+      confirmPaymentBtn.dataset.item = product.item; // Ensure item and kesPrice are set for this path too
+      confirmPaymentBtn.dataset.kesPrice = kesPrice;
+
 
       document.getElementById('payment-cancel').onclick = () => {
         clearInterval(countdown);
@@ -1237,6 +1498,122 @@
         document.body.classList.remove('popup-active');
       };
     }
+
+    async function showPayHeroModal(product, kesPrice) {
+      const modal = document.getElementById('payhero-modal');
+      const amountDisplay = document.getElementById('payhero-amount-display');
+      const customerNameInput = document.getElementById('payhero-customer-name');
+      const phoneNumberInput = document.getElementById('payhero-phone-number');
+      const payHeroPaymentContainer = document.getElementById('payhero-payment-container');
+      const payheroStatusMessage = document.getElementById('payhero-status-message');
+      const closeButton = document.getElementById('payhero-close-button');
+
+      amountDisplay.textContent = parseFloat(kesPrice).toFixed(2);
+      payheroStatusMessage.textContent = ''; // Clear previous messages
+      payHeroPaymentContainer.innerHTML = ''; // Clear previous button
+
+      modal.style.display = 'flex';
+      document.body.classList.add('popup-active');
+
+      closeButton.onclick = () => {
+        modal.style.display = 'none';
+        document.body.classList.remove('popup-active');
+        // Potentially clear PayHero.init() if it leaves listeners
+      };
+
+      // Generate a unique reference for this transaction attempt
+      const clientSideReference = `PH-${product.item}-${Date.now()}`;
+
+      PayHero.init({
+        paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003",
+        width: "100%",
+        height: "auto", // Let button size itself
+        containerId: "payhero-payment-container", // ID of the div to inject the button
+        channelID: parseInt(settings.payheroChannelId) || 2332,
+        amount: parseFloat(kesPrice).toFixed(2), // Ensure it's a number
+        phone: phoneNumberInput.value, // Get current value
+        name: customerNameInput.value, // Get current value
+        reference: clientSideReference,
+        buttonName: `Pay KES ${parseFloat(kesPrice).toFixed(2)}`,
+        buttonColor: "#00a884",
+        successUrl: null, // Handle via event listener
+        failedUrl: null,  // Handle via event listener
+        callbackUrl: `${BASE_URL}/api/payhero-callback` // Server-side callback
+      });
+
+      // Update PayHero SDK parameters if phone or name changes
+      const updatePayHeroParams = () => {
+        PayHero.init({ // Re-init or update if SDK supports it
+            paymentUrl: settings.payheroPaymentUrl || "https://app.payhero.co.ke/lipwa/2003",
+            width: "100%",
+            height: "auto",
+            containerId: "payhero-payment-container",
+            channelID: parseInt(settings.payheroChannelId) || 2332,
+            amount: parseFloat(kesPrice).toFixed(2),
+            phone: phoneNumberInput.value.trim(),
+            name: customerNameInput.value.trim(),
+            reference: clientSideReference,
+            buttonName: `Pay KES ${parseFloat(kesPrice).toFixed(2)}`,
+            buttonColor: "#00a884",
+            successUrl: null,
+            failedUrl: null,
+            callbackUrl: `${BASE_URL}/api/payhero-callback`
+        });
+      };
+
+      phoneNumberInput.addEventListener('input', updatePayHeroParams);
+      customerNameInput.addEventListener('input', updatePayHeroParams);
+    }
+
+    // Centralized PayHero event listener
+    window.addEventListener('message', async function(event) {
+        if (event.data.paymentSuccess) {
+            console.log("PayHero Payment Successful (Client-side):", event.data);
+            const { amount, channel, customerName, phone, provider, providerReference, reference, user_reference } = event.data;
+
+            // Find the product associated with this payment (user_reference should be our clientSideReference)
+            const productItemMatch = user_reference.match(/^PH-(.+?)-\d+$/);
+            if (!productItemMatch || !productItemMatch[1]) {
+                console.error("Could not extract product item from PayHero reference:", user_reference);
+                document.getElementById('payhero-status-message').textContent = 'Error processing payment. Invalid reference.';
+                return;
+            }
+            const productItem = productItemMatch[1];
+            const product = products.find(p => p.item === productItem);
+
+            if (!product) {
+                console.error("Product not found for item:", productItem);
+                document.getElementById('payhero-status-message').textContent = 'Error: Product not found for this transaction.';
+                return;
+            }
+
+            document.getElementById('payhero-status-message').textContent = 'Payment successful! Preparing your download...';
+            document.getElementById('payhero-modal').style.display = 'none'; // Hide PayHero modal
+            // document.body.classList.remove('popup-active'); // Manage active popup state
+
+            // We expect the server-side callback to handle order confirmation and download link generation.
+            // For robustness, we can also poll the server for status if direct client-side download is needed.
+            // For now, we'll rely on the server callback and then potentially show a status modal.
+
+            // Show a generic status modal while waiting for server confirmation / download link
+            await showStatusModal(product, user_reference, 'Payment confirmed by PayHero. Waiting for server to finalize...', true); // Use user_reference
+
+            // Optional: Directly attempt download if server provides link in PayHero success event (not standard)
+            // if (event.data.downloadLink) {
+            //   await downloadFile(event.data.downloadLink, product.name);
+            // }
+
+        } else if (event.data.paymentSuccess === false) { // Explicitly check for false
+            console.log("PayHero Payment Failed (Client-side):", event.data);
+            document.getElementById('payhero-status-message').textContent = 'Payment failed. Please try again or use another method.';
+            // Optionally, keep the PayHero modal open or close it.
+            // setTimeout(() => {
+            //     document.getElementById('payhero-modal').style.display = 'none';
+            //     document.body.classList.remove('popup-active');
+            // }, 3000);
+        }
+    });
+
 
     async function initiateTestPayment(product, price) {
       try {
