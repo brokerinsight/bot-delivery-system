@@ -1466,28 +1466,28 @@ app.get('/api/nowpayments/currencies', async (req, res) => {
 
     for (const currency of enabledCurrencies) {
       let minAmount = null;
+      let minAmountCurrency = currency.code; // Default to the crypto's own code
       try {
-        // Assuming default conversion is from USD.
-        // currency.code should be the crypto (e.g., 'btc', 'eth')
-        // We want minimum for USD -> crypto, so currency_from=usd, currency_to=currency.code
-        // However, the /min-amount endpoint expects currency_from to be the crypto if currency_to is your payout currency.
-        // Let's assume the user pays in `currency.code` and you receive in USD (or your configured payout currency).
-        // The API doc says: "Get the minimum payment amount for a specific pair. You can provide both currencies in the pair or just currency_from,
-        // and we will calculate the minimum payment amount for currency_from and currency which you have specified as the outcome in the Payment Settings."
-        // So, we should use currency_from = currency.code and let NOWPayments use our default payout currency for currency_to.
-        const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${currency.code.toLowerCase()}&currency_to=usd`, { // Assuming payout is effectively USD or you want the USD equivalent minimum. Adjust currency_to if your payout is different.
+        // Omit currency_to to let NOWPayments use the default payout currency for the selected currency_from.
+        const minAmountResponse = await fetch(`https://api.nowpayments.io/v1/min-amount?currency_from=${currency.code.toLowerCase()}`, {
           headers: { 'x-api-key': apiKey }
         });
         if (minAmountResponse.ok) {
           const minAmountData = await minAmountResponse.json();
           minAmount = minAmountData.min_amount;
+          // minAmountData also returns currency_from and currency_to, which might be useful for display
+          // For now, we assume the min_amount is in terms of currency_from (the crypto itself)
+          minAmountCurrency = minAmountData.currency_from || currency.code;
         } else {
-          console.warn(`[${new Date().toISOString()}] Failed to fetch min amount for ${currency.code}: ${minAmountResponse.status}`);
+          const errorBody = await minAmountResponse.text();
+          console.warn(`[${new Date().toISOString()}] Failed to fetch min amount for ${currency.code}. Status: ${minAmountResponse.status}. Body: ${errorBody}`);
+          minAmount = null; // Ensure it's null if fetch fails
         }
       } catch (minAmountError) {
-        console.warn(`[${new Date().toISOString()}] Error fetching min amount for ${currency.code}: ${minAmountError.message}`);
+        console.warn(`[${new Date().toISOString()}] Network error fetching min amount for ${currency.code}: ${minAmountError.message}`);
+        minAmount = null; // Ensure it's null on network error
       }
-      currenciesWithMinAmounts.push({ ...currency, min_payment_amount: minAmount });
+      currenciesWithMinAmounts.push({ ...currency, min_payment_amount: minAmount, min_payment_currency: minAmountCurrency.toUpperCase() });
     }
     res.json({ success: true, currencies: currenciesWithMinAmounts });
   } catch (error) {
