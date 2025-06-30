@@ -1360,17 +1360,53 @@
 
       manualMpesaChoiceBtn.onclick = () => {
         choiceModal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
         showPaymentModal(product, kesPrice);
       };
 
       payheroChoiceBtn.onclick = () => {
         choiceModal.classList.add('hidden');
+        document.body.classList.remove('popup-active');
         showPayHeroModal(product, kesPrice);
       };
 
-      nowPaymentsChoiceBtn.onclick = () => {
-        choiceModal.classList.add('hidden');
-        showNowPaymentsModal(product, product.price); // Pass USD price to NOWPayments modal
+      nowPaymentsChoiceBtn.onclick = async () => {
+        // Add spinner and disable the button
+        const originalButtonText = nowPaymentsChoiceBtn.innerHTML;
+        nowPaymentsChoiceBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Loading...';
+        nowPaymentsChoiceBtn.disabled = true;
+        manualMpesaChoiceBtn.disabled = true;
+        payheroChoiceBtn.disabled = true;
+        cancelBtn.disabled = true;
+
+        try {
+          // Pre-fetch currencies here or ensure showNowPaymentsModal does it and handles UI updates
+          // For now, directly call showNowPaymentsModal which fetches currencies.
+          // The key is that showNowPaymentsModal will now handle its own loading state for currencies.
+          await showNowPaymentsModal(product, product.price); // Pass USD price
+          // Only hide choiceModal if showNowPaymentsModal successfully displayed the next modal
+          // This logic is now effectively handled inside showNowPaymentsModal if it takes over display
+          choiceModal.classList.add('hidden');
+          // popup-active will be managed by showNowPaymentsModal
+        } catch (error) {
+          // If showNowPaymentsModal itself throws an error (e.g., initial setup before currency fetch)
+          console.error("Error preparing NOWPayments modal:", error);
+          // Potentially show an error on the choice modal or an alert
+          alert("Could not load cryptocurrency payment option. Please try again or select another method.");
+        } finally {
+          // Re-enable buttons on the choice modal if it's still shown (e.g. if NOWPayments modal failed to open)
+          // However, if NOWPayments modal opened, it's responsible for its own lifecycle.
+          // This re-enabling should ideally only happen if an error prevented NOWPayments modal from opening.
+          if (!document.getElementById('nowpayments-modal').classList.contains('hidden')) {
+            // If nowpayments modal is visible, do nothing here, it handles its state
+          } else {
+            nowPaymentsChoiceBtn.innerHTML = originalButtonText;
+            nowPaymentsChoiceBtn.disabled = false;
+            manualMpesaChoiceBtn.disabled = false;
+            payheroChoiceBtn.disabled = false;
+            cancelBtn.disabled = false;
+          }
+        }
       };
 
       cancelBtn.onclick = () => {
@@ -1415,26 +1451,44 @@
 
       // Fetch available currencies for NOWPayments
       currencySelect.innerHTML = '<option value="">Loading currencies...</option>';
-      proceedBtn.disabled = true; // Disable proceed until currencies load
-      proceedBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 ..." viewBox="0 0 24 24">...</svg>Loading Currencies'; // Add spinner
+      proceedBtn.disabled = true;
+      // Spinner for the main proceed button of NOWPayments modal, not the choice modal button
+      const nowPaymentsProceedBtnSpinner = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>';
+      proceedBtn.innerHTML = `${nowPaymentsProceedBtnSpinner}Loading Currencies...`;
+
+
+      modal.classList.remove('hidden'); // Show modal immediately
+      document.body.classList.add('popup-active');
+      // Ensure modal is scrollable
+      const nowPaymentsModalContent = modal.querySelector('.bg-white');
+      nowPaymentsModalContent.style.maxHeight = '90vh';
+      nowPaymentsModalContent.style.overflowY = 'auto';
 
       try {
-        const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/currencies`);
-        if (!response.ok) throw new Error('Failed to load currencies');
+        const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/currencies`, {}, 20000); // Increased timeout for currency fetching
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({error: `HTTP error ${response.status}`}));
+            throw new Error(errorData.error || 'Failed to load currencies from server.');
+        }
         const data = await response.json();
         if (data.success && data.currencies) {
           populateCurrencyDropdown(data.currencies);
           proceedBtn.disabled = false;
           proceedBtn.innerHTML = 'Proceed to Payment';
         } else {
-          currencySelect.innerHTML = '<option value="">Error loading currencies</option>';
-           proceedBtn.innerHTML = 'Proceed to Payment'; // Still re-enable, but show error
+          currencySelect.innerHTML = '<option value="">Error: Could not load currencies.</option>';
+          statusMessageEl.textContent = data.error || 'Error loading currencies.';
+          statusMessageEl.style.color = 'red';
+          proceedBtn.innerHTML = 'Proceed to Payment'; // Re-enable but show error
+          proceedBtn.disabled = true; // Keep disabled if currencies failed to load
         }
       } catch (error) {
-        console.error('Error fetching NOWPayments currencies:', error);
-        currencySelect.innerHTML = '<option value="">Error loading currencies</option>';
-        proceedBtn.disabled = false;
-        proceedBtn.innerHTML = 'Proceed to Payment';
+        console.error('Error fetching NOWPayments currencies (showNowPaymentsModal):', error.message, error.name);
+        currencySelect.innerHTML = '<option value="">Error loading currencies. Please try again.</option>';
+        statusMessageEl.textContent = `Error loading currencies: ${error.message}. Please close and try again.`;
+        statusMessageEl.style.color = 'red';
+        proceedBtn.disabled = true;
+        proceedBtn.innerHTML = 'Unavailable (Currency Load Failed)';
       }
 
       currencySearchInput.oninput = () => {
