@@ -867,7 +867,7 @@ app.post('/api/logout', (req, res) => {
 // New endpoint for server-side STK push initiation
 app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   try {
-    const { item, amount_kes, phone, customerName } = req.body;
+    const { item, amount_kes, phone, customerName, used_exchange_rate } = req.body; // Added used_exchange_rate
 
     if (!item || !amount_kes || !phone) {
       return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
@@ -881,15 +881,23 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 
     const clientReportedKesAmount = Math.round(parseFloat(amount_kes));
     let expectedServerKesPrice;
+    let rateUsedForVerification = null;
 
-    if (product.price_kes) { // Prefer direct KES price if available
+    if (product.price_kes) {
         expectedServerKesPrice = Math.round(parseFloat(product.price_kes));
-    } else { // Fallback to USD price conversion
-        expectedServerKesPrice = Math.round(parseFloat(product.price) * (cachedData.settings.fallbackRate || 130));
+        rateUsedForVerification = 'N/A (Direct KES price used)';
+    } else if (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)) && parseFloat(used_exchange_rate) > 0) {
+        rateUsedForVerification = parseFloat(used_exchange_rate);
+        expectedServerKesPrice = Math.round(parseFloat(product.price) * rateUsedForVerification);
+        console.log(`[${new Date().toISOString()}] ServerSTK: Using client-provided exchange rate for verification: ${rateUsedForVerification}`);
+    } else {
+        rateUsedForVerification = cachedData.settings.fallbackRate || 130;
+        expectedServerKesPrice = Math.round(parseFloat(product.price) * rateUsedForVerification);
+        console.warn(`[${new Date().toISOString()}] ServerSTK: Client did not provide a valid exchange rate. Falling back to server rate: ${rateUsedForVerification} for item ${item}.`);
     }
 
     if (clientReportedKesAmount !== expectedServerKesPrice) {
-        console.error(`[${new Date().toISOString()}] ServerSTK: Amount mismatch for item ${item}. Client KES: ${clientReportedKesAmount}, Server Expected KES: ${expectedServerKesPrice}. Product USD Price: ${product.price}, Product KES Price: ${product.price_kes}, Rate: ${cachedData.settings.fallbackRate || 130}`);
+        console.error(`[${new Date().toISOString()}] ServerSTK: Amount mismatch for item ${item}. Client KES: ${clientReportedKesAmount}, Server Expected KES: ${expectedServerKesPrice}. Product USD Price: ${product.price}, Product KES Price: ${product.price_kes}, Rate Used for Verification: ${rateUsedForVerification}`);
         return res.status(400).json({ success: false, error: 'Price verification failed. Please try again or contact support.' });
     }
 
