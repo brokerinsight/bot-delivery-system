@@ -1236,7 +1236,7 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
 });
 
 app.post('/api/payhero-callback', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // Enhanced RAW BODY Log
+  // console.log(`[${new Date().toISOString()}] PayHero Direct API Callback Received RAW BODY:`, JSON.stringify(req.body, null, 2)); // RAW BODY Log REMOVED
   try {
     // It's crucial to handle cases where req.body or req.body.response might be undefined or not structured as expected.
     if (!req.body || typeof req.body !== 'object') {
