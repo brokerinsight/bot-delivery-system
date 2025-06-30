@@ -226,14 +226,14 @@ async function loadData() {
       fileId: row.file_id,
       originalFileName: row.original_file_name,
       price: parseFloat(row.price),
-      price_kes: row.price_kes ? parseFloat(row.price_kes) : null,
+      // price_kes removed as it's not in the products table schema
       name: row.name,
-      desc: row.description || '',
-      img: row.image || 'https://via.placeholder.com/300',
+      desc: row.description || '', // Map DB 'description' to 'desc' for cache
+      img: row.image || 'https://via.placeholder.com/300', // Map DB 'image' to 'img' for cache
       category: row.category || 'General',
       embed: row.embed || '',
-      isNew: row.is_new || false,
-      isArchived: row.is_archived || false
+      isNew: row.is_new || false, // Map DB 'is_new' to 'isNew' for cache
+      isArchived: row.is_archived || false // Map DB 'is_archived' to 'isArchived' for cache
     })) || [];
 
     const settingsRes = await supabase.from('settings').select('key, value');
@@ -315,7 +315,55 @@ async function refreshCache() {
 
 async function saveDataToDatabase() {
   try {
-    // Save Products
+    // Save Categories first due to FK constraint from products.category -> categories.name
+    await supabase.from('categories').delete().neq('name', 'this_is_a_dummy_condition_to_delete_all');
+    if (cachedData.categories.length > 0) {
+      const categoriesToInsert = cachedData.categories.map(c => ({ name: c }));
+      const { error: catError } = await supabase.from('categories').insert(categoriesToInsert);
+      if (catError) {
+          console.error(`[${new Date().toISOString()}] Error inserting categories:`, catError.message, catError.details);
+          throw catError;
+      }
+      console.log(`[${new Date().toISOString()}] Categories saved to Supabase.`);
+    } else {
+      console.log(`[${new Date().toISOString()}] No categories to save to Supabase.`);
+    }
+
+    // Save Settings
+    await supabase.from('settings').delete().neq('key', 'this_is_a_dummy_condition_to_delete_all');
+    if (Object.keys(cachedData.settings).length > 0) {
+        const settingsToInsert = Object.entries(cachedData.settings).map(([key, value]) => ({
+            key,
+            value: typeof value === 'object' ? JSON.stringify(value) : String(value)
+        }));
+        const { error: settingsError } = await supabase.from('settings').insert(settingsToInsert);
+        if (settingsError) {
+            console.error(`[${new Date().toISOString()}] Error inserting settings:`, settingsError.message, settingsError.details);
+            throw settingsError;
+        }
+        console.log(`[${new Date().toISOString()}] Settings saved to Supabase.`);
+    } else {
+        console.log(`[${new Date().toISOString()}] No settings to save to Supabase.`);
+    }
+
+
+    // Save Static Pages
+    await supabase.from('static_pages').delete().neq('slug', 'this_is_a_dummy_condition_to_delete_all');
+    if (cachedData.staticPages.length > 0) {
+      const pagesToInsert = cachedData.staticPages.map(page => ({
+          title: page.title, slug: page.slug, content: page.content
+      }));
+      const { error: pagesError } = await supabase.from('static_pages').insert(pagesToInsert);
+      if (pagesError) {
+          console.error(`[${new Date().toISOString()}] Error inserting static pages:`, pagesError.message, pagesError.details);
+          throw pagesError;
+      }
+      console.log(`[${new Date().toISOString()}] Static pages saved to Supabase.`);
+    } else {
+      console.log(`[${new Date().toISOString()}] No static pages to save to Supabase.`);
+    }
+
+    // Save Products (depends on categories being present)
     const { data: existingProductsDb, error: fetchError } = await supabase
       .from('products')
       .select('item, file_id, original_file_name');
@@ -327,26 +375,33 @@ async function saveDataToDatabase() {
       // This mapping must EXACTLY match your Supabase 'products' table column names
       return {
         item: p.item, // PK
-        file_id: p.fileId || existing?.file_id, // Use new fileId if present (e.g. from /api/add-bot), else existing
+        file_id: p.fileId || existing?.file_id,
         original_file_name: p.originalFileName || existing?.original_file_name,
         price: parseFloat(p.price) || 0,
-        price_kes: p.price_kes ? parseFloat(p.price_kes) : null,
+        // price_kes removed
         name: p.name,
-        description: p.desc, // Assuming DB column is 'description' for cached 'desc'
-        image: p.img,       // Assuming DB column is 'image' for cached 'img'
+        description: p.desc, // DB column is 'description'
+        image: p.img,       // DB column is 'image'
         category: p.category,
         embed: p.embed,
-        is_new: typeof p.isNew === 'boolean' ? p.isNew : (p.isNew === 'true'), // Ensure boolean
-        is_archived: typeof p.isArchived === 'boolean' ? p.isArchived : (p.isArchived === 'true') // Ensure boolean
+        is_new: typeof p.isNew === 'boolean' ? p.isNew : String(p.isNew).toLowerCase() === 'true',
+        is_archived: typeof p.isArchived === 'boolean' ? p.isArchived : String(p.isArchived).toLowerCase() === 'true'
+        // created_at is managed by DB default on insert, and should not be updated manually here
+        // unless specifically intended (which is not the case for general upserts).
       };
     });
 
-    for (const product of productsToUpsert) {
-      const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
-      if (upsertError) {
-          console.error(`[${new Date().toISOString()}] Error upserting product ${product.item}:`, upsertError.message, upsertError.details);
-          throw upsertError;
-      }
+    if (productsToUpsert.length > 0) {
+        for (const product of productsToUpsert) {
+          const { error: upsertError } = await supabase.from('products').upsert(product, { onConflict: 'item' });
+          if (upsertError) {
+              console.error(`[${new Date().toISOString()}] Error upserting product ${product.item}:`, upsertError.message, upsertError.details);
+              throw upsertError;
+          }
+        }
+        console.log(`[${new Date().toISOString()}] ${productsToUpsert.length} products upserted to Supabase.`);
+    } else {
+        console.log(`[${new Date().toISOString()}] No products to upsert in this saveDataToDatabase call.`);
     }
     const currentProductItems = new Set(cachedData.products.map(p => p.item));
     const productsToDelete = existingProductsDb.filter(p => !currentProductItems.has(p.item));
@@ -618,8 +673,10 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     }
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error in /api/save-data:`, error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to save data due to a server error.' });
+    console.error(`[${new Date().toISOString()}] Error in /api/save-data route:`, error.message, error.stack);
+    // Check if the error has a 'details' property, which Supabase errors often do
+    const errorMessage = error.details ? `${error.message} - ${error.details}` : error.message;
+    res.status(500).json({ success: false, error: `Failed to save data: ${errorMessage}` });
   }
 });
 
@@ -678,19 +735,34 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
         file_id: productData.fileId,
         original_file_name: productData.originalFileName,
         price: productData.price,
-        price_kes: productData.price_kes,
+        // price_kes removed as it's not in the DB schema for products
         name: productData.name,
-        description: productData.desc, // Map to DB column 'description'
-        image: productData.img,       // Map to DB column 'image'
+        description: productData.desc,
+        image: productData.img,
         category: productData.category,
         embed: productData.embed,
         is_new: productData.isNew,
         is_archived: productData.isArchived
+        // created_at will be set by DB default
     };
 
-    await supabase.from('products').insert(productForDB);
-    await loadData();
-    res.json({ success: true, product: productData }); // Return the cachedData structure
+    const { error: insertError } = await supabase.from('products').insert(productForDB);
+    if (insertError) {
+        console.error(`[${new Date().toISOString()}] Error inserting new bot into DB:`, insertError.message, insertError.details);
+        // Attempt to delete the orphaned file from storage
+        if (productData.fileId) {
+            await supabase.storage.from('bots').remove([productData.fileId]);
+            console.log(`[${new Date().toISOString()}] Orphaned file ${productData.fileId} deleted from storage due to DB insert failure.`);
+        }
+        throw insertError; // This will be caught by the main catch block
+    }
+
+    await loadData(); // Refresh cache after successful DB operation
+    // The productData for the response should reflect the structure in cachedData,
+    // which might differ slightly from productForDB (e.g. desc vs description).
+    // loadData() populates cachedData correctly, so find the newly added product from there.
+    const newProductInCache = cachedData.products.find(p => p.item === productData.item);
+    res.json({ success: true, product: newProductInCache || productData });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message, error.stack);
