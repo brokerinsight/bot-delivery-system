@@ -249,18 +249,47 @@
         async function initializeStaticPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const slug = urlParams.get('slug');
+            const loadingDiv = document.getElementById('loading-page');
+            const contentContainer = document.getElementById('page-content-container');
 
             if (!slug) {
-                document.getElementById('loading-page').textContent = 'No page slug specified.';
+                loadingDiv.innerHTML = `No page specified. Please check the URL or <a href="/" class="text-green-600 underline hover:text-green-700">return to the homepage</a>.`;
+                loadingDiv.classList.remove('hidden'); // Make sure it's visible
+                contentContainer.classList.add('hidden');
+                // Still attempt to load shared elements like footer/nav if settings can be fetched
+                try {
+                    const response = await axios.get(`${BASE_URL}/api/data`);
+                    settings = response.data.settings || {};
+                    allStaticPages = response.data.staticPages || [];
+                    populateSharedElements();
+                } catch (e) { console.error("Could not load shared elements for error page:", e); }
                 return;
             }
 
-            const pageData = await fetchPageData(slug);
+            const pageData = await fetchPageData(slug); // fetchPageData now handles its own error display for data fetch failure
+
             if (pageData) {
                 populatePageData(pageData);
-                populateSharedElements(); // Call after settings and allStaticPages are fetched
-                document.getElementById('loading-page').classList.add('hidden');
-                document.getElementById('page-content-container').classList.remove('hidden');
+                populateSharedElements();
+                loadingDiv.classList.add('hidden');
+                contentContainer.classList.remove('hidden');
+            } else {
+                // If pageData is null (means page not found by fetchPageData or fetch itself failed)
+                // fetchPageData would have already updated loadingDiv with an error.
+                // Ensure content container is hidden and loading/error div is visible.
+                loadingDiv.classList.remove('hidden');
+                contentContainer.classList.add('hidden');
+                // Attempt to load shared elements even on page not found, if settings are available
+                if (Object.keys(settings).length > 0 || allStaticPages.length > 0) {
+                     populateSharedElements();
+                } else {
+                     try { // Try to fetch settings if not already available
+                        const response = await axios.get(`${BASE_URL}/api/data`);
+                        settings = response.data.settings || {};
+                        allStaticPages = response.data.staticPages || [];
+                        populateSharedElements();
+                    } catch (e) { console.error("Could not load shared elements for error page:", e); }
+                }
             }
         }
     </script>

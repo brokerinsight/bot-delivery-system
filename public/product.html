@@ -784,25 +784,62 @@
         async function initializeProductPage() {
             const urlParams = new URLSearchParams(window.location.search);
             const itemId = urlParams.get('item');
+            const loadingDiv = document.getElementById('loading-product');
+            const productContainer = document.getElementById('product-details-container');
+            const relatedSection = document.getElementById('related-products-section');
+
+            loadingDiv.classList.remove('hidden'); // Ensure loading message is visible initially
+            productContainer.classList.add('hidden');
+            relatedSection.classList.add('hidden');
+
 
             if (!itemId) {
-                document.getElementById('loading-product').textContent = 'No product item specified.';
+                loadingDiv.innerHTML = `No product item specified. Please <a href="/index.html" class="text-green-600 underline hover:text-green-700">visit our store</a> to select a product.`;
+                // Attempt to load shared elements like footer/nav for context
+                try {
+                    const response = await axios.get(`${BASE_URL}/api/data`); // Fetch settings for shared elements
+                    settings = response.data.settings || {};
+                    allStaticPages = response.data.staticPages || [];
+                    populateSharedElements();
+                } catch (e) { console.error("Could not load shared elements for error page:", e); }
                 return;
             }
 
-            const dataFetched = await fetchProductPageData(itemId);
-            if (dataFetched && currentProduct) {
-                populateProductData();
-                populateSharedElements();
-                document.getElementById('loading-product').classList.add('hidden');
-                document.getElementById('product-details-container').classList.remove('hidden');
-                document.getElementById('related-products-section').classList.remove('hidden');
+            const dataFetchedSuccessfully = await fetchProductPageData(itemId); // This function now sets currentProduct, allProducts, settings, staticPages
+
+            if (dataFetchedSuccessfully && currentProduct) {
+                populateProductData(); // Populates main product content, meta tags, schema
+                populateSharedElements(); // Populates nav, footer
+
+                loadingDiv.classList.add('hidden');
+                productContainer.classList.remove('hidden');
+                relatedSection.classList.remove('hidden');
+
                 if (lazyLoadInstance) lazyLoadInstance.update();
 
                 const loadingRelatedDiv = document.getElementById('loading-related');
-                if(loadingRelatedDiv) observer.observe(loadingRelatedDiv);
-            } else if (dataFetched && !currentProduct) {
-                 // fetchProductPageData already updated the loading message to "Product not found"
+                if(loadingRelatedDiv && allProducts.filter(p => p.item !== currentProduct.item).length > 0) { // Only observe if there are related products
+                    observer.observe(loadingRelatedDiv);
+                } else if (loadingRelatedDiv) {
+                    loadingRelatedDiv.classList.add('hidden'); // Hide if no related products
+                }
+            } else {
+                // fetchProductPageData or the check for currentProduct already handled the error message in loadingDiv.
+                // Ensure main content areas remain hidden.
+                productContainer.classList.add('hidden');
+                relatedSection.classList.add('hidden');
+                loadingDiv.classList.remove('hidden'); // Ensure error message is visible
+                 // Attempt to load shared elements even on error
+                if (Object.keys(settings).length > 0 || allStaticPages.length > 0) { // If settings were fetched by fetchProductPageData
+                     populateSharedElements();
+                } else { // If fetchProductPageData failed very early
+                     try {
+                        const response = await axios.get(`${BASE_URL}/api/data`);
+                        settings = response.data.settings || {};
+                        allStaticPages = response.data.staticPages || [];
+                        populateSharedElements();
+                    } catch (e) { console.error("Could not load shared elements for error page:", e); }
+                }
             }
         }
 
