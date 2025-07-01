@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Deriv Bot Store - Your Automated Trading Solution</title>
+    <meta name="description" content="Discover powerful and reliable Deriv trading bots at Deriv Bot Store. Automate your trading strategies and maximize your potential.">
+    <meta name="keywords" content="Deriv bots, trading automation, forex bots, binary options bots, automated trading, Deriv store">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Open Graph Tags for Social Sharing -->
+    <meta property="og:title" content="Welcome to Deriv Bot Store">
+    <meta property="og:description" content="Automate your trading with our advanced Deriv bots.">
+    <meta property="og:image" content="/favicon.png"> <!-- Replace with a specific landing page image URL if available -->
+    <meta property="og:url" content="https://botblitz.store/landing.html"> <!-- Update with actual domain -->
+    <meta property="og:type" content="website">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .hero-section {
+            background: linear-gradient(135deg, #16a34a 0%, #1e3a8a 100%); /* Green to Blue gradient */
+        }
+        .cta-button {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .feature-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 8px;
+        }
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .dropdown-content a:hover {background-color: #f1f1f1}
+        .dropdown:hover .dropdown-content {display: block;}
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center">
+                    <a href="/landing.html" id="store-logo-nav" class="text-xl sm:text-2xl font-bold text-gray-800">
+                        Deriv Bot Store
+                    </a>
+                </div>
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="/index.html" class="text-gray-600 hover:text-green-600 transition-colors">Explore Bots</a>
+                    <div class="dropdown">
+                        <button class="text-gray-600 hover:text-green-600 transition-colors">More Info</button>
+                        <div class="dropdown-content" id="static-pages-dropdown-nav-landing">
+                            <!-- Static pages from settings -->
+                        </div>
+                    </div>
+                    <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg cta-button">Create Deriv Account</a>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button-landing" class="text-gray-600 hover:text-green-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m4 6h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobile-menu-landing" class="hidden md:hidden bg-white shadow-lg py-2">
+            <a href="/index.html" class="block px-4 py-2 text-gray-600 hover:bg-gray-100 hover:text-green-600">Explore Bots</a>
+            <div id="static-pages-mobile-nav-landing">
+                 <!-- Mobile static pages -->
+            </div>
+            <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" target="_blank" class="block px-4 py-2 text-gray-600 hover:bg-gray-100 hover:text-green-600">Create Deriv Account</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section text-white py-20 md:py-32">
+        <div class="max-w-4xl mx-auto px-4 text-center">
+            <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">Automate Your Deriv Trading Journey</h1>
+            <p class="text-lg md:text-xl mb-8 text-gray-200">
+                Unlock trading efficiency with our expertly crafted Deriv bots. Reliable, easy to use, and designed for performance.
+            </p>
+            <a href="/index.html" class="bg-white text-green-600 font-bold py-3 px-8 rounded-lg text-lg hover:bg-gray-100 cta-button inline-block">
+                Discover Our Bots
+            </a>
+        </div>
+    </section>
+
+    <!-- Why Choose Us Section -->
+    <section class="py-16 bg-white">
+        <div class="max-w-5xl mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-12">Why Deriv Bot Store?</h2>
+            <div class="grid md:grid-cols-3 gap-8 text-center">
+                <div class="feature-card p-6 bg-gray-50 rounded-lg shadow">
+                    <div class="text-green-500 mb-4">
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Proven Strategies</h3>
+                    <p class="text-gray-600">Bots built on tested trading principles to enhance your opportunities.</p>
+                </div>
+                <div class="feature-card p-6 bg-gray-50 rounded-lg shadow">
+                    <div class="text-green-500 mb-4">
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Secure & Instant</h3>
+                    <p class="text-gray-600">Safe transactions and immediate access to your purchased bots.</p>
+                </div>
+                <div class="feature-card p-6 bg-gray-50 rounded-lg shadow">
+                    <div class="text-green-500 mb-4">
+                        <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Dedicated Support</h3>
+                    <p class="text-gray-600">Our team is here to assist you with any questions or setup help.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="py-16">
+        <div class="max-w-5xl mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-12">Get Started in 3 Simple Steps</h2>
+            <div class="grid md:grid-cols-3 gap-8 text-left md:text-center">
+                <div class="p-6">
+                    <div class="flex items-center justify-center md:justify-start mb-4">
+                        <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold mr-4">1</div>
+                        <h3 class="text-xl font-semibold">Browse Bots</h3>
+                    </div>
+                    <p class="text-gray-600 md:pl-14">Explore our diverse collection of Deriv bots tailored for various strategies and risk appetites.</p>
+                </div>
+                <div class="p-6">
+                     <div class="flex items-center justify-center md:justify-start mb-4">
+                        <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold mr-4">2</div>
+                        <h3 class="text-xl font-semibold">Secure Purchase</h3>
+                    </div>
+                    <p class="text-gray-600 md:pl-14">Choose your bot and complete the purchase through our secure payment gateway (M-Pesa & Crypto).</p>
+                </div>
+                <div class="p-6">
+                     <div class="flex items-center justify-center md:justify-start mb-4">
+                        <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold mr-4">3</div>
+                        <h3 class="text-xl font-semibold">Download & Trade</h3>
+                    </div>
+                    <p class="text-gray-600 md:pl-14">Receive your bot instantly, load it onto your Deriv platform, and start automating your trades!</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Products (Optional - Placeholder) -->
+    <!-- This section can be dynamically populated if desired, or be static -->
+    <section class="py-16 bg-white" id="featured-products-landing">
+        <div class="max-w-5xl mx-auto px-4">
+            <h2 class="text-3xl font-bold text-center mb-12">Featured Bots</h2>
+            <div id="featured-products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Product cards will be injected here by JS -->
+                 <p id="loading-featured" class="col-span-full text-center text-gray-600">Loading featured bots...</p>
+            </div>
+            <div class="text-center mt-12">
+                <a href="/index.html" class="bg-green-600 text-white font-semibold py-3 px-8 rounded-lg text-lg hover:bg-green-700 cta-button inline-block">
+                    View All Bots
+                </a>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-gray-300 py-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p id="copyright-text-footer-landing" class="text-gray-400"></p>
+            <p class="mt-2">Support: <a id="support-email-footer-landing" class="underline hover:text-green-400"></a></p>
+            <div id="social-links-footer-landing" class="mt-4 flex justify-center space-x-4 flex-wrap">
+                <!-- Social links from settings -->
+            </div>
+            <div id="static-links-footer-landing" class="mt-4 flex justify-center space-x-4 flex-wrap">
+                <!-- Static page links from settings -->
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app'; // Consistent BASE_URL
+        let settings = {}; // Renamed for consistency
+        let staticPages = []; // Renamed for consistency
+        let allProducts = []; // Renamed for consistency
+
+        async function fetchLandingData() {
+            try {
+                const response = await axios.get(`${BASE_URL}/api/data`);
+                settings = response.data.settings || {};
+                staticPages = response.data.staticPages || [];
+                allProducts = response.data.products.filter(p => !p.isArchived);
+
+                populateSharedElementsLanding();
+                populateFeaturedProducts();
+
+            } catch (error) {
+                console.error("Error fetching data for landing page:", error);
+                const loadingFeaturedEl = document.getElementById('loading-featured');
+                if(loadingFeaturedEl) loadingFeaturedEl.textContent = 'Could not load featured bots.';
+            }
+        }
+
+        function populateSharedElementsLanding() {
+            // Nav: Store Logo
+            const storeLogoNav = document.getElementById('store-logo-nav');
+            if (settings.logoUrl) {
+                storeLogoNav.innerHTML = `<img src="${settings.logoUrl}" alt="${settings.storeName || 'Deriv Bot Store'} Logo" class="h-8 w-auto">`;
+            } else {
+                storeLogoNav.textContent = settings.storeName || 'Deriv Bot Store';
+            }
+
+            // Nav: Static Pages Dropdown (Desktop)
+            const staticPagesNavDropdown = document.getElementById('static-pages-dropdown-nav-landing');
+            if (staticPagesNavDropdown) {
+                staticPagesNavDropdown.innerHTML = ''; // Clear existing
+                if (staticPages) {
+                    staticPages.filter(page => page.slug && page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal').forEach(page => {
+                        const pageUrl = `/page.html?slug=${page.slug.startsWith('/') ? page.slug.substring(1) : page.slug}`;
+                        // Ensuring dropdown items are styled like others if Tailwind is used for .dropdown-content a
+                        staticPagesNavDropdown.innerHTML += `<a href="${pageUrl}" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100">${page.title}</a>`;
+                    });
+                }
+            }
+
+            // Nav: Mobile Static Pages
+            const staticPagesMobileNav = document.getElementById('static-pages-mobile-nav-landing');
+            if (staticPagesMobileNav) {
+                staticPagesMobileNav.innerHTML = ''; // Clear existing
+                if (staticPages) {
+                    staticPages.filter(page => page.slug && page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal').forEach(page => {
+                        const pageUrl = `/page.html?slug=${page.slug.startsWith('/') ? page.slug.substring(1) : page.slug}`;
+                        staticPagesMobileNav.innerHTML += `<a href="${pageUrl}" class="block px-4 py-2 text-gray-600 hover:bg-gray-100 hover:text-green-600">${page.title}</a>`;
+                    });
+                }
+            }
+
+
+            // Footer
+            document.getElementById('copyright-text-footer-landing').innerHTML = settings.copyrightText || `© ${new Date().getFullYear()} ` + (settings.storeName || "Deriv Bot Store");
+            const supportEmailFooter = document.getElementById('support-email-footer-landing');
+            supportEmailFooter.href = `mailto:${settings.supportEmail || ''}`;
+            supportEmailFooter.textContent = settings.supportEmail || 'support@example.com';
+
+            const socialLinksFooter = document.getElementById('social-links-footer-landing');
+            socialLinksFooter.innerHTML = '';
+            if (settings.socials) {
+                Object.entries(settings.socials).forEach(([platform, url]) => {
+                    if (url) {
+                        const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+                        socialLinksFooter.innerHTML += `<a href="${url}" target="_blank" rel="noopener noreferrer" class="hover:text-green-400 mx-2">${platformName}</a>`;
+                    }
+                });
+            }
+
+            const staticLinksFooter = document.getElementById('static-links-footer-landing');
+            staticLinksFooter.innerHTML = '';
+            if (staticPages) {
+                staticPages.filter(page => page.slug && page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal').forEach(page => {
+                    const pageUrl = `/page.html?slug=${page.slug.startsWith('/') ? page.slug.substring(1) : page.slug}`;
+                    staticLinksFooter.innerHTML += `<a href="${pageUrl}" class="hover:text-green-400 mx-2">${page.title}</a>`;
+                });
+            }
+        }
+
+        function populateFeaturedProducts() {
+            const featuredGrid = document.getElementById('featured-products-grid');
+            const loadingFeaturedEl = document.getElementById('loading-featured');
+
+            if (!featuredGrid || !loadingFeaturedEl) {
+                console.error("Featured products section elements not found.");
+                return;
+            }
+
+            if (!allProducts || allProducts.length === 0) {
+                loadingFeaturedEl.textContent = 'No featured bots available at the moment.';
+                loadingFeaturedEl.classList.remove('hidden'); // Ensure it's visible
+                return;
+            }
+            loadingFeaturedEl.style.display = 'none';
+            featuredGrid.innerHTML = ''; // Clear previous products
+
+            // Simple logic: take first 3 non-archived products as featured, or new ones
+            const featured = allProducts.filter(p => p.isNew).slice(0, 3);
+            if (featured.length < 3) {
+                const otherProducts = allProducts.filter(p => !p.isNew);
+                featured.push(...otherProducts.slice(0, 3 - featured.length));
+            }
+
+
+            featured.forEach(product => {
+                // Sanitize product description for the excerpt
+                const tempDescDiv = document.createElement('div');
+                tempDescDiv.innerHTML = sanitizeHtml(marked.parse(product.desc || ""), { allowedTags: [], allowedAttributes: {} });
+                const plainDesc = tempDescDiv.textContent || tempDescDiv.innerText || "";
+                const excerpt = plainDesc.substring(0,100) + (plainDesc.length > 100 ? "..." : "");
+
+                const card = document.createElement('div');
+                card.className = "feature-card bg-gray-50 rounded-lg shadow-md p-6 flex flex-col items-center text-center";
+                card.innerHTML = `
+                    <a href="/product.html?item=${product.item}" class="block w-full">
+                        <img src="${product.img}" alt="${product.name}" class="w-full h-48 object-cover rounded-md mb-4">
+                    </a>
+                    <h3 class="text-xl font-semibold mb-2">${product.name}</h3>
+                    <p class="text-gray-600 mb-3 text-sm flex-grow min-h-[60px]">${excerpt}</p> <!-- flex-grow to push button down -->
+                    <p class="text-lg font-bold text-green-600 mb-4">${product.price.toFixed(2)} USD</p>
+                    <a href="/product.html?item=${product.item}" class="mt-auto bg-green-500 text-white font-semibold py-2 px-5 rounded-lg hover:bg-green-600 transition-colors cta-button">
+                        View Details
+                    </a>
+                `;
+                featuredGrid.appendChild(card);
+            });
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchLandingData();
+
+            const mobileMenuButton = document.getElementById('mobile-menu-button-landing');
+            const mobileMenu = document.getElementById('mobile-menu-landing');
+            if(mobileMenuButton && mobileMenu){
+                mobileMenuButton.addEventListener('click', () => {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

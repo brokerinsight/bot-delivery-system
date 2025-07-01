@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Dynamic meta tags will be added here by JavaScript -->
+    <title>Page Title</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .prose h1 { font-size: 2.25rem; font-weight: bold; margin-bottom: 1rem; }
+        .prose h2 { font-size: 1.875rem; font-weight: bold; margin-bottom: 0.75rem; }
+        .prose h3 { font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .prose p { margin-bottom: 1rem; line-height: 1.6; }
+        .prose ul, .prose ol { margin-left: 1.5rem; margin-bottom: 1rem; }
+        .prose a { color: #16a34a; text-decoration: underline; }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 8px;
+        }
+        .dropdown-content a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .dropdown-content a:hover {background-color: #f1f1f1}
+        .dropdown:hover .dropdown-content {display: block;}
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow-md sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                     <a href="/index.html" id="store-logo-nav" class="text-xl sm:text-2xl font-bold text-gray-800">Deriv Bot Store</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="/index.html" class="text-gray-500 hover:text-green-600">Home</a>
+                    <div class="dropdown">
+                        <button class="text-gray-500 hover:text-green-600">Pages</button>
+                        <div class="dropdown-content" id="static-pages-dropdown-nav">
+                            <!-- Static pages will be populated here -->
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="text-gray-500 hover:text-green-600">Socials</button>
+                        <div class="dropdown-content" id="social-links-dropdown-nav">
+                            <!-- Social links will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <div id="loading-page" class="text-center py-10">Loading page content...</div>
+        <article id="page-content-container" class="hidden bg-white p-6 md:p-8 rounded-lg shadow-lg prose max-w-none">
+            <h1 id="page-title-main" class="text-3xl md:text-4xl font-bold text-gray-900 mb-6"></h1>
+            <div id="page-content-dynamic" class="text-gray-700">
+                <!-- Dynamic page content will be populated here -->
+            </div>
+        </article>
+    </main>
+
+    <footer class="bg-white shadow-inner mt-12 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p id="copyright-text-footer" class="text-gray-600"></p>
+            <p class="text-gray-500 mt-2">Support: <a id="support-email-footer" class="underline"></a></p>
+            <div id="social-links-footer" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
+            <div id="static-links-footer" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
+        </div>
+    </footer>
+
+    <script>
+        const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app';
+        let settings = {}; // To store settings like storeName, supportEmail, etc.
+        let allStaticPages = []; // To store all static pages for nav/footer linking
+
+        document.addEventListener("DOMContentLoaded", initializeStaticPage);
+
+        async function fetchPageData(slug) {
+            try {
+                // In a later step, we'll create a specific endpoint /api/pagecontent/:slug
+                // For now, fetch all data and then find the specific page and also get settings.
+                const response = await axios.get(`${BASE_URL}/api/data`);
+                settings = response.data.settings || {};
+                allStaticPages = response.data.staticPages || [];
+
+                const pageData = allStaticPages.find(p => p.slug === `/${slug}`);
+
+                if (!pageData) {
+                    document.getElementById('loading-page').textContent = 'Page not found.';
+                    document.getElementById('page-content-container').classList.add('hidden');
+                    return null;
+                }
+                return pageData;
+            } catch (error) {
+                console.error('Error fetching page data:', error);
+                document.getElementById('loading-page').textContent = 'Error loading page. Please try again.';
+                document.getElementById('page-content-container').classList.add('hidden');
+                return null;
+            }
+        }
+
+        function populatePageData(pageData) {
+            if (!pageData) return;
+
+            // 1. Meta Tags
+            const storeName = settings.storeName || "Deriv Bot Store";
+            document.title = pageData.title + " - " + storeName;
+            // Extract text from HTML content for meta description
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = sanitizeHtml(marked.parse(pageData.content || ""), { allowedTags: [], allowedAttributes: {} }); // Strip all tags for plain text
+            const plainTextContent = tempDiv.textContent || tempDiv.innerText || "";
+
+            updateMetaTag("description", plainTextContent.substring(0, 160).replace(/\s+/g, ' ').trim());
+            updateMetaTag("keywords", `${pageData.title}, ${storeName}, static page`); // Basic keywords
+            updateMetaTag("og:title", pageData.title + " - " + storeName);
+            updateMetaTag("og:description", plainTextContent.substring(0, 160).replace(/\s+/g, ' ').trim());
+            updateMetaTag("og:url", window.location.href);
+            updateMetaTag("og:type", "article");
+            // Add og:image if there's a default site image or if pages can have images
+            if (settings.logoUrl || '/favicon.png') { // Fallback to favicon
+                 updateMetaTag("og:image", settings.logoUrl || (BASE_URL + '/favicon.png'));
+            }
+
+
+            // 2. Page Content
+            document.getElementById('page-title-main').textContent = pageData.title;
+
+            let cleanedContent = (pageData.content || "")
+              .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
+              .trim();
+
+            document.getElementById('page-content-dynamic').innerHTML = sanitizeHtml(marked.parse(cleanedContent), {
+                allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'iframe', 'video', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div', 'section', 'article', 'aside', 'details', 'summary', 'figure', 'figcaption', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'caption', 'col', 'colgroup', 'br', 'hr', 'p', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'a', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'blockquote', 'pre', 'code']),
+                allowedAttributes: {
+                    ...sanitizeHtml.defaults.allowedAttributes,
+                    '*': ['style', 'class', 'id', 'title', 'lang', 'dir', 'data-*'],
+                    'a': ['href', 'name', 'target', 'rel', 'title', 'class', 'style'],
+                    'iframe': ['src', 'frameborder', 'allow', 'allowfullscreen', 'width', 'height', 'title', 'loading', 'sandbox', 'referrerpolicy'],
+                    'img': ['src', 'alt', 'style', 'width', 'height', 'srcset', 'sizes', 'loading', 'usemap'],
+                    'video': ['controls', 'width', 'height', 'poster', 'preload', 'autoplay', 'loop', 'muted', 'playsinline'],
+                    'source': ['src', 'type', 'media', 'sizes'],
+                    'track': ['kind', 'src', 'srclang', 'label', 'default'],
+                    'table': ['summary', 'width', 'border', 'cellspacing', 'cellpadding'],
+                    'th': ['colspan', 'rowspan', 'scope', 'abbr', 'headers'],
+                    'td': ['colspan', 'rowspan', 'headers']
+                 },
+                 allowedSchemes: ['http', 'https', 'ftp', 'mailto', 'tel', 'data'], // Added 'data' for inline images if any
+                 transformTags: {
+                    'h1': sanitizeHtml.simpleTransform('h1', { class: 'text-3xl font-bold my-4 text-gray-800' }),
+                    'h2': sanitizeHtml.simpleTransform('h2', { class: 'text-2xl font-bold my-3 text-gray-700' }),
+                    'h3': sanitizeHtml.simpleTransform('h3', { class: 'text-xl font-semibold my-2 text-gray-700' }),
+                    'p': sanitizeHtml.simpleTransform('p', { class: 'mb-4 leading-relaxed text-gray-600' }),
+                    'ul': sanitizeHtml.simpleTransform('ul', { class: 'list-disc list-inside mb-4 pl-4 text-gray-600' }),
+                    'ol': sanitizeHtml.simpleTransform('ol', { class: 'list-decimal list-inside mb-4 pl-4 text-gray-600' }),
+                    'a': sanitizeHtml.simpleTransform('a', { class: 'text-green-600 hover:text-green-700 underline' }),
+                    'img': (tagName, attribs) => {
+                        return {
+                            tagName: 'img',
+                            attribs: {
+                                ...attribs,
+                                class: (attribs.class || '') + ' my-4 rounded-md shadow-sm max-w-full h-auto',
+                                loading: 'lazy'
+                            }
+                        };
+                    },
+                    'table': sanitizeHtml.simpleTransform('table', { class: 'table-auto w-full my-4 border-collapse border border-gray-300' }),
+                    'th': sanitizeHtml.simpleTransform('th', { class: 'border border-gray-300 px-4 py-2 bg-gray-100 text-left font-semibold' }),
+                    'td': sanitizeHtml.simpleTransform('td', { class: 'border border-gray-300 px-4 py-2' }),
+                  }
+            });
+        }
+
+        function updateMetaTag(nameOrProperty, content) {
+            const isOgTag = nameOrProperty.startsWith('og:');
+            let element = document.querySelector(`meta[${isOgTag ? 'property' : 'name'}="${nameOrProperty}"]`);
+            if (!element) {
+                element = document.createElement('meta');
+                element.setAttribute(isOgTag ? 'property' : 'name', nameOrProperty);
+                document.getElementsByTagName('head')[0].appendChild(element);
+            }
+            element.setAttribute('content', content);
+        }
+
+        function populateSharedElements() {
+            // Footer
+            document.getElementById('copyright-text-footer').innerHTML = settings.copyrightText || `© ${new Date().getFullYear()} ` + (settings.storeName || "Deriv Bot Store");
+            const supportEmailFooter = document.getElementById('support-email-footer');
+            supportEmailFooter.href = `mailto:${settings.supportEmail || ''}`;
+            supportEmailFooter.textContent = settings.supportEmail || 'support@example.com';
+
+            const socialLinksFooter = document.getElementById('social-links-footer');
+            const socialLinksNav = document.getElementById('social-links-dropdown-nav');
+            socialLinksFooter.innerHTML = '';
+            socialLinksNav.innerHTML = '';
+            if (settings.socials) {
+                Object.entries(settings.socials).forEach(([platform, url]) => {
+                    if (url) {
+                        const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
+                        const aFooter = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-gray-500 hover:text-green-600 mx-2">${platformName}</a>`;
+                        socialLinksFooter.innerHTML += aFooter;
+                        const aNav = `<a href="${url}" target="_blank" rel="noopener noreferrer" class="hover:bg-gray-100">${platformName}</a>`;
+                        socialLinksNav.innerHTML += aNav;
+                    }
+                });
+            }
+
+            // Static Pages in Footer & Nav
+            const staticLinksFooter = document.getElementById('static-links-footer');
+            const staticPagesNav = document.getElementById('static-pages-dropdown-nav');
+            staticLinksFooter.innerHTML = '';
+            staticPagesNav.innerHTML = '';
+            if (allStaticPages) { // Use allStaticPages for populating links
+                allStaticPages.filter(page => page.slug && page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal').forEach(page => {
+                    const pageUrl = `/page.html?slug=${page.slug.startsWith('/') ? page.slug.substring(1) : page.slug}`;
+                    const aFooter = `<a href="${pageUrl}" class="text-gray-500 hover:text-green-600 mx-2">${page.title}</a>`;
+                    staticLinksFooter.innerHTML += aFooter;
+                    const aNav = `<a href="${pageUrl}" class="hover:bg-gray-100">${page.title}</a>`;
+                    staticPagesNav.innerHTML += aNav;
+                });
+            }
+             // Store Logo in Nav
+            const storeLogoNav = document.getElementById('store-logo-nav');
+            if (settings.logoUrl) {
+                storeLogoNav.innerHTML = `<img src="${settings.logoUrl}" alt="${settings.storeName || 'Deriv Bot Store'} Logo" class="h-8 w-auto">`;
+            } else {
+                storeLogoNav.textContent = settings.storeName || 'Deriv Bot Store';
+            }
+        }
+
+        async function initializeStaticPage() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const slug = urlParams.get('slug');
+
+            if (!slug) {
+                document.getElementById('loading-page').textContent = 'No page slug specified.';
+                return;
+            }
+
+            const pageData = await fetchPageData(slug);
+            if (pageData) {
+                populatePageData(pageData);
+                populateSharedElements(); // Call after settings and allStaticPages are fetched
+                document.getElementById('loading-page').classList.add('hidden');
+                document.getElementById('page-content-container').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
