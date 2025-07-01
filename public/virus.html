@@ -1646,10 +1646,12 @@
       });
 
       // Load payment options
-      const activePaymentOptions = data.settings.activePaymentOptions ? JSON.parse(data.settings.activePaymentOptions) : { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true }; // Default to all enabled if not set
-      document.getElementById('payment-mpesa-manual').checked = activePaymentOptions.mpesa_manual === true;
-      document.getElementById('payment-mpesa-payhero').checked = activePaymentOptions.mpesa_payhero === true;
-      document.getElementById('payment-crypto-nowpayments').checked = activePaymentOptions.crypto_nowpayments === true;
+      // data.settings.activePaymentOptions is now an object from the server
+      const activePaymentOptionsConfig = data.settings.activePaymentOptions || { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true };
+
+      document.getElementById('payment-mpesa-manual').checked = activePaymentOptionsConfig.mpesa_manual === true;
+      document.getElementById('payment-mpesa-payhero').checked = activePaymentOptionsConfig.mpesa_payhero === true;
+      document.getElementById('payment-crypto-nowpayments').checked = activePaymentOptionsConfig.crypto_nowpayments === true;
 
       startOrdersPolling();
     }
