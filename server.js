@@ -237,40 +237,101 @@ async function loadData() {
     })) || [];
 
     const settingsRes = await supabase.from('settings').select('key, value');
-    const settingsData = Object.fromEntries(settingsRes.data?.map(row => [row.key, row.value]) || []);
+    const dbSettingsRaw = settingsRes.data || [];
+    const settingsData = Object.fromEntries(dbSettingsRaw.map(row => [row.key, row.value]));
 
-    let loadedSettings = {
+    // Define default values for all settings, including the new activePaymentOptions
+    let defaultSettings = {
         supportEmail: 'kaylie254.business@gmail.com',
         copyrightText: '© 2025 Deriv Bot Store',
         logoUrl: '',
-        socials: {},
-        urgentMessage: { enabled: false, text: '' },
+        socials: {}, // Will be stored as JSON string
+        urgentMessage: { enabled: false, text: '' }, // Will be stored as JSON string
         fallbackRate: 130,
         adminEmail: '',
-        adminPassword: '',
+        adminPassword: '', // Will be hashed if set
         mpesaTill: '4933614',
         payheroChannelId: process.env.PAYHERO_CHANNEL_ID || '2332',
         payheroPaymentUrl: process.env.PAYHERO_PAYMENT_URL || 'https://app.payhero.co.ke/lipwa/5',
-        payheroAuthToken: process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg=='
+        payheroAuthToken: process.env.PAYHERO_AUTH_TOKEN || 'Basic bXNxSmtaeTJVS1RkUXMySkgzeDE6S2R4dkJrT2FTRUhQWEJqQkNJT053OHZVQ0dKNWpNSXd4MHVwdkZLYg==',
+        activePaymentOptions: { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true } // Default, will be stored as JSON string
     };
 
-    for (const key in loadedSettings) {
+    let loadedSettings = {};
+
+    // Load settings from DB, falling back to defaults if not found or parsing fails
+    for (const key in defaultSettings) {
         if (settingsData.hasOwnProperty(key)) {
-            if (key === 'socials' || key === 'urgentMessage') {
+            const dbValue = settingsData[key];
+            if (key === 'socials' || key === 'urgentMessage' || key === 'activePaymentOptions') {
                 try {
-                    loadedSettings[key] = JSON.parse(settingsData[key]);
+                    loadedSettings[key] = JSON.parse(dbValue);
                 } catch (e) {
-                    console.warn(`[${new Date().toISOString()}] Failed to parse JSON for setting ${key}:`, settingsData[key]);
+                    console.warn(`[${new Date().toISOString()}] Failed to parse JSON for setting '${key}' from DB: "${dbValue}". Using default.`);
+                    loadedSettings[key] = defaultSettings[key];
                 }
             } else if (key === 'fallbackRate') {
-                loadedSettings[key] = parseFloat(settingsData[key]) || loadedSettings[key];
+                const parsedRate = parseFloat(dbValue);
+                loadedSettings[key] = isNaN(parsedRate) ? defaultSettings[key] : parsedRate;
             } else {
-                loadedSettings[key] = settingsData[key];
+                loadedSettings[key] = dbValue; // For strings like emails, passwords (hashes), URLs, etc.
+            }
+        } else {
+            // Setting not found in DB, use default
+            loadedSettings[key] = defaultSettings[key];
+            if (key === 'adminPassword' && !settingsData.hasOwnProperty('adminPassword')) { // Special handling for initial admin password
+                 // If adminPassword is not in DB at all (e.g. fresh setup), and a default is set in .env, hash it.
+                 // However, the current defaultSettings.adminPassword is '', so this block may not be strictly needed
+                 // unless process.env.ADMIN_PASSWORD_DEFAULT is used here.
+                 // For now, if not in DB, it remains empty or uses a pre-hashed value if one was ever set.
             }
         }
     }
-    loadedSettings.socials = loadedSettings.socials || {};
-    loadedSettings.urgentMessage = loadedSettings.urgentMessage || { enabled: false, text: '' };
+    // Ensure complex types have their default structure if parsing failed or key was missing
+    loadedSettings.socials = loadedSettings.socials || defaultSettings.socials;
+    loadedSettings.urgentMessage = loadedSettings.urgentMessage || defaultSettings.urgentMessage;
+    loadedSettings.activePaymentOptions = loadedSettings.activePaymentOptions || defaultSettings.activePaymentOptions;
+
+
+    // Check if any default settings were used because they were missing from the DB, and if so, save them.
+    // This ensures that on first startup with new settings, they get persisted.
+    let mustSaveDefaults = false;
+    for (const key in defaultSettings) {
+        if (!settingsData.hasOwnProperty(key)) {
+            mustSaveDefaults = true;
+            console.log(`[${new Date().toISOString()}] Setting '${key}' not found in DB, will be initialized with default.`);
+        } else if ((key === 'socials' || key === 'urgentMessage' || key === 'activePaymentOptions') && typeof loadedSettings[key] !== typeof defaultSettings[key]) {
+            // This case handles if DB had a value that couldn't be parsed, and we fell back to default type.
+            // This is a bit broad, could be refined. The main goal is to save if a key was entirely missing.
+            try { JSON.parse(settingsData[key]); } catch (e) { mustSaveDefaults = true; }
+        }
+    }
+
+    if (mustSaveDefaults) {
+        console.log(`[${new Date().toISOString()}] Initializing missing settings in the database with default values...`);
+        const settingsToInsert = [];
+        for (const key in loadedSettings) {
+            // Only add settings to insert if they were missing or defaulted due to parse error.
+            // A simpler approach for initialization: just save all loadedSettings if mustSaveDefaults is true.
+            // This ensures that all settings (including newly added ones like activePaymentOptions)
+            // are written to the DB with their default or loaded values if any were missing.
+             settingsToInsert.push({
+                key,
+                value: (typeof loadedSettings[key] === 'object') ? JSON.stringify(loadedSettings[key]) : String(loadedSettings[key])
+            });
+        }
+        if (settingsToInsert.length > 0) {
+            // Use upsert to be safe, though insert should work if keys are truly missing.
+            // The main saveDataToDatabase clears all settings first, so this direct upsert/insert
+            // during loadData is specifically for initializing defaults if the table was empty or missing keys.
+            const { error: initSettingsError } = await supabase.from('settings').upsert(settingsToInsert, { onConflict: 'key' });
+            if (initSettingsError) {
+                console.error(`[${new Date().toISOString()}] Failed to initialize default settings in DB:`, initSettingsError.message);
+            } else {
+                console.log(`[${new Date().toISOString()}] Default settings initialized in DB.`);
+            }
+        }
+    }
 
     const categoriesRes = await supabase.from('categories').select('name');
     const categories = [...new Set(categoriesRes.data?.map(row => row.name) || ['General'])];
@@ -483,13 +544,46 @@ function isAuthenticated(req, res, next) {
 async function selfCheck() {
   console.log(`[${new Date().toISOString()}] Starting server self-check...`);
   try {
-    const { data, error } = await supabase.from('products').select('item').limit(1);
-    if (error) throw error;
-    console.log(`[${new Date().toISOString()}] Successfully connected to Supabase database`);
+    // Check connection to products table (existing check)
+    const { data: productData, error: productError } = await supabase.from('products').select('item').limit(1);
+    if (productError) throw productError;
+    console.log(`[${new Date().toISOString()}] Successfully connected to Supabase database (checked products table).`);
+
+    // The 'settings' table creation is now handled manually by the user.
+    // We can still check if we can query it, as a basic health check.
+    const { data: settingsData, error: settingsCheckError } = await supabase
+      .from('settings')
+      .select('key')
+      .limit(1);
+
+    if (settingsCheckError) {
+      console.warn(`[${new Date().toISOString()}] Warning: Could not perform a basic check on the 'settings' table during self-check. This might be okay if the table is empty or if there's a transient issue. Error: ${settingsCheckError.message}. Ensure the table exists and is accessible.`);
+      // Not throwing an error here, as the table might be legitimately empty.
+      // loadData will handle initializing defaults if specific keys are missing.
+    } else {
+      console.log(`[${new Date().toISOString()}] Successfully performed a basic check on the 'settings' table.`);
+    }
+
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to connect to Supabase database:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed Supabase self-check (after removing auto table creation):`, error.message);
+    // Depending on the severity, you might want to prevent the server from starting
+    // For now, just log the error.
   }
 }
+
+// Helper function to execute raw SQL (if not already available/used)
+// Supabase client itself doesn't directly expose a raw SQL execution for DDL like CREATE TABLE IF NOT EXISTS
+// in a simple way without using rpc. Let's define a helper if needed, or use rpc.
+// For CREATE TABLE IF NOT EXISTS, using an RPC function in Supabase is a common way.
+// Let's assume an RPC function `execute_sql` exists or can be created in Supabase dashboard:
+// CREATE OR REPLACE FUNCTION execute_sql(sql TEXT)
+// RETURNS VOID AS $$
+// BEGIN
+//   EXECUTE sql;
+// END;
+// $$ LANGUAGE plpgsql;
+// If direct execution is preferred and possible through a library feature, that can be used too.
+// For now, using rpc assuming the function exists.
 
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });

@@ -458,6 +458,34 @@
   <input type="text" id="payhero-auth-token" class="mt-1 w-full p-2 border rounded-md">
   <button id="save-payhero-auth-token" class="mt-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Auth Token</button>
 </div>
+        <!-- Payment Options Checkboxes Start -->
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Payment Options</h3>
+          <p class="text-sm text-gray-500 mb-3">Select the payment methods to be available on the storefront. At least one must be selected.</p>
+          <div class="space-y-2" id="payment-options-container">
+            <div>
+              <label class="flex items-center">
+                <input type="checkbox" id="payment-mpesa-manual" name="paymentOption" value="mpesa_manual" class="mr-2 h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                <span class="text-sm font-medium text-gray-700">Mpesa Manual Till</span>
+              </label>
+            </div>
+            <div>
+              <label class="flex items-center">
+                <input type="checkbox" id="payment-mpesa-payhero" name="paymentOption" value="mpesa_payhero" class="mr-2 h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                <span class="text-sm font-medium text-gray-700">Mpesa Pay Hero (STK Push)</span>
+              </label>
+            </div>
+            <div>
+              <label class="flex items-center">
+                <input type="checkbox" id="payment-crypto-nowpayments" name="paymentOption" value="crypto_nowpayments" class="mr-2 h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                <span class="text-sm font-medium text-gray-700">Crypto (NOWPayments)</span>
+              </label>
+            </div>
+          </div>
+          <p id="payment-options-error" class="text-red-500 text-sm mt-2 hidden">At least one payment method must be selected.</p>
+          <button id="save-payment-options" class="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Save Payment Options</button>
+        </div>
+        <!-- Payment Options Checkboxes End -->
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Change Admin Credentials</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -1616,13 +1644,54 @@
       Object.keys(data.settings.socials || {}).forEach(key => {
         document.getElementById(key).value = data.settings.socials[key] || '';
       });
+
+      // Load payment options
+      const activePaymentOptions = data.settings.activePaymentOptions ? JSON.parse(data.settings.activePaymentOptions) : { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true }; // Default to all enabled if not set
+      document.getElementById('payment-mpesa-manual').checked = activePaymentOptions.mpesa_manual === true;
+      document.getElementById('payment-mpesa-payhero').checked = activePaymentOptions.mpesa_payhero === true;
+      document.getElementById('payment-crypto-nowpayments').checked = activePaymentOptions.crypto_nowpayments === true;
+
       startOrdersPolling();
     }
   }
 
+  document.getElementById('save-payment-options').addEventListener('click', async () => {
+    const btn = document.getElementById('save-payment-options');
+    showButtonFeedback(btn, 'Saving...', 'Save Payment Options');
+
+    const selectedOptions = {
+      mpesa_manual: document.getElementById('payment-mpesa-manual').checked,
+      mpesa_payhero: document.getElementById('payment-mpesa-payhero').checked,
+      crypto_nowpayments: document.getElementById('payment-crypto-nowpayments').checked
+    };
+
+    const errorEl = document.getElementById('payment-options-error');
+    if (!selectedOptions.mpesa_manual && !selectedOptions.mpesa_payhero && !selectedOptions.crypto_nowpayments) {
+      errorEl.classList.remove('hidden');
+      errorEl.textContent = 'At least one payment method must be selected.';
+      // Re-enable button immediately for correction
+      btn.disabled = false;
+      btn.textContent = 'Save Payment Options';
+      return;
+    }
+    errorEl.classList.add('hidden');
+
+    data.settings.activePaymentOptions = JSON.stringify(selectedOptions); // Store as JSON string
+
+    const success = await saveData({ settings: { activePaymentOptions: data.settings.activePaymentOptions } });
+    if (success) {
+      alert('Payment options saved successfully!');
+    } else {
+      // Error already alerted by saveData
+      // Potentially revert local data.settings.activePaymentOptions if critical
+    }
+  });
+
+
   document.addEventListener('DOMContentLoaded', initialize);
 </script>
   
+  <!-- The HTML for payment options checkboxes will be inserted above this line by the agent -->
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'931e4c061aa005ea',t:'MTc0NDkxNzgwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9327e8996b70bd03',t:'MTc0NTAxODU5Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
   <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93288924ca29676f',t:'MTc0NTAyNTE2OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
