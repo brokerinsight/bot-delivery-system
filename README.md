@@ -138,7 +138,8 @@ The backend provides several API endpoints, primarily under the `/api/` path. Th
 *   `/api/orders`, `/api/order-status/...`, `/api/update-order-status`: Manage and check order statuses.
 *   `/api/initiate-server-stk-push`, `/api/payhero-callback`: For PayHero M-PESA STK push integration.
 *   `/api/nowpayments/currencies`, `/api/nowpayments/create-payment`, `/api/nowpayments/payment-status/...`, `/api/nowpayments/ipn`: For NOWPayments cryptocurrency integration.
-*   `/api/page/:slug`: Fetches content for static pages.
+*   `/api/product/:item`: Fetches details for a single product (used by `product.html`).
+*   `/api/pagecontent/:slug`: Fetches content for a single static page (used by `page.html`).
 *   `/download/:fileId`: Securely delivers purchased files.
 
 ## File Structure
@@ -147,9 +148,19 @@ The backend provides several API endpoints, primarily under the `/api/` path. Th
 *   `package.json`: Lists project dependencies and scripts.
 *   `Procfile`: Suggests deployment on platforms like Heroku/DigitalOcean Apps.
 *   `public/`: Contains static assets for the frontend application (HTML, CSS, JavaScript, images).
-    *   `index.html`: The main entry point for the client-side application.
+    *   `landing.html`: The new main landing page for the store (served at root `/`).
+    *   `index.html`: The main product grid/catalog page.
+    *   `product.html`: Template for displaying individual product details. Accessed via `product.html?item=ITEM_ID`.
+    *   `page.html`: Template for displaying static content. Accessed via `page.html?slug=SLUG_NAME`.
     *   `virus.html`: An admin panel interface.
 *   `README.md`: This file.
+
+## Site Structure & Routing
+
+*   **Landing Page (`/`):** Serves `public/landing.html`. Provides an overview and CTA to the main store.
+*   **Main Store/Product Grid (`/index.html`):** Serves `public/index.html`. Displays all browsable products.
+*   **Product Pages (`/product.html?item=<ITEM_ID>`):** Dynamically displays details for a specific product. SEO-friendly with unique titles, descriptions, and Schema.org markup.
+*   **Static Pages (`/page.html?slug=<SLUG_NAME>`):** Dynamically displays content for pages like "About Us", "Privacy Policy", etc. SEO-friendly with unique titles and descriptions.
 
 ## Admin Panel
 
