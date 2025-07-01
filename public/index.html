@@ -77,113 +77,6 @@
     color: #6b7280;
   }
 
-  #details-modal .modal-content {
-    max-height: 90vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background: linear-gradient(145deg, #ffffff, #f0f4f8);
-    border-radius: 16px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
-    border: 1px solid #e5e7eb;
-    max-width: 900px;
-    width: 90%;
-  }
-
-  #details-modal .modal-main {
-    flex: 1;
-    padding: 1rem;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #16a34a #e5e7eb;
-    max-height: 60vh; /* Limit height on mobile */
-  }
-
-  #details-modal .modal-main::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  #details-modal .modal-main::-webkit-scrollbar-track {
-    background: #e5e7eb;
-    border-radius: 4px;
-  }
-
-  #details-modal .modal-main::-webkit-scrollbar-thumb {
-    background: #16a34a;
-    border-radius: 4px;
-  }
-
-  #details-modal .modal-sidebar {
-    width: 100%;
-    padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    background: #f9fafb;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-  }
-
-  #details-modal .close-btn {
-    background: linear-gradient(90deg, #ef4444, #f87171);
-    color: white;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    z-index: 10;
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-  }
-
-  #details-modal .close-btn:hover {
-    background: linear-gradient(90deg, #dc2626, #ef4444);
-    transform: scale(1.1) rotate(90deg);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  }
-
-  #details-desc {
-    line-height: 1.6;
-    margin-bottom: 1rem;
-    color: #4b5563;
-    width: 100%;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    -webkit-hyphens: auto;
-    -ms-hyphens: auto;
-    hyphens: auto;
-  }
-
-  #details-desc p {
-    margin-bottom: 1rem;
-    word-break: break-word;
-  }
-
-  #details-desc ul,
-  #details-desc ol {
-    list-style: none;
-    padding-left: 0;
-    margin-bottom: 1rem;
-  }
-
-  #details-desc li {
-    margin-bottom: 0.5rem;
-    position: relative;
-    padding-left: 1.5rem;
-  }
-
-  #details-desc li::before {
-    content: "•";
-    color: #16a34a;
-    position: absolute;
-    left: 0;
-    top: 0;
-    font-size: 1.2rem;
-  }
-
   .embed-container {
     position: relative;
     padding-bottom: 56.25%;
@@ -342,8 +235,7 @@
 
   #payment-modal .bg-white,
   #ref-code-modal .bg-white,
-  #status-modal .bg-white,
-  #static-page-modal .bg-white {
+  #status-modal .bg-white {
     background: linear-gradient(145deg, #ffffff, #f0f4f8);
     border-radius: 16px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
@@ -509,44 +401,6 @@
     background: linear-gradient(90deg, #218838, #2cb94e);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-  }
-
-  #details-desc h1 { font-size: 18px; }
-  #details-desc h2 { font-size: 14px; }
-  #details-desc h3 { font-size: 12px; }
-  #details-desc img { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
-
-  @media (min-width: 769px) {
-    #details-modal .modal-content {
-      flex-direction: row;
-    }
-
-    #details-modal .modal-main {
-      padding: 2rem;
-      max-height: none; /* Reset for desktop */
-    }
-
-    #details-modal .modal-sidebar {
-      width: 250px;
-      border-left: 1px solid #e5e7eb;
-      position: sticky;
-      top: 0;
-      height: 100%;
-    }
-  }
-
-  @media (max-width: 768px) {
-    #details-modal .modal-content {
-      flex-direction: column;
-    }
-
-    #details-modal .modal-main {
-      padding: 1rem;
-    }
-
-    #details-desc li {
-      padding-left: 1rem; /* Reduce padding on mobile */
-    }
   }
 
   @media (max-width: 640px) {
@@ -827,27 +681,6 @@
     handleCookiePopup();
   </script>
 
-  <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="modal-content flex flex-col md:flex-row relative">
-      <button id="details-close" class="close-btn">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <div class="modal-main">
-        <img id="details-thumbnail" class="thumbnail-image" src="" alt="">
-        <h3 id="details-name" class="text-2xl font-bold text-gray-900 mb-3"></h3>
-        <p id="details-item" class="text-sm text-gray-500 mb-3">File: <span id="details-item-name"></span></p>
-        <div id="details-desc" class="text-gray-600"></div>
-        <div id="details-embed"></div>
-      </div>
-      <div class="modal-sidebar">
-        <button id="details-buy-now" class="buy-now-btn bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-2">Buy Now</button>
-        <button id="details-test-pay" class="buy-now-btn bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 hidden">Test Instant Payment</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Payment Choice Modal -->
   <div id="payment-choice-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-lg p-6 w-full max-w-sm">
@@ -986,18 +819,6 @@
         <div id="download-progress-fill"></div>
       </div>
       <p id="download-error"></p>
-    </div>
-  </div>
-
-  <div id="static-page-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white rounded-lg p-6 max-w-2xl w-full relative max-h-[80vh] overflow-y-auto">
-      <button id="static-page-close" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <h3 id="static-page-title" class="text-2xl font-bold text-gray-900 mb-4"></h3>
-      <div id="static-page-content" class="prose"></div>
     </div>
   </div>
 
@@ -1184,180 +1005,23 @@
             <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
             <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
             <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
-            <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
+            <a href="/product.html?item=${product.item}" class="view-details-link mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors text-center block">View Details</a>
           </div>
         `;
+        // Ensure product images in the grid are lazy-loaded
+        const imgElement = card.querySelector('.thumbnail-image');
+        if (imgElement) {
+            imgElement.classList.add('lazy');
+            imgElement.setAttribute('data-src', product.img);
+            // Set a placeholder src or keep the original src if it's a low-res placeholder
+            imgElement.src = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="; // Transparent pixel
+        }
         grid.appendChild(card);
       });
-
-      document.querySelectorAll('.view-details').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const item = btn.dataset.item;
-          const product = products.find(p => p.item === item);
-          const rate = await getExchangeRate();
-          const kesPrice = (product.price * rate).toFixed(2);
-
-          document.getElementById('details-thumbnail').src = product.img;
-          document.getElementById('details-name').textContent = product.name;
-          document.getElementById('details-item-name').textContent = product.item;
-
-          const descContainer = document.getElementById('details-desc');
-          let cleanedDesc = product.desc
-            .replace(/<p>\s*<\/p>/g, '')
-            .replace(/<p>\s*<br\s*\/?>\s*<\/p>/g, '')
-            .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
-            .trim();
-
-          cleanedDesc = cleanedDesc.replace(/<h(\d)>/g, (match, level) => `<h${level} style="font-size: ${20 - (level - 1) * 4}px; margin-bottom: 0.75rem;">`)
-                                  .replace(/<\/h\d>/g, '</h$1>');
-
-          descContainer.innerHTML = cleanedDesc || '<p>No description available.</p>';
-
-          const paragraphs = descContainer.querySelectorAll('p');
-          paragraphs.forEach(p => {
-            p.style.marginBottom = '1rem';
-            p.style.lineHeight = '1.6';
-            p.style.wordBreak = 'break-word';
-          });
-
-          const headers = descContainer.querySelectorAll('h1, h2, h3');
-          headers.forEach(h => {
-            h.style.fontWeight = '600';
-            h.style.marginBottom = '0.75rem';
-          });
-
-          const lists = descContainer.querySelectorAll('ul, ol');
-          lists.forEach(list => {
-            list.style.marginBottom = '1rem';
-            list.style.paddingLeft = '1.5rem';
-            list.style.listStyleType = 'none';
-          });
-
-          const listItems = descContainer.querySelectorAll('li');
-          listItems.forEach(li => {
-            li.style.marginBottom = '0.5rem';
-            const indentLevel = li.className.match(/ql-indent-(\d+)/);
-            if (indentLevel) {
-              li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-            }
-            li.style.position = 'relative';
-            li.style.paddingLeft = '1.5rem';
-          });
-
-          const boldText = descContainer.querySelectorAll('strong, b');
-          boldText.forEach(b => {
-            b.style.fontWeight = 'bold';
-          });
-
-          const italicText = descContainer.querySelectorAll('em, i');
-          italicText.forEach(i => {
-            i.style.fontStyle = 'italic';
-          });
-
-          const underlineText = descContainer.querySelectorAll('u');
-          underlineText.forEach(u => {
-            u.style.textDecoration = 'underline';
-          });
-
-          const links = descContainer.querySelectorAll('a');
-          links.forEach(link => {
-            link.style.color = 'blue';
-            link.style.textDecoration = 'underline';
-            link.setAttribute('target', '_blank');
-          });
-
-          const blockquotes = descContainer.querySelectorAll('blockquote');
-          blockquotes.forEach(bq => {
-            bq.style.borderLeft = '4px solid #ccc';
-            bq.style.paddingLeft = '1rem';
-            bq.style.margin = '1rem 0';
-            bq.style.color = '#666';
-          });
-
-          const codeElements = descContainer.querySelectorAll('code');
-          codeElements.forEach(code => {
-            code.style.backgroundColor = '#f4f4f4';
-            code.style.padding = '2px 4px';
-            code.style.borderRadius = '4px';
-            code.style.fontFamily = 'monospace';
-          });
-
-          const images = descContainer.querySelectorAll('img');
-          images.forEach(img => {
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.style.marginBottom = '1rem';
-            img.style.borderRadius = '8px';
-          });
-
-          const embedDiv = document.getElementById('details-embed');
-          if (product.embed) {
-            embedDiv.innerHTML = `
-              <div class="embed-container">
-                <iframe src="${product.embed}" frameborder="0" allowfullscreen></iframe>
-              </div>
-            `;
-          } else {
-            embedDiv.innerHTML = '';
-          }
-
-          const modal = document.getElementById('details-modal');
-          modal.classList.remove('hidden');
-          document.body.classList.add('popup-active');
-
-          const buyNowBtn = document.getElementById('details-buy-now');
-          buyNowBtn.dataset.item = item;
-          buyNowBtn.dataset.kesPrice = kesPrice; // KES price for Mpesa options
-          buyNowBtn.dataset.usdPrice = product.price.toFixed(2); // USD price for Crypto
-
-          buyNowBtn.onclick = () => {
-            // Determine active payment options
-            const activeOptions = (settings && typeof settings.activePaymentOptions === 'object')
-                                  ? settings.activePaymentOptions
-                                  : { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true }; // Default
-
-            const availableMethods = [];
-            if (activeOptions.mpesa_manual) availableMethods.push('mpesa_manual');
-            if (activeOptions.mpesa_payhero) availableMethods.push('mpesa_payhero');
-            if (activeOptions.crypto_nowpayments) availableMethods.push('crypto_nowpayments');
-
-            if (availableMethods.length > 1) {
-              showPaymentChoiceModal(product, kesPrice);
-            } else if (availableMethods.length === 1) {
-              document.getElementById('details-modal').classList.add('hidden'); // Close details modal first
-              document.body.classList.remove('popup-active');
-              const singleMethod = availableMethods[0];
-              if (singleMethod === 'mpesa_manual') {
-                showPaymentModal(product, kesPrice);
-              } else if (singleMethod === 'mpesa_payhero') {
-                showPayHeroModal(product, kesPrice);
-              } else if (singleMethod === 'crypto_nowpayments') {
-                showNowPaymentsModal(product, product.price); // Pass USD price
-              }
-            } else {
-              // No payment methods available (should be prevented by admin validation)
-              alert("No payment methods are currently available. Please contact support.");
-              document.getElementById('details-modal').classList.add('hidden');
-              document.body.classList.remove('popup-active');
-            }
-          };
-
-          const testPayBtn = document.getElementById('details-test-pay');
-          testPayBtn.classList.toggle('hidden', !TEST_MODE);
-          testPayBtn.dataset.item = item;
-          testPayBtn.dataset.kesPrice = kesPrice;
-          testPayBtn.onclick = () => {
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-            initiateTestPayment(product, product.price);
-          };
-
-          document.getElementById('details-close').onclick = () => {
-            modal.classList.add('hidden');
-            document.body.classList.remove('popup-active');
-          };
-        });
-      });
+      // Update lazyLoad instance after adding new elements
+      if (typeof lazyLoadInstance !== 'undefined') {
+        lazyLoadInstance.update();
+      }
     }
     
     function debounce(func, wait) {
@@ -2449,132 +2113,11 @@
         .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
         .forEach(page => {
           const a = document.createElement('a');
-          a.href = '#';
+          const pageSlug = page.slug.startsWith('/') ? page.slug.substring(1) : page.slug;
+          a.href = `/page.html?slug=${pageSlug}`; // Link to page.html
           a.className = 'text-gray-500 hover:text-green-600';
           a.textContent = page.title;
-          a.dataset.slug = page.slug;
-          a.addEventListener('click', e => {
-            e.preventDefault();
-            const modal = document.getElementById('static-page-modal');
-            document.getElementById('static-page-title').textContent = page.title;
-
-            let cleanedContent = page.content
-              .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
-              .trim();
-
-            const contentContainer = document.getElementById('static-page-content');
-            contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
-            contentContainer.style.margin = '0';
-            contentContainer.style.padding = '0';
-            contentContainer.style.fontSize = '16px';
-
-            const paragraphs = contentContainer.querySelectorAll('p');
-            paragraphs.forEach(p => {
-              p.style.wordBreak = 'break-word';
-              p.style.margin = '0 0 1rem 0';
-              p.style.lineHeight = '1.6';
-            });
-
-            const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-            blankParagraphs.forEach(p => {
-              p.style.height = '1rem';
-              p.style.margin = '0';
-            });
-
-            const headers = contentContainer.querySelectorAll('h1, h2, h3');
-            headers.forEach(h => {
-              h.style.fontWeight = '600';
-              if (h.tagName.toLowerCase() === 'h1') {
-                h.style.fontSize = '1.75rem';
-              } else if (h.tagName.toLowerCase() === 'h2') {
-                h.style.fontSize = '1.5rem';
-              } else if (h.tagName.toLowerCase() === 'h3') {
-                h.style.fontSize = '1.25rem';
-              }
-              h.style.margin = '1.5rem 0 1rem 0';
-            });
-
-            const unorderedLists = contentContainer.querySelectorAll('ul');
-            unorderedLists.forEach(ul => {
-              ul.style.paddingLeft = '1.5rem';
-              ul.style.listStyleType = 'none';
-              ul.style.margin = '1rem 0';
-            });
-
-            const orderedLists = contentContainer.querySelectorAll('ol');
-            orderedLists.forEach(ol => {
-              ol.style.paddingLeft = '1.5rem';
-              if (!ol.style.listStyleType) {
-                ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-              }
-              ol.style.margin = '1rem 0';
-            });
-
-            const listItems = contentContainer.querySelectorAll('li');
-            listItems.forEach(li => {
-              const indentLevel = li.className.match(/ql-indent-(\d+)/);
-              if (indentLevel) {
-                li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-              }
-              li.style.position = 'relative';
-              li.style.paddingLeft = '1.5rem';
-              li.style.marginBottom = '0.5rem';
-
-              if (li.parentNode.tagName.toLowerCase() === 'ul') {
-                li.style.listStyleType = 'none';
-                li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-              }
-            });
-
-            const boldText = contentContainer.querySelectorAll('strong, b');
-            boldText.forEach(b => {
-              b.style.fontWeight = 'bold';
-            });
-
-            const italicText = contentContainer.querySelectorAll('em, i');
-            italicText.forEach(i => {
-              i.style.fontStyle = 'italic';
-            });
-
-            const underlineText = contentContainer.querySelectorAll('u');
-            underlineText.forEach(u => {
-              u.style.textDecoration = 'underline';
-            });
-
-            const links = contentContainer.querySelectorAll('a');
-            links.forEach(link => {
-              link.style.color = 'blue';
-              link.style.textDecoration = 'underline';
-              link.setAttribute('target', '_blank');
-            });
-
-            const blockquotes = contentContainer.querySelectorAll('blockquote');
-            blockquotes.forEach(bq => {
-              bq.style.borderLeft = '4px solid #ccc';
-              bq.style.paddingLeft = '1rem';
-              bq.style.color = '#666';
-              bq.style.margin = '1rem 0';
-            });
-
-            const codeElements = contentContainer.querySelectorAll('code');
-            codeElements.forEach(code => {
-              code.style.backgroundColor = '#f4f4f4';
-              code.style.padding = '2px 4px';
-              code.style.borderRadius = '4px';
-              code.style.fontFamily = 'monospace';
-            });
-
-            const images = contentContainer.querySelectorAll('img');
-            images.forEach(img => {
-              img.style.maxWidth = '100%';
-              img.style.height = 'auto';
-              img.style.borderRadius = '8px';
-              img.style.margin = '1rem 0';
-            });
-
-            modal.classList.remove('hidden');
-            document.body.classList.add('popup-active');
-          });
+          // No longer need event listener to open modal
           staticLinks.appendChild(a);
         });
 
@@ -2589,6 +2132,8 @@
           if (url) {
             const a = document.createElement('a');
             a.href = url;
+            a.target = "_blank"; // Open social links in new tab
+            a.rel = "noopener noreferrer";
             a.className = 'text-gray-500 hover:text-green-600 text-sm';
             a.textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
             mobileSocialLinks.appendChild(a);
@@ -2602,137 +2147,31 @@
         .filter(page => page.slug !== '/payment-modal' && page.slug !== '/ref-code-modal')
         .forEach(page => {
           const a = document.createElement('a');
-          a.href = '#';
+          const pageSlug = page.slug.startsWith('/') ? page.slug.substring(1) : page.slug;
+          a.href = `/page.html?slug=${pageSlug}`; // Link to page.html
           a.className = 'text-gray-500 hover:text-green-600 text-sm';
           a.textContent = page.title;
-          a.dataset.slug = page.slug;
-          a.addEventListener('click', e => {
-            e.preventDefault();
-            const modal = document.getElementById('static-page-modal');
-            document.getElementById('static-page-title').textContent = page.title;
-
-            let cleanedContent = page.content
-              .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
-              .trim();
-
-            const contentContainer = document.getElementById('static-page-content');
-            contentContainer.innerHTML = cleanedContent || '<p>No content available.</p>';
-            contentContainer.style.margin = '0';
-            contentContainer.style.padding = '0';
-            contentContainer.style.fontSize = '16px';
-
-            const paragraphs = contentContainer.querySelectorAll('p');
-            paragraphs.forEach(p => {
-              p.style.wordBreak = 'break-word';
-              p.style.margin = '0 0 1rem 0';
-              p.style.lineHeight = '1.6';
-            });
-
-            const blankParagraphs = contentContainer.querySelectorAll('p:has(br)');
-            blankParagraphs.forEach(p => {
-              p.style.height = '1rem';
-              p.style.margin = '0';
-            });
-
-            const headers = contentContainer.querySelectorAll('h1, h2, h3');
-            headers.forEach(h => {
-              h.style.fontWeight = '600';
-              if (h.tagName.toLowerCase() === 'h1') {
-                h.style.fontSize = '1.75rem';
-              } else if (h.tagName.toLowerCase() === 'h2') {
-                h.style.fontSize = '1.5rem';
-              } else if (h.tagName.toLowerCase() === 'h3') {
-                h.style.fontSize = '1.25rem';
-              }
-              h.style.margin = '1.5rem 0 1rem 0';
-            });
-
-            const unorderedLists = contentContainer.querySelectorAll('ul');
-            unorderedLists.forEach(ul => {
-              ul.style.paddingLeft = '1.5rem';
-              ul.style.listStyleType = 'none';
-              ul.style.margin = '1rem 0';
-            });
-
-            const orderedLists = contentContainer.querySelectorAll('ol');
-            orderedLists.forEach(ol => {
-              ol.style.paddingLeft = '1.5rem';
-              if (!ol.style.listStyleType) {
-                ol.style.listStyleType = ol.getAttribute('type') || 'decimal';
-              }
-              ol.style.margin = '1rem 0';
-            });
-
-            const listItems = contentContainer.querySelectorAll('li');
-            listItems.forEach(li => {
-              const indentLevel = li.className.match(/ql-indent-(\d+)/);
-              if (indentLevel) {
-                li.style.marginLeft = `${parseInt(indentLevel[1]) * 1.5}rem`;
-              }
-              li.style.position = 'relative';
-              li.style.paddingLeft = '1.5rem';
-              li.style.marginBottom = '0.5rem';
-
-              if (li.parentNode.tagName.toLowerCase() === 'ul') {
-                li.style.listStyleType = 'none';
-                li.insertAdjacentHTML('beforebegin', '<span style="position: absolute; left: 0; color: #16a34a;">•</span>');
-              }
-            });
-
-            const boldText = contentContainer.querySelectorAll('strong, b');
-            boldText.forEach(b => {
-              b.style.fontWeight = 'bold';
-            });
-
-            const italicText = contentContainer.querySelectorAll('em, i');
-            italicText.forEach(i => {
-              i.style.fontStyle = 'italic';
-            });
-
-            const underlineText = contentContainer.querySelectorAll('u');
-            underlineText.forEach(u => {
-              u.style.textDecoration = 'underline';
-            });
-
-            const links = contentContainer.querySelectorAll('a');
-            links.forEach(link => {
-              link.style.color = 'blue';
-              link.style.textDecoration = 'underline';
-              link.setAttribute('target', '_blank');
-            });
-
-            const blockquotes = contentContainer.querySelectorAll('blockquote');
-            blockquotes.forEach(bq => {
-              bq.style.borderLeft = '4px solid #ccc';
-              bq.style.paddingLeft = '1rem';
-              bq.style.color = '#666';
-              bq.style.margin = '1rem 0';
-            });
-
-            const codeElements = contentContainer.querySelectorAll('code');
-            codeElements.forEach(code => {
-              code.style.backgroundColor = '#f4f4f4';
-              code.style.padding = '2px 4px';
-              code.style.borderRadius = '4px';
-              code.style.fontFamily = 'monospace';
-            });
-
-            const images = contentContainer.querySelectorAll('img');
-            images.forEach(img => {
-              img.style.maxWidth = '100%';
-              img.style.height = 'auto';
-              img.style.borderRadius = '8px';
-              img.style.margin = '1rem 0';
-            });
-
-            modal.classList.remove('hidden');
-            document.body.classList.add('popup-active');
+          // No longer need event listener to open modal
+          // Close mobile menu if a link is clicked
+          a.addEventListener('click', () => {
             document.getElementById('mobile-menu').classList.remove('open');
           });
           mobileStaticLinks.appendChild(a);
         });
 
-      document.getElementById('static-page-close').onclick = () => {
+      // Remove the static page modal close button listener if the modal is removed
+      // For now, assuming the modal HTML might still be there but unused.
+      // If #static-page-modal is removed, this line would error or be unnecessary.
+      const staticPageCloseBtn = document.getElementById('static-page-close');
+      if (staticPageCloseBtn) {
+          staticPageCloseBtn.onclick = () => {
+            document.getElementById('static-page-modal').classList.add('hidden');
+            document.body.classList.remove('popup-active');
+          };
+      }
+    }
+
+    function showUrgentMessage() {
         document.getElementById('static-page-modal').classList.add('hidden');
         document.body.classList.remove('popup-active');
       };
