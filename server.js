@@ -73,6 +73,7 @@ app.get('/sitemap.xml', async (req, res) => {
     sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
       xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">\n`;
 
+    // Landing Page (root)
     sitemap += `
       <url>
         <loc>https://botblitz.store/</loc>
@@ -81,11 +82,21 @@ app.get('/sitemap.xml', async (req, res) => {
         <priority>1.0</priority>
       </url>\n`;
 
+    // Main store page (product grid)
+    sitemap += `
+      <url>
+        <loc>https://botblitz.store/index.html</loc>
+        <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
+      </url>\n`;
+
     for (const page of staticPages) {
       if (page.slug && !page.slug.includes('modal')) {
+        const pageSlug = page.slug.startsWith('/') ? page.slug.substring(1) : page.slug;
         sitemap += `
           <url>
-            <loc>https://botblitz.store${page.slug}</loc>
+            <loc>https://botblitz.store/page.html?slug=${pageSlug}</loc>
             <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
             <changefreq>monthly</changefreq>
             <priority>0.6</priority>
@@ -97,7 +108,7 @@ app.get('/sitemap.xml', async (req, res) => {
       if (!product.isArchived && product.item) {
         sitemap += `
           <url>
-            <loc>https://botblitz.store/store?id=${product.item}</loc>
+            <loc>https://botblitz.store/product.html?item=${product.item}</loc>
             <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
             <changefreq>weekly</changefreq>
             <priority>0.8</priority>
@@ -583,6 +594,11 @@ async function selfCheck() {
 // $$ LANGUAGE plpgsql;
 // If direct execution is preferred and possible through a library feature, that can be used too.
 // For now, using rpc assuming the function exists.
+
+// Serve landing.html as the root page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(publicPath, 'landing.html'));
+});
 
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
@@ -1945,6 +1961,99 @@ app.get('/:slug', async (req, res) => {
   }
   console.log(`[${new Date().toISOString()}] Unhandled slug ${slug}, serving index.html.`);
   res.sendFile(path.join(publicPath, 'index.html'));
+});
+
+// API endpoint to get a single product's details
+app.get('/api/product/:item', async (req, res) => {
+  const { item } = req.params;
+  try {
+    // Ensure cachedData is up-to-date or fetch if necessary (simplified here)
+    if (!cachedData || !cachedData.products || cachedData.products.length === 0) {
+      await loadData(); // Consider a more lightweight refresh or direct DB query
+    }
+    const product = cachedData.products.find(p => p.item === item && !p.isArchived);
+    if (product) {
+      res.json({ success: true, product });
+    } else {
+      // Attempt a direct database query as a fallback, in case cache is stale or item was just added
+      const { data: dbProductData, error: dbError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('item', item)
+        .maybeSingle(); // Use maybeSingle to handle not found gracefully
+
+      if (dbError) {
+        console.error(`[${new Date().toISOString()}] Error fetching product ${item} directly from DB:`, dbError.message);
+        return res.status(404).json({ success: false, error: 'Product not found after DB check.' });
+      }
+
+      if (dbProductData && !dbProductData.is_archived) {
+        // Map DB structure to cachedData structure if necessary for consistency
+        const productFromDb = {
+            item: dbProductData.item,
+            fileId: dbProductData.file_id,
+            originalFileName: dbProductData.original_file_name,
+            price: parseFloat(dbProductData.price),
+            name: dbProductData.name,
+            desc: dbProductData.description || '',
+            img: dbProductData.image || 'https://via.placeholder.com/300',
+            category: dbProductData.category || 'General',
+            embed: dbProductData.embed || '',
+            isNew: dbProductData.is_new || false,
+            isArchived: dbProductData.is_archived || false
+        };
+        res.json({ success: true, product: productFromDb });
+      } else {
+        res.status(404).json({ success: false, error: 'Product not found or is archived.' });
+      }
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error fetching product ${item}:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch product details' });
+  }
+});
+
+// API endpoint to get a single static page's content
+app.get('/api/pagecontent/:slug', async (req, res) => {
+  const { slug } = req.params;
+  const fullSlug = `/${slug}`; // Assuming slugs in DB start with '/'
+  try {
+    // Ensure cachedData is up-to-date
+    if (!cachedData || !cachedData.staticPages || cachedData.staticPages.length === 0) {
+      await loadData(); // Consider a more lightweight refresh or direct DB query
+    }
+    let page = cachedData.staticPages.find(p => p.slug === fullSlug);
+
+    if (page) {
+      res.json({ success: true, page });
+    } else {
+      // Fallback to DB if not in cache
+      const { data: dbPageData, error: dbError } = await supabase
+        .from('static_pages')
+        .select('*')
+        .eq('slug', fullSlug)
+        .maybeSingle();
+
+      if (dbError) {
+        console.error(`[${new Date().toISOString()}] Error fetching page ${fullSlug} directly from DB:`, dbError.message);
+        return res.status(404).json({ success: false, error: 'Page not found after DB check.' });
+      }
+
+      if (dbPageData) {
+        page = { // Map to consistent structure
+            title: dbPageData.title,
+            slug: dbPageData.slug,
+            content: dbPageData.content
+        };
+        res.json({ success: true, page });
+      } else {
+        res.status(404).json({ success: false, error: 'Page not found.' });
+      }
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error fetching page content for slug ${slug}:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch page content' });
+  }
 });
 
 
