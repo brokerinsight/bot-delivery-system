@@ -854,9 +854,9 @@
       <h3 class="text-xl font-bold text-gray-900 mb-4">Choose Payment Method</h3>
       <p id="payment-choice-product-name" class="text-gray-700 mb-1"></p>
       <p id="payment-choice-amount" class="text-green-600 font-bold mb-6"></p>
-      <button id="manual-mpesa-choice" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-3">Pay with Mpesa Till (Manual)</button>
-      <button id="payhero-choice" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-3">Pay with Pay Hero (Mpesa STK)</button>
-      <button id="nowpayments-choice" class="w-full bg-yellow-500 text-white py-2 rounded-md hover:bg-yellow-600">Pay with Crypto (NOWPayments)</button>
+      <button id="manual-mpesa-choice" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 mb-3">Pay to Mpesa till</button>
+      <button id="payhero-choice" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 mb-3">Pay with Mpesa</button>
+      <button id="nowpayments-choice" class="w-full bg-yellow-500 text-white py-2 rounded-md hover:bg-yellow-600">Pay with crypto</button>
       <button id="payment-choice-cancel" class="mt-4 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
     </div>
   </div>
@@ -926,7 +926,6 @@
         <button id="copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
       </div>
       <p id="payment-amount" class="text-green-600 font-bold mt-2"></p>
-      <p class="text-gray-600 mt-4">We are working to add more payment options on the checkout. Meanwhile, if you do not find your preferred Payment option, <a href="https://wa.link/11x0nx" class="text-blue-600 underline" target="_blank">contact us</a>.</p>
       <button id="confirm-payment" class="mt-6 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
       <button id="payment-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
     </div>
@@ -1388,6 +1387,13 @@
       const nowPaymentsChoiceBtn = document.getElementById('nowpayments-choice');
       const cancelBtn = document.getElementById('payment-choice-cancel');
 
+      // Reset button states in choice modal
+      manualMpesaChoiceBtn.disabled = false;
+      payheroChoiceBtn.disabled = false;
+      nowPaymentsChoiceBtn.disabled = false;
+      nowPaymentsChoiceBtn.innerHTML = 'Pay with crypto'; // Reset text from potential spinner
+      cancelBtn.disabled = false;
+
       // Default to all enabled if settings not found or not an object
       const activeOptions = (settings && typeof settings.activePaymentOptions === 'object')
                             ? settings.activePaymentOptions
@@ -1421,8 +1427,11 @@
 
       if (activeOptions.crypto_nowpayments) {
         nowPaymentsChoiceBtn.classList.remove('hidden');
+        // Ensure original text is set before potential spinner
+        nowPaymentsChoiceBtn.innerHTML = 'Pay with crypto';
         nowPaymentsChoiceBtn.onclick = async () => {
-          const originalButtonText = nowPaymentsChoiceBtn.innerHTML;
+          // Storing original text here is fine, or define it statically if it never changes post-init
+          const originalButtonText = 'Pay with crypto';
           nowPaymentsChoiceBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Loading...';
           nowPaymentsChoiceBtn.disabled = true;
           if(activeOptions.mpesa_manual) manualMpesaChoiceBtn.disabled = true;
@@ -1437,7 +1446,7 @@
             console.error("Error preparing NOWPayments modal:", error);
             alert("Could not load cryptocurrency payment option. Please try again or select another method.");
             // Re-enable buttons if NOWPayments modal failed to open
-            nowPaymentsChoiceBtn.innerHTML = originalButtonText;
+            nowPaymentsChoiceBtn.innerHTML = originalButtonText; // Restore original text
             nowPaymentsChoiceBtn.disabled = false;
             if(activeOptions.mpesa_manual) manualMpesaChoiceBtn.disabled = false;
             if(activeOptions.mpesa_payhero) payheroChoiceBtn.disabled = false;
@@ -1609,22 +1618,38 @@
 
       cancelBtn.onclick = () => {
         const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+        let shouldClose = true;
         if (!paymentInfoSection.classList.contains('hidden')) { // Payment process active
-            if (confirm('You have a pending payment. Are you sure you want to cancel and start over?')) {
-                modal.classList.add('hidden');
-                document.body.classList.remove('popup-active');
-                if (window.nowPaymentsPollIntervalId) {
-                    clearInterval(window.nowPaymentsPollIntervalId);
-                    window.nowPaymentsPollIntervalId = null;
-                }
-                if (window.nowPaymentsTimerIntervalId) {
-                    clearInterval(window.nowPaymentsTimerIntervalId);
-                    window.nowPaymentsTimerIntervalId = null;
-                }
+            if (!confirm('You have a pending payment. Are you sure you want to cancel and start over?')) {
+                shouldClose = false;
             }
-        } else {
+        }
+
+        if (shouldClose) {
             modal.classList.add('hidden');
             document.body.classList.remove('popup-active');
+            if (window.nowPaymentsPollIntervalId) {
+                clearInterval(window.nowPaymentsPollIntervalId);
+                window.nowPaymentsPollIntervalId = null;
+            }
+            if (window.nowPaymentsTimerIntervalId) {
+                clearInterval(window.nowPaymentsTimerIntervalId);
+                window.nowPaymentsTimerIntervalId = null;
+            }
+
+            // Re-enable buttons in payment-choice-modal
+            const manualMpesaChoiceBtn = document.getElementById('manual-mpesa-choice');
+            const payheroChoiceBtn = document.getElementById('payhero-choice');
+            const nowPaymentsChoiceBtnFromChoiceModal = document.getElementById('nowpayments-choice'); // Renamed to avoid conflict
+            const cancelChoiceBtn = document.getElementById('payment-choice-cancel');
+
+            if (manualMpesaChoiceBtn) manualMpesaChoiceBtn.disabled = false;
+            if (payheroChoiceBtn) payheroChoiceBtn.disabled = false;
+            if (nowPaymentsChoiceBtnFromChoiceModal) {
+                nowPaymentsChoiceBtnFromChoiceModal.disabled = false;
+                nowPaymentsChoiceBtnFromChoiceModal.innerHTML = 'Pay with crypto'; // Reset text
+            }
+            if (cancelChoiceBtn) cancelChoiceBtn.disabled = false;
         }
       };
     }
