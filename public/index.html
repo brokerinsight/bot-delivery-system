@@ -19,6 +19,132 @@
   <script src="https://cdn.jsdelivr.net/npm/sanitize-html@2.7.0/dist/sanitize-html.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+  /* Light/Dark Mode Variables */
+  :root {
+    --color-bg-primary: #f3f4f6; /* bg-gray-100 */
+    --color-bg-secondary: #ffffff; /* bg-white */
+    --color-text-primary: #1f2937; /* text-gray-800 / text-gray-900 */
+    --color-text-secondary: #6b7280; /* text-gray-500 or 4b5563 for text-gray-600 */
+    --color-text-tertiary: #4b5563; /* Specific for text-gray-600 if needed */
+    --color-border-primary: #e5e7eb; /* border-gray-200 */
+    --color-border-secondary: #d1d5db; /* border-gray-300 */
+    --color-shadow-primary: rgba(0, 0, 0, 0.1);
+    --color-link-primary: #16a34a; /* text-green-600 */
+    --color-link-hover: #15803d; /* hover:text-green-700 */
+    --color-button-primary-bg: #16a34a; /* bg-green-600 */
+    --color-button-primary-hover-bg: #15803d; /* hover:bg-green-700 */
+    --color-button-text: #ffffff;
+    --color-popup-bg: linear-gradient(145deg, #ffffff, #f0f4f8);
+    --color-modal-content-bg: linear-gradient(145deg, #ffffff, #f0f4f8);
+    --color-modal-sidebar-bg: #f9fafb;
+    --color-input-bg: #ffffff;
+    --color-input-border: #d1d5db; /* border / border-gray-300 */
+    --color-input-focus-border: #16a34a;
+    --color-input-text: #1f2937;
+    --color-icon-primary: #6b7280; /* text-gray-500 */
+    --color-linear-gradient-start: #16a34a;
+    --color-linear-gradient-end: #22c55e;
+    --color-linear-gradient-hover-start: #15803d;
+    --color-linear-gradient-hover-end: #16a34a;
+
+    /* Specific for urgent message gradient */
+    --urgent-gradient-start: rgba(255, 215, 0, 0.9);
+    --urgent-gradient-end: rgba(255, 165, 0, 0.9);
+    --urgent-text-color: #ffffff;
+    --urgent-button-bg: #4b5563; /* bg-gray-600 */
+
+    /* Specific for cookie popup */
+    --cookie-popup-text-color: #444;
+    --cookie-button-gradient-start: #28a745;
+    --cookie-button-gradient-end: #34d058;
+    --cookie-button-hover-gradient-start: #218838;
+    --cookie-button-hover-gradient-end: #2cb94e;
+  }
+
+  html.dark {
+    --color-bg-primary: #111827; /* bg-gray-900 (darker than 800) */
+    --color-bg-secondary: #1f2937; /* bg-gray-800 */
+    --color-text-primary: #f3f4f6; /* text-gray-100 */
+    --color-text-secondary: #9ca3af; /* text-gray-400 */
+    --color-text-tertiary: #d1d5db; /* text-gray-300 */
+    --color-border-primary: #374151; /* border-gray-700 */
+    --color-border-secondary: #4b5563; /* border-gray-600 */
+    --color-shadow-primary: rgba(255, 255, 255, 0.08);
+    --color-link-primary: #34d399; /* text-green-400 */
+    --color-link-hover: #6ee7b7; /* hover:text-green-300 */
+    --color-button-primary-bg: #22c55e; /* bg-green-500 (brighter green for dark) */
+    --color-button-primary-hover-bg: #16a34a; /* hover:bg-green-600 */
+    --color-button-text: #ffffff;
+    --color-popup-bg: linear-gradient(145deg, #1f2937, #111827);
+    --color-modal-content-bg: linear-gradient(145deg, #1f2937, #2b3442);
+    --color-modal-sidebar-bg: #111827;
+    --color-input-bg: #1f2937;
+    --color-input-border: #4b5563;
+    --color-input-focus-border: #34d399;
+    --color-input-text: #f3f4f6;
+    --color-icon-primary: #9ca3af; /* text-gray-400 */
+    --color-linear-gradient-start: #22c55e;
+    --color-linear-gradient-end: #34d399;
+    --color-linear-gradient-hover-start: #16a34a;
+    --color-linear-gradient-hover-end: #22c55e;
+
+    --urgent-gradient-start: rgba(80, 60, 0, 0.9); /* Darker gold/orange */
+    --urgent-gradient-end: rgba(100, 65, 0, 0.9);
+    --urgent-text-color: #f3f4f6;
+    --urgent-button-bg: #9ca3af; /* bg-gray-400 */
+
+    --cookie-popup-text-color: #d1d5db;
+    --cookie-button-gradient-start: #22c55e;
+    --cookie-button-gradient-end: #34d399;
+    --cookie-button-hover-gradient-start: #16a34a;
+    --cookie-button-hover-gradient-end: #22c55e;
+  }
+
+  /* Base styles using variables */
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary); /* Default text color for the body */
+  }
+
+  /* Apply variables to common Tailwind patterns */
+  .bg-gray-100 { background-color: var(--color-bg-primary); }
+  .bg-white { background-color: var(--color-bg-secondary); }
+  .text-gray-900 { color: var(--color-text-primary); }
+  .text-gray-800 { color: var(--color-text-primary); } /* Consolidate with text-primary */
+  .text-gray-600 { color: var(--color-text-tertiary); }
+  .text-gray-500 { color: var(--color-text-secondary); }
+  .border, .border-gray-300 { border-color: var(--color-border-secondary); }
+  .border-gray-200 { border-color: var(--color-border-primary); }
+  .shadow-md { box-shadow: 0 4px 6px -1px var(--color-shadow-primary), 0 2px 4px -1px var(--color-shadow-primary); }
+  .shadow-lg { box-shadow: 0 10px 15px -3px var(--color-shadow-primary), 0 4px 6px -2px var(--color-shadow-primary); }
+  .shadow-inner { box-shadow: inset 0 2px 4px 0 var(--color-shadow-primary); }
+  .text-green-600 { color: var(--color-link-primary); }
+  .hover\:text-green-700:hover { color: var(--color-link-hover); }
+  .bg-green-600 { background-color: var(--color-button-primary-bg); }
+  .hover\:bg-green-700:hover { background-color: var(--color-button-primary-hover-bg); }
+
+  /* Theme toggle button specific styles */
+  #theme-toggle-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem; /* Similar to other icon buttons */
+    border-radius: 9999px; /* Make it round */
+    color: var(--color-icon-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #theme-toggle-button:hover {
+    background-color: var(--color-bg-primary); /* Subtle hover effect */
+    color: var(--color-text-primary);
+  }
+  #theme-toggle-button svg {
+    width: 1.5rem; /* w-6 */
+    height: 1.5rem; /* h-6 */
+  }
+
+
   body.popup-active {
     overflow: hidden;
   }
@@ -730,6 +856,10 @@
             </svg>
             <input id="search-bar" type="text" placeholder="Search bots by name..." class="p-2 rounded-md border">
           </div>
+          <button id="theme-toggle-button" aria-label="Toggle theme" class="hidden sm:flex">
+            <svg id="theme-toggle-sun" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm8-5a1 1 0 01-.707.293l-1 .001a1 1 0 010-2l1-.001a1 1 0 01.707 1.707zM4.293 15.707a1 1 0 010-1.414l1-1a1 1 0 111.414 1.414l-1 1a1 1 0 01-1.414 0zm0-11.414a1 1 0 011.414 0l1 1a1 1 0 01-1.414 1.414l-1-1a1 1 0 010-1.414zM15.707 4.293a1 1 0 010 1.414l-1 1a1 1 0 11-1.414-1.414l1-1a1 1 0 011.414 0zM10 7a3 3 0 100 6 3 3 0 000-6zm-8 3a1 1 0 01-.707-.293l-1-.001a1 1 0 110-2l1 .001a1 1 0 01.707 1.707z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+            <svg id="theme-toggle-moon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+          </button>
           <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
           <button id="mobile-menu-button" class="sm:hidden text-gray-500 p-2">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -765,6 +895,14 @@
       </svg>
       <input id="mobile-search-bar" type="text" placeholder="Search bots by name..." class="w-full p-3 rounded-md border">
     </div>
+  </div>
+
+  <!-- Theme toggle for mobile, will be moved into sidebar via JS or just styled here if sidebar is complex -->
+  <div class="sm:hidden flex justify-end px-4 pb-2">
+    <button id="mobile-theme-toggle-button" aria-label="Toggle theme" class="p-2 rounded-full">
+      <svg id="mobile-theme-toggle-sun" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm0 13a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm8-5a1 1 0 01-.707.293l-1 .001a1 1 0 010-2l1-.001a1 1 0 01.707 1.707zM4.293 15.707a1 1 0 010-1.414l1-1a1 1 0 111.414 1.414l-1 1a1 1 0 01-1.414 0zm0-11.414a1 1 0 011.414 0l1 1a1 1 0 01-1.414 1.414l-1-1a1 1 0 010-1.414zM15.707 4.293a1 1 0 010 1.414l-1 1a1 1 0 11-1.414-1.414l1-1a1 1 0 011.414 0zM10 7a3 3 0 100 6 3 3 0 000-6zm-8 3a1 1 0 01-.707-.293l-1-.001a1 1 0 110-2l1 .001a1 1 0 01.707 1.707z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+      <svg id="mobile-theme-toggle-moon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+    </button>
   </div>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1010,7 +1148,7 @@
     let settings = {};
     let staticPages = [];
     let exchangeRate = null;
-    let allowInAppBrowser = false;
+    let allowInAppBrowser = false; // Used to track if user dismissed the in-app browser warning
     const TEST_MODE = new URLSearchParams(window.location.search).get('test') === 'true';
 
     async function fetchWithTimeout(url, options = {}, timeout = 15000) {
@@ -2794,39 +2932,61 @@
     }
 
     function isInAppBrowser() {
-      const ua = navigator.userAgent.toLowerCase();
-      console.log("User Agent:", navigator.userAgent);
-      const inAppPatterns = [
-        'tiktok', 'bytedancewebview',
-        'twitter', 'twitterandroid', 'twitterios',
-        'fbav', 'fb_iab', 'fban', 'fb4a',
-        'instagram',
-        'linkedin', 'linkedinapp',
-        'snapchat',
-        'line',
-        'zalo',
-        'pinterest',
-        'messenger', 'fb_messenger',
-        'kakaotalk',
-        'dingtalk',
-        'weixin', 'micromessenger',
-        'reddit',
-        'discord',
-        'telegram',
-        'whatsapp'
+      const ua = navigator.userAgent;
+      const lowerUa = ua.toLowerCase();
+      console.log("User Agent for In-App Check:", ua);
+
+      const inAppSignatures = [
+        // Social media
+        'fbav', 'fb_iab', 'fban', 'fb4a', 'facebook', // Facebook
+        'instagram',                                // Instagram
+        'twitter',                                  // Twitter
+        'linkedin',                                 // LinkedIn
+        'pinterest',                                // Pinterest
+        'snapchat',                                 // Snapchat
+        'discord',                                  // Discord
+        'reddit',                                   // Reddit
+        // Messengers
+        'messenger', 'fb_messenger',                // Facebook Messenger
+        'whatsapp',                                 // WhatsApp
+        'telegram',                                 // Telegram
+        'viber',                                    // Viber
+        'line',                                     // Line
+        'kakaotalk',                                // KakaoTalk
+        'wechat', 'micromessenger',                 // WeChat
+        'zalo',                                     // Zalo
+        'dingtalk',                                 // DingTalk
+        // Other
+        'tiktok', 'bytedance',                      // TikTok
+        // Generic WebView indicators
+        'wv\\)', // Android WebView often ends user agent with wv)
+        '; wv', // Another Android WebView pattern
+        'webview',
+        'okhttp', // Often used by apps for HTTP requests, could indicate background webview
       ];
-      const isAppBrowser = inAppPatterns.some(pattern => ua.includes(pattern));
-      const isWebView = /wv|webview|version\/[\d.]+.*safari/i.test(ua) && !/safari|chrome|firefox|ucbrowser|opera/i.test(ua);
-      const isRegularBrowser = /safari|chrome|firefox|edge|opera|ucbrowser/i.test(ua) && !/wv|webview/i.test(ua);
-      const result = (isAppBrowser || isWebView) && !isRegularBrowser;
-      console.log('Is In-App Browser:', result);
-      return result;
+
+      // 1. Check for specific app signatures
+      if (inAppSignatures.some(sig => lowerUa.includes(sig))) {
+        console.log('Is In-App Browser: true (specific signature matched)');
+        return true;
+      }
+
+      // 2. Check for iOS specific patterns (heuristic for non-Safari WebViews)
+      if ((/iphone|ipad|ipod/.test(lowerUa)) && /applewebkit/.test(lowerUa) && !/safari\//.test(lowerUa) && !/chrome\//.test(lowerUa) && !/crios\//.test(lowerUa) && !/fxios\//.test(lowerUa) ) {
+          // This pattern targets iOS WebViews that aren't full Safari or Chrome for iOS.
+          console.log('Is In-App Browser: true (iOS generic webview detected)');
+          return true;
+      }
+
+      console.log('Is In-App Browser: false (no specific signature or generic iOS webview pattern matched)');
+      return false;
     }
 
     function handleInAppBrowser() {
-      if (isInAppBrowser()) {
+      if (isInAppBrowser() && !allowInAppBrowser) {
         const popup = document.createElement("div");
-        popup.className = "popup";
+        popup.className = "popup"; // Existing class for styling
+        popup.id = "in-app-browser-popup"; // Added ID for potential specific styling or targeting
         popup.innerHTML = `
           <div class="popup-content">
             <h3>Open in Browser</h3>
@@ -2836,14 +2996,17 @@
             <button class="browser-popup-button cancel">Okay</button>
           </div>`;
         document.body.appendChild(popup);
+        document.body.classList.add('popup-active'); // Prevent body scroll when popup is active
 
         popup.querySelector(".cancel").addEventListener("click", () => {
-          console.log('Okay button clicked');
+          console.log('In-app browser popup "Okay" button clicked');
           popup.remove();
-          allowInAppBrowser = true;
+          document.body.classList.remove('popup-active'); // Restore body scroll
+          allowInAppBrowser = true; // User has acknowledged, don't show again this session
           proceedWithInit();
         });
       } else {
+        // If not in-app browser, or if user already clicked "Okay"
         proceedWithInit();
       }
     }
@@ -2878,9 +3041,114 @@
       });
     }
 
-    async function init() {
-      handleInAppBrowser();
+    // Theme Toggle Logic
+    const themeToggleButton = document.getElementById('theme-toggle-button');
+    const themeToggleSun = document.getElementById('theme-toggle-sun');
+    const themeToggleMoon = document.getElementById('theme-toggle-moon');
+
+    const mobileThemeToggleButton = document.getElementById('mobile-theme-toggle-button');
+    const mobileThemeToggleSun = document.getElementById('mobile-theme-toggle-sun');
+    const mobileThemeToggleMoon = document.getElementById('mobile-theme-toggle-moon');
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        themeToggleSun.classList.remove('hidden');
+        themeToggleMoon.classList.add('hidden');
+        mobileThemeToggleSun.classList.remove('hidden');
+        mobileThemeToggleMoon.classList.add('hidden');
+      } else {
+        document.documentElement.classList.remove('dark');
+        themeToggleSun.classList.add('hidden');
+        themeToggleMoon.classList.remove('hidden');
+        mobileThemeToggleSun.classList.add('hidden');
+        mobileThemeToggleMoon.classList.remove('hidden');
+      }
     }
+
+    function toggleTheme() {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      if (isDarkMode) {
+        applyTheme('light');
+        localStorage.setItem('theme', 'light');
+      } else {
+        applyTheme('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+    }
+
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+      applyTheme(savedTheme);
+    } else if (prefersDark) {
+      applyTheme('dark');
+    } else {
+      applyTheme('light'); // Default to light
+    }
+
+    themeToggleButton.addEventListener('click', toggleTheme);
+    mobileThemeToggleButton.addEventListener('click', toggleTheme);
+
+    // Move mobile theme toggle to sidebar
+    // This needs to be done after mobile menu elements are confirmed to be in DOM.
+    // Let's assume it will be done within proceedWithInit or a function called from there.
+    function setupMobileThemeToggle() {
+        const mobileMenu = document.getElementById('mobile-menu'); // The sidebar itself
+        const mobileNavLinksContainer = document.getElementById('mobile-nav-links'); // Container for nav links
+
+        if (mobileThemeToggleButton && mobileMenu && mobileNavLinksContainer) {
+            // Create a new div for the toggle if we want it separate or styled differently in the menu
+            const toggleContainer = document.createElement('div');
+            toggleContainer.className = 'p-4 border-t'; // Add some styling
+            toggleContainer.style.borderColor = 'var(--color-border-primary)'; // Use CSS var
+
+            // Clone the button to avoid issues if it's already somewhere else or has listeners attached in a way that moving breaks
+            // For simplicity, let's just move the existing one. Ensure its styles are appropriate for the sidebar.
+            // We might need to adjust mobileThemeToggleButton styles if they conflict.
+            // Let's make it a full-width item in the menu for better tap target
+            mobileThemeToggleButton.classList.add('w-full', 'flex', 'justify-between', 'items-center', 'py-2');
+            mobileThemeToggleButton.style.color = 'var(--color-text-primary)';
+
+            const label = document.createElement('span');
+            label.textContent = 'Toggle Theme';
+            mobileThemeToggleButton.prepend(label); // Add text label before icons
+
+            // Remove the original container of mobile toggle button if it exists and is now empty
+            const originalMobileToggleContainer = document.querySelector('.sm\\:hidden.flex.justify-end.px-4.pb-2');
+            if (originalMobileToggleContainer) {
+                originalMobileToggleContainer.remove();
+            }
+
+            // Append it to the mobileNavLinks or a dedicated spot in the mobile menu
+            // Appending to mobileNavLinksContainer might be easiest if its flex direction is column
+            mobileNavLinksContainer.appendChild(mobileThemeToggleButton);
+        } else {
+            console.warn('Mobile menu or theme toggle button not found for sidebar placement.');
+        }
+    }
+
+
+    async function init() {
+      handleInAppBrowser(); // This will call proceedWithInit
+    }
+
+    // Modify proceedWithInit to include theme toggle setup for mobile
+    const originalProceedWithInit = proceedWithInit;
+    window.proceedWithInit = async function() {
+        await originalProceedWithInit.apply(this, arguments); // Call the original function
+
+        // Desktop theme button should be visible by default based on its class 'hidden sm:flex'
+        // Ensure it's correctly shown/hidden by Tailwind's responsive classes.
+        // We just need to make sure the correct icon is visible.
+        const currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        applyTheme(currentTheme); // Re-apply to ensure icons are correct after DOM is ready.
+
+        setupMobileThemeToggle(); // Now call the function to move the mobile toggle
+    }
+
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
