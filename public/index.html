@@ -2211,6 +2211,7 @@
       }
     }
 
+/* // Temporarily commenting out startPolling to debug syntax error
     function startPolling() {
       setInterval(async () => {
         const isUserActive = ['payment-modal', 'ref-code-modal', 'status-modal', 'download-progress-modal', 'payhero-modal', 'details-modal', 'payment-choice-modal']
@@ -2231,6 +2232,7 @@
         }
       }, 10 * 1000);
     }
+*/
 
     function isInAppBrowser() {
       const ua = navigator.userAgent.toLowerCase();
@@ -2295,7 +2297,7 @@
         updateFooter();
         showUrgentMessage();
         checkPaymentCookie();
-        startPolling();
+        // startPolling(); // Temporarily commented out for debugging
         await fetchModalContent(); // Ensure fetchModalContent is called
       }
 
