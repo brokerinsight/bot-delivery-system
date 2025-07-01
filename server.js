@@ -713,21 +713,18 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
                 if (newPasswordHash !== cachedData.settings.adminPassword) {
                     cachedData.settings.adminPassword = newPasswordHash;
                     settingsValuesChangedInThisRequest = true;
-                    overallDataChanged = true; // Mark overall change
                     console.log(`[${new Date().toISOString()}] Admin password has been updated.`);
                 }
-            } else if (newPassword === '') { // Explicitly empty password sent
+            } else if (newPassword === '') {
                 console.log(`[${new Date().toISOString()}] Admin password field was sent as an empty string; password NOT updated.`);
-                // Do nothing, retain existing hash
             }
-            // If adminPassword is not in newSettingsRequest, it's not touched.
         }
 
         const updatableSimpleSettings = [
             'supportEmail', 'copyrightText', 'logoUrl',
             'fallbackRate', 'mpesaTill',
             'payheroChannelId', 'payheroAuthToken', 'payheroPaymentUrl',
-            'adminEmail' // adminEmail can be updated like any other simple setting
+            'adminEmail'
         ];
 
         for (const key of updatableSimpleSettings) {
@@ -735,43 +732,53 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
                 let newValue = newSettingsRequest[key];
                 if (key === 'fallbackRate') {
                     const parsedRate = parseFloat(newValue);
-                    // Use existing if new value is NaN, otherwise use new value (even if it's null/empty string from form)
-                    newValue = isNaN(parsedRate) ? cachedData.settings.fallbackRate : (parsedRate);
+                    newValue = isNaN(parsedRate) ? cachedData.settings.fallbackRate : parsedRate;
                 }
-
                 if (newValue !== cachedData.settings[key]) {
                     cachedData.settings[key] = newValue;
                     settingsValuesChangedInThisRequest = true;
-                    overallDataChanged = true; // Mark overall change
                     console.log(`[${new Date().toISOString()}] Setting updated: ${key} = ${newValue}`);
                 }
             }
         }
 
-        if (newSettingsRequest.hasOwnProperty('socials')) {
-            if (typeof newSettingsRequest.socials === 'object' && JSON.stringify(newSettingsRequest.socials) !== JSON.stringify(cachedData.settings.socials)) {
-                cachedData.settings.socials = newSettingsRequest.socials;
-                settingsValuesChangedInThisRequest = true;
-                overallDataChanged = true; // Mark overall change
-                console.log(`[${new Date().toISOString()}] Socials settings updated.`);
-            } else if (typeof newSettingsRequest.socials !== 'object') {
-                console.warn(`[${new Date().toISOString()}] Received non-object for socials settings, ignoring.`);
+        // Handle settings that are sent as JSON strings from client and stored as objects in cache
+        const jsonStringSettings = ['socials', 'urgentMessage', 'activePaymentOptions'];
+        for (const key of jsonStringSettings) {
+            if (newSettingsRequest.hasOwnProperty(key)) {
+                const newJsonStringValue = newSettingsRequest[key];
+                if (typeof newJsonStringValue === 'string') {
+                    try {
+                        const newObjectValue = JSON.parse(newJsonStringValue);
+                        // Compare stringified versions to detect change accurately
+                        if (JSON.stringify(cachedData.settings[key] || null) !== JSON.stringify(newObjectValue)) {
+                            cachedData.settings[key] = newObjectValue; // Update cache with the parsed object
+                            settingsValuesChangedInThisRequest = true;
+                            console.log(`[${new Date().toISOString()}] Setting updated (from JSON string): ${key} = `, newObjectValue);
+                        }
+                    } catch (e) {
+                        console.warn(`[${new Date().toISOString()}] Received invalid JSON for setting ${key}:`, newJsonStringValue, e.message);
+                    }
+                } else if (typeof newSettingsRequest[key] === 'object' && (key === 'socials' || key === 'urgentMessage')) {
+                    // This handles cases where client might send it as object directly (e.g. old implementation for socials/urgent)
+                    if (JSON.stringify(cachedData.settings[key] || null) !== JSON.stringify(newSettingsRequest[key])) {
+                        cachedData.settings[key] = newSettingsRequest[key];
+                        settingsValuesChangedInThisRequest = true;
+                        console.log(`[${new Date().toISOString()}] Setting updated (from object): ${key} = `, newSettingsRequest[key]);
+                    }
+                }
+                 else {
+                    console.warn(`[${new Date().toISOString()}] Received non-string/non-object (for socials/urgent) for setting ${key}, ignoring. Value:`, newSettingsRequest[key]);
+                }
             }
         }
 
-        if (newSettingsRequest.hasOwnProperty('urgentMessage')) {
-            if (typeof newSettingsRequest.urgentMessage === 'object' && JSON.stringify(newSettingsRequest.urgentMessage) !== JSON.stringify(cachedData.settings.urgentMessage)) {
-                cachedData.settings.urgentMessage = newSettingsRequest.urgentMessage;
-                settingsValuesChangedInThisRequest = true;
-                overallDataChanged = true; // Mark overall change
-                console.log(`[${new Date().toISOString()}] Urgent message settings updated.`);
-            } else if (typeof newSettingsRequest.urgentMessage !== 'object') {
-                console.warn(`[${new Date().toISOString()}] Received non-object for urgentMessage settings, ignoring.`);
-            }
-        }
-
-        if (!settingsValuesChangedInThisRequest && Object.keys(newSettingsRequest).length > 0) {
-            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no individual setting values differed from current cache for this specific save operation.`);
+        if (settingsValuesChangedInThisRequest) {
+            overallDataChanged = true; // If any setting value changed, mark overall data as changed.
+        } else if (Object.keys(newSettingsRequest).length > 0 && !overallDataChanged) {
+             // This case means settings were in the request, but no individual value change was detected by the loops above.
+             // This might happen if the client sends the exact same data as what's in the cache.
+            console.log(`[${new Date().toISOString()}] Settings were provided in request, but no individual setting values differed from current cache.`);
         }
     }
 
