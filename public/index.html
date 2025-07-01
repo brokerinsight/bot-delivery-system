@@ -1019,9 +1019,9 @@
         grid.appendChild(card);
       });
       // Update lazyLoad instance after adding new elements
-      if (typeof lazyLoadInstance !== 'undefined') {
-        lazyLoadInstance.update();
-      }
+      // if (typeof lazyLoadInstance !== 'undefined') { // Temporarily remove this
+      //   lazyLoadInstance.update();
+      // }
     }
     
     function debounce(func, wait) {
