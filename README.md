@@ -16,7 +16,7 @@ A comprehensive web application designed for selling and delivering digital bot 
     *   **Cryptocurrency (NOWPayments):** Integration with NOWPayments for accepting various cryptocurrencies.
 *   **Secure File Downloads:** Deliver purchased bot files to customers after payment confirmation.
 *   **Email Notifications:** Automated email notifications for new orders.
-*   **Caching:** Utilizes Redis (Valkey) for caching frequently accessed data to improve performance.
+*   **Caching:** Utilizes Upstash Redis for caching frequently accessed data to improve performance with automatic failover and no connection drops.
 *   **Sitemap Generation:** Dynamically generates `sitemap.xml` for SEO.
 *   **Rate Limiting:** Basic rate limiting on sensitive endpoints.
 
@@ -24,15 +24,14 @@ A comprehensive web application designed for selling and delivering digital bot 
 
 *   **Backend:** Node.js, Express.js
 *   **Database:** Supabase (PostgreSQL backend)
-*   **Caching:** Redis (specifically Valkey, a Redis fork)
+*   **Caching:** Upstash Redis (HTTP-based Redis service)
 *   **Frontend:** Serves static files from the `public/` directory (likely built with a modern JavaScript framework like React, Vue, or Angular, which then consumes the backend API).
 
 ## Key Dependencies
 
 *   `@supabase/supabase-js`: For interacting with the Supabase database and storage.
 *   `express`: Web framework for Node.js.
-*   `redis`: Node.js client for Redis/Valkey.
-*   `connect-redis`: Redis session store for Express.
+*   `@upstash/redis`: Upstash Redis client for Node.js.
 *   `express-session`: Session management.
 *   `nodemailer`: For sending emails.
 *   `bcrypt`: For password hashing.
@@ -50,10 +49,8 @@ This application requires a `.env` file in the root directory with the following
 
 *   `SUPABASE_URL`: Your Supabase project URL.
 *   `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key.
-*   `VALKEY_USERNAME`: Username for Valkey/Redis (if applicable).
-*   `VALKEY_PASSWORD`: Password for Valkey/Redis.
-*   `VALKEY_HOST`: Hostname for Valkey/Redis.
-*   `VALKEY_PORT`: Port for Valkey/Redis.
+*   `UPSTASH_REDIS_REST_URL`: Your Upstash Redis REST URL (e.g., https://your-instance.upstash.io).
+*   `UPSTASH_REDIS_REST_TOKEN`: Your Upstash Redis REST token for authentication.
 *   `SESSION_SECRET`: A secret string for signing session ID cookies.
 *   `EMAIL_USER`: Gmail username for sending notification emails.
 *   `EMAIL_PASS`: Gmail app password for sending notification emails.
@@ -109,7 +106,7 @@ NOWPAYMENTS_IPN_KEY=your_nowpayments_ipn_secret
 3.  **Create and configure `.env` file:**
     *   Copy `.env.example` (if provided) to `.env` or create a new `.env` file.
     *   Fill in the required environment variables as listed above.
-    *   **Important:** You will need to set up Supabase, Valkey (Redis), PayHero, and NOWPayments accounts to get the necessary API keys and credentials.
+    *   **Important:** You will need to set up Supabase, Upstash Redis, PayHero, and NOWPayments accounts to get the necessary API keys and credentials.
 
 4.  **Database Setup (Supabase):**
     *   Ensure your Supabase instance has the required tables:
