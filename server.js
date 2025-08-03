@@ -1400,23 +1400,69 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       callback_url: callbackUrl
     };
 
-    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating STK push to PayHero with body:`, JSON.stringify(payheroRequestBody));
+    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating STK push to PayHero for ref ${serverSideReference}`);
 
-    const response = await fetch(payheroApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': payheroAuthToken
-      },
-      body: JSON.stringify(payheroRequestBody)
-    });
+    let payheroResponse;
+    try {
+      const response = await fetch(payheroApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': payheroAuthToken
+        },
+        body: JSON.stringify(payheroRequestBody),
+        timeout: 45000 // Increase timeout to 45 seconds
+      });
 
-    const payheroResponse = await response.json();
+      // Check if response has content before parsing JSON
+      const responseText = await response.text();
+      
+      if (!responseText || responseText.trim() === '') {
+        console.error(`[${new Date().toISOString()}] ServerSTK: Empty response from PayHero API`);
+        await supabase.from('orders').update({ 
+          status: 'failed_stk_initiation', 
+          notes: 'PayHero API returned empty response' 
+        }).eq('ref_code', serverSideReference);
+        return res.status(500).json({ success: false, error: 'Payment gateway returned empty response. Please try again.' });
+      }
 
-    if (!response.ok || !payheroResponse.success || payheroResponse.status !== 'QUEUED') {
-      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiation API call failed. Status: ${response.status}, Response:`, payheroResponse);
+      try {
+        payheroResponse = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error(`[${new Date().toISOString()}] ServerSTK: Invalid JSON from PayHero. Response text: ${responseText.substring(0, 200)}`);
+        await supabase.from('orders').update({ 
+          status: 'failed_stk_initiation', 
+          notes: 'PayHero API returned invalid JSON response' 
+        }).eq('ref_code', serverSideReference);
+        return res.status(500).json({ success: false, error: 'Payment gateway error. Please try again in a few moments.' });
+      }
+
+      if (!response.ok) {
+        console.error(`[${new Date().toISOString()}] ServerSTK: PayHero API HTTP error. Status: ${response.status}`);
+        await supabase.from('orders').update({ 
+          status: 'failed_stk_initiation', 
+          notes: `PayHero API HTTP ${response.status}` 
+        }).eq('ref_code', serverSideReference);
+        return res.status(500).json({ success: false, error: payheroResponse.message || 'Payment gateway temporarily unavailable.' });
+      }
+
+    } catch (fetchError) {
+      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero API network error:`, fetchError.message);
+      await supabase.from('orders').update({ 
+        status: 'failed_stk_initiation', 
+        notes: `Network error: ${fetchError.message}` 
+      }).eq('ref_code', serverSideReference);
+      return res.status(500).json({ success: false, error: 'Unable to connect to payment gateway. Please check your connection and try again.' });
+    }
+
+    // Validate PayHero response
+    if (!payheroResponse.success || payheroResponse.status !== 'QUEUED') {
+      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiation failed. Response status: ${payheroResponse.status}`);
       // Do NOT set rate limit key if PayHero initiation failed, allow user to retry sooner.
-      await supabase.from('orders').update({ status: 'failed_stk_initiation', notes: JSON.stringify(payheroResponse) }).eq('ref_code', serverSideReference);
+      await supabase.from('orders').update({ 
+        status: 'failed_stk_initiation', 
+        notes: `PayHero error: ${payheroResponse.message || payheroResponse.status}` 
+      }).eq('ref_code', serverSideReference);
       return res.status(500).json({ success: false, error: payheroResponse.message || 'Failed to initiate payment with PayHero.' });
     }
 
@@ -1514,7 +1560,7 @@ app.post('/api/payhero-callback', async (req, res) => {
         updatePayload.payer_phone_number = PayerPhone;
     }
 
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: Initial order details for ${serverSideReference} - Status: ${order.status}, Amount: ${order.amount}, Payer Phone from CB: ${PayerPhone}, PayHero CB Amount: ${Amount}, ResultCode: ${ResultCode}, PayHeroStatus: ${paymentGatewayStatus}, OverallCBStatus: ${overallCallbackStatus}`);
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: Processing ${serverSideReference} - ResultCode: ${ResultCode}, Status: ${paymentGatewayStatus}`);
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
       console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}, PayerPhone: ${PayerPhone}`);
@@ -1953,7 +1999,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       newLocalStatus = 'confirmed_nowpayments';
       const updatePayload = {
         status: newLocalStatus,
-        notes: `NOWPayments IPN: finished. Paid: ${actuallyPaid} ${payCurrency}. Original pay amount: ${payAmount} ${payCurrency}.`,
+        notes: `Payment confirmed via NOWPayments IPN`,
         amount_paid_crypto: parseFloat(actuallyPaid)
       };
       if (parseFloat(actuallyPaid) < parseFloat(payAmount)) {
@@ -1974,7 +2020,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       newLocalStatus = 'partially_paid_nowpayments';
       await supabase.from('orders').update({
           status: newLocalStatus,
-          notes: `NOWPayments IPN: partially_paid. Paid: ${actuallyPaid} ${payCurrency} of expected ${payAmount} ${payCurrency}.`,
+          notes: `Partial payment received via NOWPayments`,
           amount_paid_crypto: parseFloat(actuallyPaid)
       }).eq('ref_code', orderId);
       console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
