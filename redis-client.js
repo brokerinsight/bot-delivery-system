@@ -1,6 +1,6 @@
 const { Redis } = require('@upstash/redis');
 
-// Create a Redis client using REST connection for stability and no connection drops
+// Create a Redis client that automatically configures from REDIS_URL
 class RedisClient {
   constructor() {
     this.client = null;
@@ -13,14 +13,39 @@ class RedisClient {
 
   initializeClient() {
     try {
+      // Parse the REDIS_URL to extract REST API credentials
+      const redisUrl = process.env.REDIS_URL;
+      
+      if (!redisUrl) {
+        throw new Error('REDIS_URL environment variable is required');
+      }
+
+      // Extract password and endpoint from the Redis URL
+      // Format: rediss://default:password@endpoint:port
+      const urlPattern = /rediss?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)/;
+      const match = redisUrl.match(urlPattern);
+      
+      if (!match) {
+        throw new Error('Invalid REDIS_URL format');
+      }
+
+      const [, username, password, endpoint, port] = match;
+      
+      // Convert to Upstash REST API format
+      // The endpoint for REST API is https://[endpoint].upstash.io
+      const restUrl = `https://${endpoint}`;
+      const restToken = password;
+
       // Initialize Upstash Redis REST client
-      // Using fromEnv() method for automatic environment variable configuration
-      this.client = Redis.fromEnv();
+      this.client = new Redis({
+        url: restUrl,
+        token: restToken
+      });
       
       // Upstash Redis REST is HTTP-based, so it doesn't maintain persistent connections
       // This means no connection drops!
       this.isConnected = true;
-      console.log(`[${new Date().toISOString()}] Upstash Redis REST client initialized successfully`);
+      console.log(`[${new Date().toISOString()}] Upstash Redis client initialized successfully`);
       
       // Reset connection attempts on successful initialization
       this.connectionAttempts = 0;
@@ -65,9 +90,9 @@ class RedisClient {
       console.error(`[${new Date().toISOString()}] Redis ${commandName} error:`, error.message);
       
       // Check if it's a connection error and attempt to reinitialize
-      if (error.message.includes('UPSTASH_REDIS_REST_URL') || 
-          error.message.includes('UPSTASH_REDIS_REST_TOKEN') ||
-          error.message.includes('fetch failed')) {
+      if (error.message.includes('Unauthorized') || 
+          error.message.includes('fetch failed') ||
+          error.message.includes('REDIS_URL')) {
         this.handleConnectionError(error);
       }
       
