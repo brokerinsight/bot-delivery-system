@@ -2061,37 +2061,11 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, async () => {
   console.log(`[${new Date().toISOString()}] 🌐 Server running on port ${PORT}`);
   
-  // Don't show "ready" message until initialization is complete
-  setTimeout(async () => {
-    if (redisClient.isConnected) {
-      console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
-      // Test Redis with a simple operation
-      try {
-        await redisClient.set('server:startup:test', new Date().toISOString());
-        const testValue = await redisClient.get('server:startup:test');
-        if (testValue) {
-          console.log(`[${new Date().toISOString()}] ✅ Redis read/write test: PASSED`);
-          await redisClient.del('server:startup:test');
-        }
-      } catch (error) {
-        console.warn(`[${new Date().toISOString()}] ⚠️  Redis test operation failed:`, error.message);
-      }
-    } else {
-      console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
-    }
-    
-    // Only show ready message after checking if initialization is complete
+  // Wait for initialization to complete before showing ready message
+  const checkInit = setInterval(() => {
     if (isServerInitialized) {
       console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
-    } else {
-      console.log(`[${new Date().toISOString()}] ⏳ Server is starting up, initialization in progress...`);
-      // Wait for initialization to complete
-      const checkInit = setInterval(() => {
-        if (isServerInitialized) {
-          console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
-          clearInterval(checkInit);
-        }
-      }, 1000);
+      clearInterval(checkInit);
     }
   }, 100);
 });
