@@ -160,9 +160,6 @@ app.use(session({
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
-  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
-  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
-  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
   next();
 });
 
@@ -715,7 +712,7 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    console.log(`[${new Date().toISOString()}] Received payload for /api/save-data:`, JSON.stringify(req.body, null, 2));
+    console.log(`[${new Date().toISOString()}] Processing /api/save-data request`);
     let overallDataChanged = false; // Flag to track if any part of cachedData changed
 
     // Handle Products: Merge updates or replace if a full list is sent.
@@ -1574,7 +1571,7 @@ app.post('/api/payhero-callback', async (req, res) => {
     }
 
     // Log the decision process
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Intending to update with payload:`, JSON.stringify(updatePayload, null, 2));
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Preparing to update status to '${updatePayload.status}'.`);
 
     let dbUpdateError = null;
     // Check if any relevant field has changed before attempting update
@@ -2064,37 +2061,11 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, async () => {
   console.log(`[${new Date().toISOString()}] 🌐 Server running on port ${PORT}`);
   
-  // Don't show "ready" message until initialization is complete
-  setTimeout(async () => {
-    if (redisClient.isConnected) {
-      console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
-      // Test Redis with a simple operation
-      try {
-        await redisClient.set('server:startup:test', new Date().toISOString());
-        const testValue = await redisClient.get('server:startup:test');
-        if (testValue) {
-          console.log(`[${new Date().toISOString()}] ✅ Redis read/write test: PASSED`);
-          await redisClient.del('server:startup:test');
-        }
-      } catch (error) {
-        console.warn(`[${new Date().toISOString()}] ⚠️  Redis test operation failed:`, error.message);
-      }
-    } else {
-      console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
-    }
-    
-    // Only show ready message after checking if initialization is complete
+  // Wait for initialization to complete before showing ready message
+  const checkInit = setInterval(() => {
     if (isServerInitialized) {
       console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
-    } else {
-      console.log(`[${new Date().toISOString()}] ⏳ Server is starting up, initialization in progress...`);
-      // Wait for initialization to complete
-      const checkInit = setInterval(() => {
-        if (isServerInitialized) {
-          console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
-          clearInterval(checkInit);
-        }
-      }, 1000);
+      clearInterval(checkInit);
     }
   }, 100);
 });
