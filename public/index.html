@@ -1808,7 +1808,7 @@
                 order_description: product.name,
             }),
             credentials: 'include'
-        });
+        }, 30000); // Add 30 second timeout for NOWPayments
 
         const data = await response.json();
 
@@ -1955,7 +1955,9 @@
 
 
             try {
-                const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`, {credentials: 'include'});
+                const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`, {
+                    credentials: 'include'
+                }, 15000); // Add 15 second timeout for status polling
                 const data = await response.json();
 
                 if (!response.ok) {
