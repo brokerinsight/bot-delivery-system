@@ -11,22 +11,31 @@ class RedisClient {
     this.initializeClient();
   }
 
-  initializeClient() {
+  async initializeClient() {
     try {
       // Initialize Upstash Redis REST client
       // Using fromEnv() method for automatic environment variable configuration
       this.client = Redis.fromEnv();
       
+      // Test the connection by performing a simple ping
+      try {
+        await this.client.ping();
+        console.log(`[${new Date().toISOString()}] ✅ Successfully connected to Upstash Redis`);
+        console.log(`[${new Date().toISOString()}] 📡 Redis connection test passed - REST API is responding`);
+      } catch (pingError) {
+        console.warn(`[${new Date().toISOString()}] ⚠️  Redis ping failed, but client initialized. Error:`, pingError.message);
+      }
+      
       // Upstash Redis REST is HTTP-based, so it doesn't maintain persistent connections
       // This means no connection drops!
       this.isConnected = true;
-      console.log(`[${new Date().toISOString()}] Upstash Redis REST client initialized successfully`);
+      console.log(`[${new Date().toISOString()}] 🚀 Upstash Redis REST client initialized successfully`);
       
       // Reset connection attempts on successful initialization
       this.connectionAttempts = 0;
       this.retryDelay = 1000;
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Failed to initialize Upstash Redis client:`, error.message);
+      console.error(`[${new Date().toISOString()}] ❌ Failed to initialize Upstash Redis client:`, error.message);
       this.handleConnectionError(error);
     }
   }
@@ -46,8 +55,8 @@ class RedisClient {
 
     console.log(`[${new Date().toISOString()}] Retrying Redis connection in ${Math.round(delay / 1000)} seconds... (Attempt ${this.connectionAttempts}/${this.maxRetries})`);
 
-    setTimeout(() => {
-      this.initializeClient();
+    setTimeout(async () => {
+      await this.initializeClient();
     }, delay);
   }
 
@@ -101,7 +110,7 @@ class RedisClient {
     });
   }
 
-  // Enhanced delete method
+  // Enhanced del method
   async del(key) {
     return this.executeCommand('DEL', async () => {
       return await this.client.del(key);
