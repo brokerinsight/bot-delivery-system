@@ -157,6 +157,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+let isServerInitialized = false;
+
 let cachedData = {
   products: [],
   categories: [],
@@ -202,12 +204,18 @@ const fallbackRefCodeModal = {
 
 async function loadData() {
   try {
+    console.log(`[${new Date().toISOString()}] Starting loadData from Supabase...`);
+    
     const productRes = await supabase
       .from('products')
       .select('*')
       .order('is_new', { ascending: false })
       .order('created_at', { ascending: false })
       .order('item', { ascending: true });
+
+    if (productRes.error) {
+      throw new Error(`Supabase products query failed: ${productRes.error.message}`);
+    }
 
     const products = productRes.data?.map(row => ({
       item: row.item,
@@ -225,6 +233,9 @@ async function loadData() {
     })) || [];
 
     const settingsRes = await supabase.from('settings').select('key, value');
+    if (settingsRes.error) {
+      throw new Error(`Supabase settings query failed: ${settingsRes.error.message}`);
+    }
     const dbSettingsRaw = settingsRes.data || [];
     const settingsData = Object.fromEntries(dbSettingsRaw.map(row => [row.key, row.value]));
 
@@ -602,18 +613,36 @@ async function rateLimit(req, res, next) {
 
 app.get('/api/data', async (req, res) => {
   try {
+    console.log(`[${new Date().toISOString()}] /api/data request received`);
+    
+    // Check if server is initialized
+    if (!isServerInitialized) {
+      console.log(`[${new Date().toISOString()}] Server still initializing, serving default cached data`);
+      res.json(cachedData);
+      return;
+    }
+    
+    // Check if Redis client is ready
+    if (!redisClient.isReady()) {
+      console.log(`[${new Date().toISOString()}] Redis client not ready, serving cached data from memory`);
+      res.json(cachedData);
+      return;
+    }
+    
     const cached = await redisClient.get('cachedData');
     if (cached) {
       cachedData = JSON.parse(cached);
       console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
     } else {
+      console.log(`[${new Date().toISOString()}] No cached data in Redis, loading from Supabase`);
       await loadData();
-              console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
+      console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
     }
     res.json(cachedData);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch data' });
+    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error);
+    console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch data', details: error.message });
   }
 });
 
@@ -1934,6 +1963,8 @@ async function initialize() {
   await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
   setInterval(refreshCache, 15 * 60 * 1000);
+  isServerInitialized = true;
+  console.log(`[${new Date().toISOString()}] ✅ Server initialization complete`);
 }
 
 initialize().catch(error => {
