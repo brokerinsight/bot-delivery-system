@@ -605,10 +605,10 @@ app.get('/api/data', async (req, res) => {
     const cached = await redisClient.get('cachedData');
     if (cached) {
       cachedData = JSON.parse(cached);
-      console.log(`[${new Date().toISOString()}] Served /api/data from Valkey cache`);
+      console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
     } else {
       await loadData();
-      console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Valkey`);
+              console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
     }
     res.json(cachedData);
   } catch (error) {
