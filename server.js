@@ -1589,27 +1589,138 @@ app.post('/api/payhero-callback', async (req, res) => {
       switch (ResultCode) {
         case 1: // The balance is insufficient for the transaction
           failureStatus = 'failed_stk_insufficient_funds';
-          failureNote = `Insufficient M-Pesa funds. (PayHero: ${notesForUpdate})`;
+          failureNote = `Insufficient M-Pesa balance. Please top up your M-Pesa account and try again.`;
           break;
         case 1032: // Request cancelled by user
           failureStatus = 'failed_stk_cancelled_by_user';
-          failureNote = `Payment cancelled by user on phone. (PayHero: ${notesForUpdate})`;
+          failureNote = `Payment cancelled by user. Please try again if you want to complete the payment.`;
           break;
         case 1037: // Timeout in completing transaction
           failureStatus = 'failed_stk_timeout';
-          failureNote = `M-Pesa STK request timed out. (PayHero: ${notesForUpdate})`;
+          failureNote = `M-Pesa request timed out. Please check your phone and try again.`;
           break;
         case 2001: // Invalid M-Pesa PIN
           failureStatus = 'failed_stk_invalid_pin';
-          failureNote = `Invalid M-Pesa PIN entered. (PayHero: ${notesForUpdate})`;
+          failureNote = `Invalid M-Pesa PIN entered. Please try again with the correct PIN.`;
+          break;
+        case 1019: // Transaction Expired
+          failureStatus = 'failed_stk_expired';
+          failureNote = `M-Pesa transaction expired. Please try again.`;
+          break;
+        case 1025: // Transaction not allowed for this MSISDN
+          failureStatus = 'failed_stk_not_allowed';
+          failureNote = `Transaction not allowed for this phone number. Please contact M-Pesa support.`;
+          break;
+        case 1: // Request timeout
+        case 1001: // Request timeout
+          failureStatus = 'failed_stk_request_timeout';
+          failureNote = `Request timed out. Please check your network connection and try again.`;
+          break;
+        case 1036: // Request error
+          failureStatus = 'failed_stk_request_error';
+          failureNote = `Request error occurred. Please try again in a few moments.`;
+          break;
+        case 1012: // Service temporarily unavailable
+          failureStatus = 'failed_stk_service_unavailable';
+          failureNote = `M-Pesa service temporarily unavailable. Please try again later.`;
+          break;
+        case 1013: // Invalid amount
+          failureStatus = 'failed_stk_invalid_amount';
+          failureNote = `Invalid transaction amount. Please contact support.`;
+          break;
+        case 1014: // Invalid account number
+        case 1015: // Invalid phone number
+          failureStatus = 'failed_stk_invalid_details';
+          failureNote = `Invalid transaction details. Please contact support.`;
+          break;
+        case 1016: // Insufficient priviledges
+          failureStatus = 'failed_stk_insufficient_privileges';
+          failureNote = `Transaction not authorized. Please try again or contact support.`;
+          break;
+        case 1017: // Invalid security credentials
+          failureStatus = 'failed_stk_invalid_credentials';
+          failureNote = `Security error occurred. Please contact support.`;
+          break;
+        case 1018: // Invalid short code
+          failureStatus = 'failed_stk_invalid_shortcode';
+          failureNote = `Service configuration error. Please contact support.`;
+          break;
+        case 1020: // Transaction failed
+          failureStatus = 'failed_stk_transaction_failed';
+          failureNote = `Transaction failed. Please try again or contact support.`;
+          break;
+        case 1021: // Unable to initiate STK Push
+          failureStatus = 'failed_stk_unable_to_initiate';
+          failureNote = `Unable to send payment request to your phone. Please try again.`;
+          break;
+        case 1022: // Unable to unlock device
+          failureStatus = 'failed_stk_device_locked';
+          failureNote = `Unable to complete payment - phone may be locked. Please unlock your phone and try again.`;
+          break;
+        case 1023: // Business not in the allowed IP list
+          failureStatus = 'failed_stk_ip_restriction';
+          failureNote = `Service access restriction. Please contact support.`;
+          break;
+        case 1024: // Password mismatch
+          failureStatus = 'failed_stk_password_mismatch';
+          failureNote = `Authentication error. Please try again.`;
+          break;
+        case 1026: // Transaction already exists
+          failureStatus = 'failed_stk_duplicate_transaction';
+          failureNote = `Duplicate transaction detected. Please wait a moment before trying again.`;
+          break;
+        case 1027: // Transaction limit exceeded
+          failureStatus = 'failed_stk_limit_exceeded';
+          failureNote = `Transaction limit exceeded. Please contact M-Pesa support to increase your limits.`;
+          break;
+        case 1028: // Account blocked
+          failureStatus = 'failed_stk_account_blocked';
+          failureNote = `M-Pesa account is blocked. Please contact M-Pesa support.`;
+          break;
+        case 1029: // Debit account invalid
+          failureStatus = 'failed_stk_invalid_account';
+          failureNote = `Invalid M-Pesa account. Please contact M-Pesa support.`;
+          break;
+        case 1030: // Credit account invalid
+          failureStatus = 'failed_stk_credit_account_invalid';
+          failureNote = `Payment destination account invalid. Please contact support.`;
+          break;
+        case 1031: // Account not active
+          failureStatus = 'failed_stk_account_inactive';
+          failureNote = `M-Pesa account not active. Please contact M-Pesa support.`;
+          break;
+        case 1033: // Account has insufficient funds
+          failureStatus = 'failed_stk_insufficient_funds';
+          failureNote = `Insufficient M-Pesa balance. Please top up your account and try again.`;
+          break;
+        case 1034: // Duplicate payment
+          failureStatus = 'failed_stk_duplicate_payment';
+          failureNote = `Duplicate payment detected. Please check if your previous payment was successful.`;
+          break;
+        case 1035: // Generic user cancel
+          failureStatus = 'failed_stk_user_cancel';
+          failureNote = `Payment cancelled. Please try again if you want to complete the payment.`;
+          break;
+        case 1037: // DS timeout user cannot be reached
+          failureStatus = 'failed_stk_user_unreachable';
+          failureNote = `Unable to reach your phone. Please ensure your phone is on and has network coverage.`;
+          break;
+        case 1038: // Failed to lock subscriber amount
+          failureStatus = 'failed_stk_lock_failed';
+          failureNote = `Unable to process payment. Please try again in a few moments.`;
+          break;
+        case 1039: // NCIP balance would go below zero
+          failureStatus = 'failed_stk_insufficient_balance';
+          failureNote = `Insufficient balance to complete transaction. Please top up and try again.`;
+          break;
+        case 9999: // Request cancelled by user
+          failureStatus = 'failed_stk_cancelled_by_user';
+          failureNote = `Payment request cancelled. Please try again if you want to complete the payment.`;
           break;
         // Add other common M-Pesa STK failure codes if known
-        // Example: 1019: Transaction Expired
-        // Example: 1025: Transaction not allowed for this MSISDN
         default:
           // Use generic failure status if code is not specifically handled
-          failureNote = `Payment failed. Reason: ${notesForUpdate || 'See PayHero dashboard for details.'}`;
-          break;
+          failureNote = `Payment failed (Code: ${ResultCode}). ${ResultDesc || 'Please try again or contact support.'}`;
       }
       updatePayload.status = failureStatus;
       updatePayload.notes = failureNote.trim();
