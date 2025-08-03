@@ -1611,7 +1611,6 @@ app.post('/api/payhero-callback', async (req, res) => {
           failureStatus = 'failed_stk_not_allowed';
           failureNote = `Transaction not allowed for this phone number. Please contact M-Pesa support.`;
           break;
-        case 1: // Request timeout
         case 1001: // Request timeout
           failureStatus = 'failed_stk_request_timeout';
           failureNote = `Request timed out. Please check your network connection and try again.`;
