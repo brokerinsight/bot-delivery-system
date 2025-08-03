@@ -1660,6 +1660,18 @@ app.post('/api/payhero-callback', async (req, res) => {
         res.status(200).json({ success: true, message: "Callback processed." });
     }
 
+    // Clear rate limit for this phone number when payment completes (success or failure)
+    if (PayerPhone) {
+      const normalizedPhoneForClearing = PayerPhone.startsWith('+') ? PayerPhone.substring(1) : (PayerPhone.startsWith('0') ? `254${PayerPhone.substring(1)}` : PayerPhone);
+      const rateLimitKey = `stk_pending:${normalizedPhoneForClearing}`;
+      try {
+        await redisClient.del(rateLimitKey);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: Rate limit cleared for phone ${normalizedPhoneForClearing} after payment completion`);
+      } catch (redisError) {
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Error clearing rate limit for phone ${normalizedPhoneForClearing}:`, redisError.message);
+      }
+    }
+
   } catch (error) {
     // This outer catch handles errors like fetching the order, or other unexpected errors before DB update attempt
     console.error(`[${new Date().toISOString()}] DirectAPI CB: General error processing callback for ${ExternalReference || 'unknown ref'}:`, error.message, error.stack);
@@ -2114,4 +2126,29 @@ app.listen(PORT, async () => {
       clearInterval(checkInit);
     }
   }, 100);
+});
+
+// Admin endpoint to clear rate limits
+app.post('/api/admin/clear-rate-limit', isAuthenticated, async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'Phone number is required' });
+    }
+
+    const normalizedPhone = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
+    const rateLimitKey = `stk_pending:${normalizedPhone}`;
+    
+    await redisClient.del(rateLimitKey);
+    console.log(`[${new Date().toISOString()}] Admin: Rate limit cleared for phone ${normalizedPhone}`);
+    
+    res.json({ success: true, message: `Rate limit cleared for phone ${normalizedPhone}` });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error clearing rate limit:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to clear rate limit' });
+  }
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
 });
