@@ -8,6 +8,7 @@ class UpstashSessionStore extends session.Store {
     this.ttl = options.ttl || 86400; // Default: 24 hours
     this.disableTouch = options.disableTouch || false;
     this.serializer = options.serializer || JSON;
+    this.connectionType = process.env.UPSTASH_CONNECTION_TYPE || 'REST';
   }
 
   // Get session
@@ -44,7 +45,7 @@ class UpstashSessionStore extends session.Store {
       const ttl = this._getTTL(session);
       const data = this.serializer.stringify(session);
 
-      await this.client.set(key, data, { ex: ttl });
+      await this.client.set(key, data, { EX: ttl });
       
       return callback ? callback(null) : null;
     } catch (err) {
@@ -73,11 +74,15 @@ class UpstashSessionStore extends session.Store {
       const key = this.prefix + sid;
       const ttl = this._getTTL(session);
       
-      // Get existing session data
-      const data = await this.client.get(key);
-      if (data) {
-        // Reset TTL
-        await this.client.set(key, data, { ex: ttl });
+      if (this.connectionType === 'TCP') {
+        // For TCP connections using ioredis, use EXPIRE command
+        await this.client.client.expire(key, ttl);
+      } else {
+        // For REST connections, get and re-set with new TTL
+        const data = await this.client.get(key);
+        if (data) {
+          await this.client.set(key, data, { EX: ttl });
+        }
       }
       
       return callback ? callback(null) : null;
