@@ -1854,10 +1854,10 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
       try {
         minErrorJson = JSON.parse(minErrorText);
       } catch(e) {
-        console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching minimum payment amount for ${pay_currency} to ${price_currency}: ${minErrorText}`);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum amount for ${pay_currency}`);
       }
       const errorMessage = minErrorJson.message || `Failed to fetch minimum payment amount from NOWPayments (Status: ${minAmountResponse.status}, Body: ${minErrorText})`;
-      console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum payment amount for ${pay_currency} to ${price_currency}:`, minErrorJson.message || minErrorText);
+              console.error(`[${new Date().toISOString()}] NOWPayments: Minimum amount check failed for ${pay_currency}:`, minErrorJson.message || `HTTP ${minAmountResponse.status}`);
       return res.status(500).json({ success: false, error: errorMessage });
     }
     const minAmountData = await minAmountResponse.json();
@@ -1880,10 +1880,10 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
         try {
             estErrorJson = JSON.parse(estErrorText);
         } catch(e) {
-            console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}: ${estErrorText}`);
+            console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${pay_currency}`);
         }
         const errorMessage = estErrorJson.message || `Could not get payment estimate from NOWPayments (Status: ${estimateResponse.status}, Body: ${estErrorText})`;
-        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estErrorJson.message || estErrorText);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate calculation failed for ${pay_currency}:`, estErrorJson.message || `HTTP ${estimateResponse.status}`);
         return res.status(500).json({ success: false, error: errorMessage });
     }
     const estimateData = await estimateResponse.json();
@@ -1932,7 +1932,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     const paymentData = await paymentResponse.json();
 
     if (!paymentResponse.ok || !paymentData.payment_id) {
-      console.error(`[${new Date().toISOString()}] Error creating NOWPayments payment:`, paymentData);
+      console.error(`[${new Date().toISOString()}] NOWPayments payment creation failed:`, paymentData.message || `HTTP ${paymentResponse.status}`);
       throw new Error(paymentData.message || `Failed to create payment with NOWPayments (Status: ${paymentResponse.status})`);
     }
 
