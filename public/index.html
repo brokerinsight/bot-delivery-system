@@ -2152,7 +2152,7 @@
               used_exchange_rate: exchangeRate // Send the exchange rate used by client
             }),
             credentials: 'include'
-          }, 20000);
+          }, 60000); // Increased timeout to 60 seconds for STK push
 
           const data = await response.json();
 
