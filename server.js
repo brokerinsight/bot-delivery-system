@@ -157,6 +157,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+let isServerInitialized = false;
+
 let cachedData = {
   products: [],
   categories: [],
@@ -202,12 +204,18 @@ const fallbackRefCodeModal = {
 
 async function loadData() {
   try {
+    console.log(`[${new Date().toISOString()}] Starting loadData from Supabase...`);
+    
     const productRes = await supabase
       .from('products')
       .select('*')
       .order('is_new', { ascending: false })
       .order('created_at', { ascending: false })
       .order('item', { ascending: true });
+
+    if (productRes.error) {
+      throw new Error(`Supabase products query failed: ${productRes.error.message}`);
+    }
 
     const products = productRes.data?.map(row => ({
       item: row.item,
@@ -225,6 +233,9 @@ async function loadData() {
     })) || [];
 
     const settingsRes = await supabase.from('settings').select('key, value');
+    if (settingsRes.error) {
+      throw new Error(`Supabase settings query failed: ${settingsRes.error.message}`);
+    }
     const dbSettingsRaw = settingsRes.data || [];
     const settingsData = Object.fromEntries(dbSettingsRaw.map(row => [row.key, row.value]));
 
@@ -322,9 +333,15 @@ async function loadData() {
     }
 
     const categoriesRes = await supabase.from('categories').select('name');
+    if (categoriesRes.error) {
+      console.warn(`[${new Date().toISOString()}] Supabase categories query failed: ${categoriesRes.error.message}`);
+    }
     const categories = [...new Set(categoriesRes.data?.map(row => row.name) || ['General'])];
 
     const pagesRes = await supabase.from('static_pages').select('*');
+    if (pagesRes.error) {
+      throw new Error(`Supabase static_pages query failed: ${pagesRes.error.message}`);
+    }
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
@@ -340,7 +357,7 @@ async function loadData() {
 
     cachedData = { products, categories, settings: loadedSettings, staticPages };
     await redisClient.set('cachedData', JSON.stringify(cachedData), { EX: 900 });
-    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Valkey`);
+    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Redis`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
     throw error;
@@ -352,10 +369,10 @@ async function refreshCache() {
     const cached = await redisClient.get('cachedData');
     if (cached) {
       cachedData = JSON.parse(cached);
-      console.log(`[${new Date().toISOString()}] Cache refreshed from Valkey`);
+      console.log(`[${new Date().toISOString()}] Cache refreshed from Redis`);
     } else {
       await loadData();
-      console.log(`[${new Date().toISOString()}] Cache refreshed from Supabase and stored in Valkey`);
+      console.log(`[${new Date().toISOString()}] Cache refreshed from Supabase and stored in Redis`);
     }
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error refreshing cache:`, error.message);
@@ -602,18 +619,36 @@ async function rateLimit(req, res, next) {
 
 app.get('/api/data', async (req, res) => {
   try {
+    console.log(`[${new Date().toISOString()}] /api/data request received`);
+    
+    // Check if server is initialized
+    if (!isServerInitialized) {
+      console.log(`[${new Date().toISOString()}] Server still initializing, serving default cached data`);
+      res.json(cachedData);
+      return;
+    }
+    
+    // Check if Redis client is ready
+    if (!redisClient.isReady()) {
+      console.log(`[${new Date().toISOString()}] Redis client not ready, serving cached data from memory`);
+      res.json(cachedData);
+      return;
+    }
+    
     const cached = await redisClient.get('cachedData');
     if (cached) {
       cachedData = JSON.parse(cached);
       console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
     } else {
+      console.log(`[${new Date().toISOString()}] No cached data in Redis, loading from Supabase`);
       await loadData();
-              console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
+      console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
     }
     res.json(cachedData);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to fetch data' });
+    console.error(`[${new Date().toISOString()}] Error serving /api/data:`, error);
+    console.error(`[${new Date().toISOString()}] Error stack:`, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch data', details: error.message });
   }
 });
 
@@ -1916,15 +1951,6 @@ app.get('/api/page/:slug', async (req, res) => {
   res.json({ success: true, page });
 });
 
-app.get('/virus.html', (req, res) => {
-  const virusPath = path.join(__dirname, 'public', 'virus.html');
-  if (fs.existsSync(virusPath)) {
-    res.sendFile(virusPath);
-  } else {
-    res.status(404).send('virus.html not found');
-  }
-});
-
 app.get('/:slug', async (req, res) => {
   const slug = `/${req.params.slug}`;
   if (cachedData.staticPages.some(p => p.slug === slug && p.slug !== '/payment-modal' && p.slug !== '/ref-code-modal')) {
@@ -1939,10 +1965,25 @@ app.get('/:slug', async (req, res) => {
 
 async function initialize() {
   await selfCheck();
+  
+  // Wait a moment for Redis client to initialize
+  let retries = 0;
+  while (!redisClient.isReady() && retries < 10) {
+    console.log(`[${new Date().toISOString()}] Waiting for Redis client to be ready... (attempt ${retries + 1}/10)`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    retries++;
+  }
+  
+  if (!redisClient.isReady()) {
+    console.warn(`[${new Date().toISOString()}] Redis client not ready after ${retries} attempts, proceeding anyway`);
+  }
+  
   await loadData();
   await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
   setInterval(refreshCache, 15 * 60 * 1000);
+  isServerInitialized = true;
+  console.log(`[${new Date().toISOString()}] ✅ Server initialization complete`);
 }
 
 initialize().catch(error => {
@@ -1954,23 +1995,25 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, async () => {
   console.log(`[${new Date().toISOString()}] 🌐 Server running on port ${PORT}`);
   
-  // Check Redis connection status
-  if (redisClient.isConnected) {
-    console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
-    // Test Redis with a simple operation
-    try {
-      await redisClient.set('server:startup:test', new Date().toISOString());
-      const testValue = await redisClient.get('server:startup:test');
-      if (testValue) {
-        console.log(`[${new Date().toISOString()}] ✅ Redis read/write test: PASSED`);
-        await redisClient.del('server:startup:test');
+  // Give Redis client a moment to initialize then check connection status
+  setTimeout(async () => {
+    if (redisClient.isConnected) {
+      console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
+      // Test Redis with a simple operation
+      try {
+        await redisClient.set('server:startup:test', new Date().toISOString());
+        const testValue = await redisClient.get('server:startup:test');
+        if (testValue) {
+          console.log(`[${new Date().toISOString()}] ✅ Redis read/write test: PASSED`);
+          await redisClient.del('server:startup:test');
+        }
+      } catch (error) {
+        console.warn(`[${new Date().toISOString()}] ⚠️  Redis test operation failed:`, error.message);
       }
-    } catch (error) {
-      console.warn(`[${new Date().toISOString()}] ⚠️  Redis test operation failed:`, error.message);
+    } else {
+      console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
     }
-  } else {
-    console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
-  }
+  }, 100);
   
   console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
 });
