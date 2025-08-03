@@ -160,9 +160,6 @@ app.use(session({
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] Request URL: ${req.url}`);
-  console.log(`[${new Date().toISOString()}] Session ID: ${req.sessionID}`);
-  console.log(`[${new Date().toISOString()}] Session Data:`, req.session);
-  console.log(`[${new Date().toISOString()}] Cookies:`, req.cookies);
   next();
 });
 
@@ -715,7 +712,7 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/save-data', isAuthenticated, async (req, res) => {
   try {
-    console.log(`[${new Date().toISOString()}] Received payload for /api/save-data:`, JSON.stringify(req.body, null, 2));
+    console.log(`[${new Date().toISOString()}] Processing /api/save-data request`);
     let overallDataChanged = false; // Flag to track if any part of cachedData changed
 
     // Handle Products: Merge updates or replace if a full list is sent.
@@ -1574,7 +1571,7 @@ app.post('/api/payhero-callback', async (req, res) => {
     }
 
     // Log the decision process
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Intending to update with payload:`, JSON.stringify(updatePayload, null, 2));
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Preparing to update status to '${updatePayload.status}'.`);
 
     let dbUpdateError = null;
     // Check if any relevant field has changed before attempting update
