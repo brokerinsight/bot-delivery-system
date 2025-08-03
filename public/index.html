@@ -2174,7 +2174,13 @@
           } else {
             const errorMsg = data.error || `Failed to initiate payment: ${response.statusText || response.status}`;
             console.error('Server STK Push Initiation Error:', errorMsg, data);
-            payheroStatusMessage.textContent = `Error: ${errorMsg}. Please try again.`;
+            
+            // Handle rate limit specifically
+            if (response.status === 429) {
+              payheroStatusMessage.textContent = `You have a pending payment. Please complete it or wait a few minutes before trying again.`;
+            } else {
+              payheroStatusMessage.textContent = `Error: ${errorMsg}. Please try again.`;
+            }
             payheroStatusMessage.style.color = 'red';
             proceedButton.disabled = false;
           }
