@@ -13,8 +13,8 @@ const fetch = require('node-fetch');
 const { v4: uuidv4 } = require('uuid');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
-const RedisStore = require('connect-redis').default;
-const { createClient: createRedisClient } = require('redis');
+const UpstashSessionStore = require('./upstash-session-store');
+const { redisClient } = require('./redis-client');
 
 dotenv.config();
 
@@ -22,20 +22,6 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const supabase = createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-const redisClient = createRedisClient({
-  url: `rediss://${process.env.VALKEY_USERNAME}:${process.env.VALKEY_PASSWORD}@${process.env.VALKEY_HOST}:${process.env.VALKEY_PORT}/0`
-});
-
-redisClient.on('error', (err) => {
-  console.error(`[${new Date().toISOString()}] Redis Client Error:`, err.message);
-});
-
-redisClient.connect().then(() => {
-  console.log(`[${new Date().toISOString()}] Connected to Valkey successfully`);
-}).catch((err) => {
-  console.error(`[${new Date().toISOString()}] Failed to connect to Valkey:`, err.message);
-});
 
 const ALLOWED_ORIGINS = [
   'https://bot-delivery-system-qlx4j.ondigitalocean.app',
@@ -139,7 +125,10 @@ app.use(express.static(publicPath));
 console.log(`[${new Date().toISOString()}] Serving static files from: ${publicPath}`);
 
 app.use(session({
-  store: new RedisStore({ client: redisClient }),
+  store: new UpstashSessionStore({ 
+    client: redisClient,
+    ttl: 86400 // 24 hours
+  }),
   name: 'sid',
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
