@@ -18,6 +18,23 @@ const { redisClient } = require('./redis-client');
 
 dotenv.config();
 
+// Validate critical environment variables
+const requiredEnvVars = {
+  'SUPABASE_URL': process.env.SUPABASE_URL,
+  'SUPABASE_SERVICE_ROLE_KEY': process.env.SUPABASE_SERVICE_ROLE_KEY
+};
+
+const missingEnvVars = Object.entries(requiredEnvVars)
+  .filter(([key, value]) => !value || value.startsWith('your-'))
+  .map(([key]) => key);
+
+if (missingEnvVars.length > 0) {
+  console.error(`[${new Date().toISOString()}] ❌ Missing or invalid environment variables: ${missingEnvVars.join(', ')}`);
+  console.error(`[${new Date().toISOString()}] Please configure these variables in your .env file`);
+  console.error(`[${new Date().toISOString()}] Server cannot start without proper database configuration`);
+  process.exit(1);
+}
+
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -356,8 +373,16 @@ async function loadData() {
     }
 
     cachedData = { products, categories, settings: loadedSettings, staticPages };
-    await redisClient.set('cachedData', JSON.stringify(cachedData), { EX: 900 });
-    console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Redis`);
+    
+    // Ensure proper serialization for Redis storage
+    try {
+      const serializedData = JSON.stringify(cachedData);
+      await redisClient.set('cachedData', serializedData, { EX: 900 });
+      console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase and cached in Redis`);
+    } catch (cacheError) {
+      console.error(`[${new Date().toISOString()}] Failed to cache data in Redis:`, cacheError.message);
+      console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase (Redis caching failed)`);
+    }
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error loading data:`, error.message);
     throw error;
@@ -368,8 +393,24 @@ async function refreshCache() {
   try {
     const cached = await redisClient.get('cachedData');
     if (cached) {
-      cachedData = JSON.parse(cached);
-      console.log(`[${new Date().toISOString()}] Cache refreshed from Redis`);
+      try {
+        // Validate cached data before parsing
+        if (typeof cached === 'string') {
+          cachedData = JSON.parse(cached);
+          console.log(`[${new Date().toISOString()}] Cache refreshed from Redis`);
+        } else if (typeof cached === 'object' && cached !== null) {
+          cachedData = cached;
+          console.log(`[${new Date().toISOString()}] Cache refreshed from Redis (object format)`);
+        } else {
+          throw new Error(`Invalid cached data type: ${typeof cached}`);
+        }
+      } catch (parseError) {
+        console.error(`[${new Date().toISOString()}] Error parsing cached data during refresh:`, parseError.message);
+        // If cache is corrupted, clear it and reload from Supabase
+        await redisClient.del('cachedData');
+        await loadData();
+        console.log(`[${new Date().toISOString()}] Cache refreshed from Supabase due to parsing error`);
+      }
     } else {
       await loadData();
       console.log(`[${new Date().toISOString()}] Cache refreshed from Supabase and stored in Redis`);
@@ -637,8 +678,28 @@ app.get('/api/data', async (req, res) => {
     
     const cached = await redisClient.get('cachedData');
     if (cached) {
-      cachedData = JSON.parse(cached);
-      console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
+      try {
+        // Validate that cached is a string and not an object before parsing
+        if (typeof cached === 'string') {
+          cachedData = JSON.parse(cached);
+          console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
+        } else if (typeof cached === 'object' && cached !== null) {
+          // If Redis returned an object directly (some Redis clients do this)
+          cachedData = cached;
+          console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache (object format)`);
+        } else {
+          throw new Error(`Invalid cached data type: ${typeof cached}`);
+        }
+      } catch (parseError) {
+        console.error(`[${new Date().toISOString()}] Error parsing cached data from Redis:`, parseError.message);
+        console.error(`[${new Date().toISOString()}] Cached data type: ${typeof cached}, First 100 chars:`, String(cached).substring(0, 100));
+        
+        // Clear the corrupted cache and load fresh data
+        await redisClient.del('cachedData');
+        console.log(`[${new Date().toISOString()}] Cleared corrupted cache, loading fresh data from Supabase`);
+        await loadData();
+        console.log(`[${new Date().toISOString()}] Served /api/data from Supabase after cache corruption`);
+      }
     } else {
       console.log(`[${new Date().toISOString()}] No cached data in Redis, loading from Supabase`);
       await loadData();
@@ -1964,26 +2025,34 @@ app.get('/:slug', async (req, res) => {
 
 
 async function initialize() {
+  console.log(`[${new Date().toISOString()}] Starting server initialization...`);
+  
   await selfCheck();
   
-  // Wait a moment for Redis client to initialize
+  // Wait for Redis client to initialize with more detailed feedback
   let retries = 0;
-  while (!redisClient.isReady() && retries < 10) {
-    console.log(`[${new Date().toISOString()}] Waiting for Redis client to be ready... (attempt ${retries + 1}/10)`);
+  const maxRetries = 20; // Increased retries for better reliability
+  while (!redisClient.isReady() && retries < maxRetries) {
+    console.log(`[${new Date().toISOString()}] Waiting for Redis client to be ready... (attempt ${retries + 1}/${maxRetries})`);
     await new Promise(resolve => setTimeout(resolve, 500));
     retries++;
   }
   
   if (!redisClient.isReady()) {
-    console.warn(`[${new Date().toISOString()}] Redis client not ready after ${retries} attempts, proceeding anyway`);
+    console.warn(`[${new Date().toISOString()}] ⚠️  Redis client not ready after ${retries} attempts, proceeding with fallback mode`);
+  } else {
+    console.log(`[${new Date().toISOString()}] ✅ Redis client is ready`);
   }
   
   await loadData();
   await deleteOldOrders();
+  
+  // Set up periodic tasks
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
   setInterval(refreshCache, 15 * 60 * 1000);
+  
   isServerInitialized = true;
-  console.log(`[${new Date().toISOString()}] ✅ Server initialization complete`);
+  console.log(`[${new Date().toISOString()}] ✅ Server initialization complete - all systems ready`);
 }
 
 initialize().catch(error => {
@@ -1995,7 +2064,7 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, async () => {
   console.log(`[${new Date().toISOString()}] 🌐 Server running on port ${PORT}`);
   
-  // Give Redis client a moment to initialize then check connection status
+  // Don't show "ready" message until initialization is complete
   setTimeout(async () => {
     if (redisClient.isConnected) {
       console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
@@ -2013,7 +2082,19 @@ app.listen(PORT, async () => {
     } else {
       console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
     }
+    
+    // Only show ready message after checking if initialization is complete
+    if (isServerInitialized) {
+      console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
+    } else {
+      console.log(`[${new Date().toISOString()}] ⏳ Server is starting up, initialization in progress...`);
+      // Wait for initialization to complete
+      const checkInit = setInterval(() => {
+        if (isServerInitialized) {
+          console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
+          clearInterval(checkInit);
+        }
+      }, 1000);
+    }
   }, 100);
-  
-  console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
 });

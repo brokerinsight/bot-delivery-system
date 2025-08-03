@@ -13,17 +13,26 @@ class RedisClient {
 
   async initializeClient() {
     try {
+      console.log(`[${new Date().toISOString()}] Initializing Upstash Redis client...`);
+      
+      // Check if environment variables are set
+      if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+        throw new Error('Upstash Redis environment variables (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN) are not configured');
+      }
+      
       // Initialize Upstash Redis REST client
       // Using fromEnv() method for automatic environment variable configuration
       this.client = Redis.fromEnv();
       
       // Test the connection by performing a simple ping
       try {
-        await this.client.ping();
+        const pingResult = await this.client.ping();
         console.log(`[${new Date().toISOString()}] ✅ Successfully connected to Upstash Redis`);
         console.log(`[${new Date().toISOString()}] 📡 Redis connection test passed - REST API is responding`);
+        console.log(`[${new Date().toISOString()}] 📊 Ping result:`, pingResult);
       } catch (pingError) {
         console.warn(`[${new Date().toISOString()}] ⚠️  Redis ping failed, but client initialized. Error:`, pingError.message);
+        // Still mark as connected since Upstash REST API might allow operations even if ping fails
       }
       
       // Upstash Redis REST is HTTP-based, so it doesn't maintain persistent connections
