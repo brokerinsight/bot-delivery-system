@@ -605,10 +605,10 @@ app.get('/api/data', async (req, res) => {
     const cached = await redisClient.get('cachedData');
     if (cached) {
       cachedData = JSON.parse(cached);
-      console.log(`[${new Date().toISOString()}] Served /api/data from Valkey cache`);
+      console.log(`[${new Date().toISOString()}] Served /api/data from Upstash Redis cache`);
     } else {
       await loadData();
-      console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Valkey`);
+              console.log(`[${new Date().toISOString()}] Served /api/data from Supabase and cached in Upstash Redis`);
     }
     res.json(cachedData);
   } catch (error) {
@@ -1951,6 +1951,26 @@ initialize().catch(error => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
+app.listen(PORT, async () => {
+  console.log(`[${new Date().toISOString()}] 🌐 Server running on port ${PORT}`);
+  
+  // Check Redis connection status
+  if (redisClient.isConnected) {
+    console.log(`[${new Date().toISOString()}] ✅ Redis connection status: CONNECTED`);
+    // Test Redis with a simple operation
+    try {
+      await redisClient.set('server:startup:test', new Date().toISOString());
+      const testValue = await redisClient.get('server:startup:test');
+      if (testValue) {
+        console.log(`[${new Date().toISOString()}] ✅ Redis read/write test: PASSED`);
+        await redisClient.del('server:startup:test');
+      }
+    } catch (error) {
+      console.warn(`[${new Date().toISOString()}] ⚠️  Redis test operation failed:`, error.message);
+    }
+  } else {
+    console.log(`[${new Date().toISOString()}] ⚠️  Redis connection status: NOT CONNECTED (will retry automatically)`);
+  }
+  
+  console.log(`[${new Date().toISOString()}] 🚀 Server is ready to handle requests`);
 });
