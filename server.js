@@ -1177,7 +1177,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     if (urlError) throw urlError;
     const downloadLink = signedUrlData.signedUrl;
 
-    console.log(`[${new Date().toISOString()}] Admin manually confirmed order for item: ${item}, ref: ${refCode}`);
+    console.log(`[${new Date().toISOString()}] Admin confirmed order ${refCode}`);
     res.json({ success: true, downloadLink });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
@@ -1475,7 +1475,7 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       // Continue with successful response even if Redis SET fails, as payment was initiated.
     }
 
-    console.log(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiated successfully for ref ${serverSideReference}. PayHero Response:`, payheroResponse);
+    console.log(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiated successfully for ref ${serverSideReference}`);
     res.json({
         success: true,
         message: 'STK Push initiated. Please check your phone.',
@@ -1563,7 +1563,7 @@ app.post('/api/payhero-callback', async (req, res) => {
     console.log(`[${new Date().toISOString()}] DirectAPI CB: Processing ${serverSideReference} - ResultCode: ${ResultCode}, Status: ${paymentGatewayStatus}`);
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}, PayerPhone: ${PayerPhone}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}`);
 
       const orderStoredKesAmount = Math.round(parseFloat(order.amount));
       const callbackReceivedKesAmount = Math.round(parseFloat(Amount));
@@ -1580,7 +1580,7 @@ app.post('/api/payhero-callback', async (req, res) => {
       }
     } else {
       // Handle various failure cases
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, OverallCallbackStatus: ${overallCallbackStatus}, PayHeroResponseStatus: ${paymentGatewayStatus}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED for order ${serverSideReference} - Code: ${ResultCode}`);
 
       let failureStatus = `failed_stk_cb_${ResultCode || 'unknown'}`; // Generic failure status
       let failureNote = notesForUpdate;
@@ -1723,11 +1723,10 @@ app.post('/api/payhero-callback', async (req, res) => {
       }
       updatePayload.status = failureStatus;
       updatePayload.notes = failureNote.trim();
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}, Note: ${updatePayload.notes}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} set to ${updatePayload.status}`);
     }
 
-    // Log the decision process
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Preparing to update status to '${updatePayload.status}'.`);
+    // Update database with payment result
 
     let dbUpdateError = null;
     // Check if any relevant field has changed before attempting update
@@ -1756,7 +1755,7 @@ app.post('/api/payhero-callback', async (req, res) => {
             // The status in DB remains the old one.
         }
     } else {
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change needed for order ${serverSideReference} (payload matches existing DB state or no new info). DB update skipped. Current status: '${order.status}'.`);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: No update needed for order ${serverSideReference}`);
     }
 
     if (dbUpdateError) {
@@ -1764,7 +1763,7 @@ app.post('/api/payhero-callback', async (req, res) => {
         // Responding 500 might cause PayHero to retry, which might be good if the error was temporary.
         // However, for this debugging, let's first ensure logging is clear.
         // For now, still respond 200 to PayHero to avoid retry loops during debugging, but log the critical failure.
-        console.error(`[${new Date().toISOString()}] DirectAPI CB: Critical - DB update failed for ${serverSideReference} but responding 200 to PayHero to prevent immediate retry. MANUAL INTERVENTION MAY BE NEEDED.`);
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: DB update failed for ${serverSideReference} - manual intervention needed`);
         res.status(200).json({ success: false, message: "Callback acknowledged, but internal processing error occurred." });
     } else {
         res.status(200).json({ success: true, message: "Callback processed." });
@@ -1864,7 +1863,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     const minimumCryptoAmount = parseFloat(minAmountData.min_amount);
 
     if (!minimumCryptoAmount && minimumCryptoAmount !== 0) { // Check if it's a valid number (0 is a valid min amount)
-        console.error(`[${new Date().toISOString()}] NOWPayments: min_amount was not a valid number or not found in response for ${pay_currency} to ${price_currency}. Data:`, minAmountData);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Invalid minimum amount data for ${pay_currency}`);
         return res.status(500).json({ success: false, error: `Could not determine minimum payment amount for ${pay_currency.toUpperCase()}.` });
     }
 
@@ -1890,13 +1889,13 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     const estimatedCryptoAmount = parseFloat(estimateData.estimated_amount);
 
     if (!estimatedCryptoAmount && estimatedCryptoAmount !== 0) { // Check if it's a valid number
-        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate data did not return a valid estimated_amount for ${pay_currency}. Data:`, estimateData);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Invalid estimate data for ${pay_currency}`);
         return res.status(500).json({ success: false, error: `Could not retrieve estimated crypto amount for ${pay_currency.toUpperCase()}.`});
     }
 
     // Step 3: Compare estimated crypto amount with the minimum crypto amount
     if (estimatedCryptoAmount < minimumCryptoAmount) {
-        console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency.toUpperCase()} is less than minimum ${minimumCryptoAmount} ${pay_currency.toUpperCase()}.`);
+        console.warn(`[${new Date().toISOString()}] NOWPayments: Amount below minimum for ${pay_currency.toUpperCase()}`);
         return res.status(400).json({
             success: false,
             error: `The amount for ${product.name} (${price_amount} ${price_currency.toUpperCase()}) is below the minimum required for ${pay_currency.toUpperCase()}. Minimum: ${minimumCryptoAmount} ${pay_currency.toUpperCase()}. Your order's equivalent: ~${estimatedCryptoAmount} ${pay_currency.toUpperCase()}. Please increase the quantity or contact support if prices seem incorrect.`,
@@ -2088,11 +2087,11 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
     const calculatedSignature = hmac.digest('hex');
 
     if (calculatedSignature !== receivedHmac) {
-      console.warn(`[${new Date().toISOString()}] NOWPayments IPN: HMAC signature mismatch. Received: ${receivedHmac}, Calculated: ${calculatedSignature}. Body:`, JSON.stringify(requestBody));
+              console.warn(`[${new Date().toISOString()}] NOWPayments IPN: HMAC signature mismatch`);
       return res.status(403).send('Invalid signature.');
     }
 
-    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Signature VERIFIED. Processing IPN for order_id: ${requestBody.order_id}, payment_id: ${requestBody.payment_id}, status: ${requestBody.payment_status}`);
+    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Processing order ${requestBody.order_id} - status: ${requestBody.payment_status}`);
 
     const orderId = requestBody.order_id; // This is our internal orderId
     const nowpaymentsPaymentId = requestBody.payment_id;
@@ -2109,7 +2108,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       .single();
 
     if (dbError || !order) {
-      console.error(`[${new Date().toISOString()}] NOWPayments IPN: Order not found for ref_code ${orderId} and NP payment_id ${nowpaymentsPaymentId}. DB Error:`, dbError);
+              console.error(`[${new Date().toISOString()}] NOWPayments IPN: Order not found for ${orderId}`);
       // Still respond 200 to NOWPayments to prevent retries for non-existent orders.
       return res.status(200).send('Order not found, IPN acknowledged.');
     }
@@ -2131,7 +2130,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       }
       await supabase.from('orders').update(updatePayload).eq('ref_code', orderId);
 
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} confirmed`);
 
       const product = cachedData.products.find(p => p.item === order.item);
       if (product && order.email && !order.downloaded) {
@@ -2145,14 +2144,14 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
           notes: `Partial payment received via NOWPayments`,
           amount_paid_crypto: parseFloat(actuallyPaid)
       }).eq('ref_code', orderId);
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} partially paid`);
       // Decide if you want to email for partial payments. Usually not for delivery.
     } else if (['failed', 'refunded', 'expired'].includes(paymentStatus) && !order.status.startsWith('failed_nowpayments_') && order.status !== 'confirmed_nowpayments' && order.status !== 'partially_paid_nowpayments') {
       newLocalStatus = `failed_nowpayments_${paymentStatus}`;
       await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments IPN: ${paymentStatus}` }).eq('ref_code', orderId);
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} ${paymentStatus}`);
     } else {
-        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status '${paymentStatus}' received. Local status is '${order.status}'. No specific action or already processed.`);
+        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status ${paymentStatus} - no action needed`);
     }
 
     res.status(200).send('IPN received and processed.');
