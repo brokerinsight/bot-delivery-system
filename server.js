@@ -333,9 +333,15 @@ async function loadData() {
     }
 
     const categoriesRes = await supabase.from('categories').select('name');
+    if (categoriesRes.error) {
+      console.warn(`[${new Date().toISOString()}] Supabase categories query failed: ${categoriesRes.error.message}`);
+    }
     const categories = [...new Set(categoriesRes.data?.map(row => row.name) || ['General'])];
 
     const pagesRes = await supabase.from('static_pages').select('*');
+    if (pagesRes.error) {
+      throw new Error(`Supabase static_pages query failed: ${pagesRes.error.message}`);
+    }
     let staticPages = pagesRes.data?.map(row => ({
       title: row.title,
       slug: row.slug,
@@ -1959,6 +1965,19 @@ app.get('/:slug', async (req, res) => {
 
 async function initialize() {
   await selfCheck();
+  
+  // Wait a moment for Redis client to initialize
+  let retries = 0;
+  while (!redisClient.isReady() && retries < 10) {
+    console.log(`[${new Date().toISOString()}] Waiting for Redis client to be ready... (attempt ${retries + 1}/10)`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    retries++;
+  }
+  
+  if (!redisClient.isReady()) {
+    console.warn(`[${new Date().toISOString()}] Redis client not ready after ${retries} attempts, proceeding anyway`);
+  }
+  
   await loadData();
   await deleteOldOrders();
   setInterval(deleteOldOrders, 24 * 60 * 60 * 1000);
