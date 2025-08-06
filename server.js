@@ -2010,7 +2010,8 @@ app.get('/api/page/:slug', async (req, res) => {
 });
 
 app.get('/:slug', async (req, res) => {
-  const slug = `/${req.params.slug}`;
+  // Decode URL-encoded slug to handle spaces and special characters
+  const slug = `/${decodeURIComponent(req.params.slug)}`;
   if (cachedData.staticPages.some(p => p.slug === slug && p.slug !== '/payment-modal' && p.slug !== '/ref-code-modal')) {
       console.log(`[${new Date().toISOString()}] Request for static page slug ${slug}, serving index.html for client-side handling.`);
       res.sendFile(path.join(publicPath, 'index.html'));
@@ -2157,7 +2158,7 @@ app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
     } else {
       // For other payment methods, cache in Redis
       try {
-        await redisClient.setex(`custom_bot_order:${refCode}`, 43200, JSON.stringify(orderData));
+        await redisClient.set(`custom_bot_order:${refCode}`, JSON.stringify(orderData), { EX: 43200 });
         console.log(`[${new Date().toISOString()}] Custom bot order cached in Redis: ${refCode} for ${email}`);
       } catch (redisError) {
         console.error(`[${new Date().toISOString()}] Error caching custom bot order in Redis:`, redisError);
