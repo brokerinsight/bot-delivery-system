@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCachedData } from '@/lib/data';
 
+// Mark this route as dynamic to prevent static generation issues
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const data = await getCachedData();
