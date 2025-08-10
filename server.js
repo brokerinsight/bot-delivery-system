@@ -1177,7 +1177,7 @@ app.post('/api/confirm-order', isAuthenticated, async (req, res) => {
     if (urlError) throw urlError;
     const downloadLink = signedUrlData.signedUrl;
 
-    console.log(`[${new Date().toISOString()}] Admin confirmed order ${refCode}`);
+    console.log(`[${new Date().toISOString()}] Admin manually confirmed order for item: ${item}, ref: ${refCode}`);
     res.json({ success: true, downloadLink });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error confirming order:`, error.message);
@@ -1400,69 +1400,23 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       callback_url: callbackUrl
     };
 
-    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating STK push to PayHero for ref ${serverSideReference}`);
+    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating STK push to PayHero with body:`, JSON.stringify(payheroRequestBody));
 
-    let payheroResponse;
-    try {
-      const response = await fetch(payheroApiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': payheroAuthToken
-        },
-        body: JSON.stringify(payheroRequestBody),
-        timeout: 45000 // Increase timeout to 45 seconds
-      });
+    const response = await fetch(payheroApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': payheroAuthToken
+      },
+      body: JSON.stringify(payheroRequestBody)
+    });
 
-      // Check if response has content before parsing JSON
-      const responseText = await response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.error(`[${new Date().toISOString()}] ServerSTK: Empty response from PayHero API`);
-        await supabase.from('orders').update({ 
-          status: 'failed_stk_initiation', 
-          notes: 'PayHero API returned empty response' 
-        }).eq('ref_code', serverSideReference);
-        return res.status(500).json({ success: false, error: 'Payment gateway returned empty response. Please try again.' });
-      }
+    const payheroResponse = await response.json();
 
-      try {
-        payheroResponse = JSON.parse(responseText);
-      } catch (jsonError) {
-        console.error(`[${new Date().toISOString()}] ServerSTK: Invalid JSON from PayHero. Response text: ${responseText.substring(0, 200)}`);
-        await supabase.from('orders').update({ 
-          status: 'failed_stk_initiation', 
-          notes: 'PayHero API returned invalid JSON response' 
-        }).eq('ref_code', serverSideReference);
-        return res.status(500).json({ success: false, error: 'Payment gateway error. Please try again in a few moments.' });
-      }
-
-      if (!response.ok) {
-        console.error(`[${new Date().toISOString()}] ServerSTK: PayHero API HTTP error. Status: ${response.status}`);
-        await supabase.from('orders').update({ 
-          status: 'failed_stk_initiation', 
-          notes: `PayHero API HTTP ${response.status}` 
-        }).eq('ref_code', serverSideReference);
-        return res.status(500).json({ success: false, error: payheroResponse.message || 'Payment gateway temporarily unavailable.' });
-      }
-
-    } catch (fetchError) {
-      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero API network error:`, fetchError.message);
-      await supabase.from('orders').update({ 
-        status: 'failed_stk_initiation', 
-        notes: `Network error: ${fetchError.message}` 
-      }).eq('ref_code', serverSideReference);
-      return res.status(500).json({ success: false, error: 'Unable to connect to payment gateway. Please check your connection and try again.' });
-    }
-
-    // Validate PayHero response
-    if (!payheroResponse.success || payheroResponse.status !== 'QUEUED') {
-      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiation failed. Response status: ${payheroResponse.status}`);
+    if (!response.ok || !payheroResponse.success || payheroResponse.status !== 'QUEUED') {
+      console.error(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiation API call failed. Status: ${response.status}, Response:`, payheroResponse);
       // Do NOT set rate limit key if PayHero initiation failed, allow user to retry sooner.
-      await supabase.from('orders').update({ 
-        status: 'failed_stk_initiation', 
-        notes: `PayHero error: ${payheroResponse.message || payheroResponse.status}` 
-      }).eq('ref_code', serverSideReference);
+      await supabase.from('orders').update({ status: 'failed_stk_initiation', notes: JSON.stringify(payheroResponse) }).eq('ref_code', serverSideReference);
       return res.status(500).json({ success: false, error: payheroResponse.message || 'Failed to initiate payment with PayHero.' });
     }
 
@@ -1475,7 +1429,7 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       // Continue with successful response even if Redis SET fails, as payment was initiated.
     }
 
-    console.log(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiated successfully for ref ${serverSideReference}`);
+    console.log(`[${new Date().toISOString()}] ServerSTK: PayHero STK Push initiated successfully for ref ${serverSideReference}. PayHero Response:`, payheroResponse);
     res.json({
         success: true,
         message: 'STK Push initiated. Please check your phone.',
@@ -1560,10 +1514,10 @@ app.post('/api/payhero-callback', async (req, res) => {
         updatePayload.payer_phone_number = PayerPhone;
     }
 
-    console.log(`[${new Date().toISOString()}] DirectAPI CB: Processing ${serverSideReference} - ResultCode: ${ResultCode}, Status: ${paymentGatewayStatus}`);
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: Initial order details for ${serverSideReference} - Status: ${order.status}, Amount: ${order.amount}, Payer Phone from CB: ${PayerPhone}, PayHero CB Amount: ${Amount}, ResultCode: ${ResultCode}, PayHeroStatus: ${paymentGatewayStatus}, OverallCBStatus: ${overallCallbackStatus}`);
 
     if (overallCallbackStatus === true && ResultCode === 0 && paymentGatewayStatus === "Success") {
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED for order ${serverSideReference}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment SUCCEEDED according to PayHero for order ${serverSideReference}. Amount: ${Amount}, Receipt: ${mpesaReceiptIfAvailable}, PayerPhone: ${PayerPhone}`);
 
       const orderStoredKesAmount = Math.round(parseFloat(order.amount));
       const callbackReceivedKesAmount = Math.round(parseFloat(Amount));
@@ -1580,7 +1534,7 @@ app.post('/api/payhero-callback', async (req, res) => {
       }
     } else {
       // Handle various failure cases
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED for order ${serverSideReference} - Code: ${ResultCode}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Payment FAILED or PENDING for order ${serverSideReference}. ResultCode: ${ResultCode}, Desc: ${ResultDesc}, OverallCallbackStatus: ${overallCallbackStatus}, PayHeroResponseStatus: ${paymentGatewayStatus}`);
 
       let failureStatus = `failed_stk_cb_${ResultCode || 'unknown'}`; // Generic failure status
       let failureNote = notesForUpdate;
@@ -1589,144 +1543,35 @@ app.post('/api/payhero-callback', async (req, res) => {
       switch (ResultCode) {
         case 1: // The balance is insufficient for the transaction
           failureStatus = 'failed_stk_insufficient_funds';
-          failureNote = `Insufficient M-Pesa balance. Please top up your M-Pesa account and try again.`;
+          failureNote = `Insufficient M-Pesa funds. (PayHero: ${notesForUpdate})`;
           break;
         case 1032: // Request cancelled by user
           failureStatus = 'failed_stk_cancelled_by_user';
-          failureNote = `Payment cancelled by user. Please try again if you want to complete the payment.`;
+          failureNote = `Payment cancelled by user on phone. (PayHero: ${notesForUpdate})`;
           break;
         case 1037: // Timeout in completing transaction
           failureStatus = 'failed_stk_timeout';
-          failureNote = `M-Pesa request timed out. Please check your phone and try again.`;
+          failureNote = `M-Pesa STK request timed out. (PayHero: ${notesForUpdate})`;
           break;
         case 2001: // Invalid M-Pesa PIN
           failureStatus = 'failed_stk_invalid_pin';
-          failureNote = `Invalid M-Pesa PIN entered. Please try again with the correct PIN.`;
-          break;
-        case 1019: // Transaction Expired
-          failureStatus = 'failed_stk_expired';
-          failureNote = `M-Pesa transaction expired. Please try again.`;
-          break;
-        case 1025: // Transaction not allowed for this MSISDN
-          failureStatus = 'failed_stk_not_allowed';
-          failureNote = `Transaction not allowed for this phone number. Please contact M-Pesa support.`;
-          break;
-        case 1001: // Request timeout
-          failureStatus = 'failed_stk_request_timeout';
-          failureNote = `Request timed out. Please check your network connection and try again.`;
-          break;
-        case 1036: // Request error
-          failureStatus = 'failed_stk_request_error';
-          failureNote = `Request error occurred. Please try again in a few moments.`;
-          break;
-        case 1012: // Service temporarily unavailable
-          failureStatus = 'failed_stk_service_unavailable';
-          failureNote = `M-Pesa service temporarily unavailable. Please try again later.`;
-          break;
-        case 1013: // Invalid amount
-          failureStatus = 'failed_stk_invalid_amount';
-          failureNote = `Invalid transaction amount. Please contact support.`;
-          break;
-        case 1014: // Invalid account number
-        case 1015: // Invalid phone number
-          failureStatus = 'failed_stk_invalid_details';
-          failureNote = `Invalid transaction details. Please contact support.`;
-          break;
-        case 1016: // Insufficient priviledges
-          failureStatus = 'failed_stk_insufficient_privileges';
-          failureNote = `Transaction not authorized. Please try again or contact support.`;
-          break;
-        case 1017: // Invalid security credentials
-          failureStatus = 'failed_stk_invalid_credentials';
-          failureNote = `Security error occurred. Please contact support.`;
-          break;
-        case 1018: // Invalid short code
-          failureStatus = 'failed_stk_invalid_shortcode';
-          failureNote = `Service configuration error. Please contact support.`;
-          break;
-        case 1020: // Transaction failed
-          failureStatus = 'failed_stk_transaction_failed';
-          failureNote = `Transaction failed. Please try again or contact support.`;
-          break;
-        case 1021: // Unable to initiate STK Push
-          failureStatus = 'failed_stk_unable_to_initiate';
-          failureNote = `Unable to send payment request to your phone. Please try again.`;
-          break;
-        case 1022: // Unable to unlock device
-          failureStatus = 'failed_stk_device_locked';
-          failureNote = `Unable to complete payment - phone may be locked. Please unlock your phone and try again.`;
-          break;
-        case 1023: // Business not in the allowed IP list
-          failureStatus = 'failed_stk_ip_restriction';
-          failureNote = `Service access restriction. Please contact support.`;
-          break;
-        case 1024: // Password mismatch
-          failureStatus = 'failed_stk_password_mismatch';
-          failureNote = `Authentication error. Please try again.`;
-          break;
-        case 1026: // Transaction already exists
-          failureStatus = 'failed_stk_duplicate_transaction';
-          failureNote = `Duplicate transaction detected. Please wait a moment before trying again.`;
-          break;
-        case 1027: // Transaction limit exceeded
-          failureStatus = 'failed_stk_limit_exceeded';
-          failureNote = `Transaction limit exceeded. Please contact M-Pesa support to increase your limits.`;
-          break;
-        case 1028: // Account blocked
-          failureStatus = 'failed_stk_account_blocked';
-          failureNote = `M-Pesa account is blocked. Please contact M-Pesa support.`;
-          break;
-        case 1029: // Debit account invalid
-          failureStatus = 'failed_stk_invalid_account';
-          failureNote = `Invalid M-Pesa account. Please contact M-Pesa support.`;
-          break;
-        case 1030: // Credit account invalid
-          failureStatus = 'failed_stk_credit_account_invalid';
-          failureNote = `Payment destination account invalid. Please contact support.`;
-          break;
-        case 1031: // Account not active
-          failureStatus = 'failed_stk_account_inactive';
-          failureNote = `M-Pesa account not active. Please contact M-Pesa support.`;
-          break;
-        case 1033: // Account has insufficient funds
-          failureStatus = 'failed_stk_insufficient_funds';
-          failureNote = `Insufficient M-Pesa balance. Please top up your account and try again.`;
-          break;
-        case 1034: // Duplicate payment
-          failureStatus = 'failed_stk_duplicate_payment';
-          failureNote = `Duplicate payment detected. Please check if your previous payment was successful.`;
-          break;
-        case 1035: // Generic user cancel
-          failureStatus = 'failed_stk_user_cancel';
-          failureNote = `Payment cancelled. Please try again if you want to complete the payment.`;
-          break;
-        case 1037: // DS timeout user cannot be reached
-          failureStatus = 'failed_stk_user_unreachable';
-          failureNote = `Unable to reach your phone. Please ensure your phone is on and has network coverage.`;
-          break;
-        case 1038: // Failed to lock subscriber amount
-          failureStatus = 'failed_stk_lock_failed';
-          failureNote = `Unable to process payment. Please try again in a few moments.`;
-          break;
-        case 1039: // NCIP balance would go below zero
-          failureStatus = 'failed_stk_insufficient_balance';
-          failureNote = `Insufficient balance to complete transaction. Please top up and try again.`;
-          break;
-        case 9999: // Request cancelled by user
-          failureStatus = 'failed_stk_cancelled_by_user';
-          failureNote = `Payment request cancelled. Please try again if you want to complete the payment.`;
+          failureNote = `Invalid M-Pesa PIN entered. (PayHero: ${notesForUpdate})`;
           break;
         // Add other common M-Pesa STK failure codes if known
+        // Example: 1019: Transaction Expired
+        // Example: 1025: Transaction not allowed for this MSISDN
         default:
           // Use generic failure status if code is not specifically handled
-          failureNote = `Payment failed (Code: ${ResultCode}). ${ResultDesc || 'Please try again or contact support.'}`;
+          failureNote = `Payment failed. Reason: ${notesForUpdate || 'See PayHero dashboard for details.'}`;
+          break;
       }
       updatePayload.status = failureStatus;
       updatePayload.notes = failureNote.trim();
-      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} set to ${updatePayload.status}`);
+      console.log(`[${new Date().toISOString()}] DirectAPI CB: Order ${serverSideReference} final failure status: ${updatePayload.status}, Note: ${updatePayload.notes}`);
     }
 
-    // Update database with payment result
+    // Log the decision process
+    console.log(`[${new Date().toISOString()}] DirectAPI CB: For order ${serverSideReference}, current DB status is '${order.status}'. Preparing to update status to '${updatePayload.status}'.`);
 
     let dbUpdateError = null;
     // Check if any relevant field has changed before attempting update
@@ -1755,7 +1600,7 @@ app.post('/api/payhero-callback', async (req, res) => {
             // The status in DB remains the old one.
         }
     } else {
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: No update needed for order ${serverSideReference}`);
+        console.log(`[${new Date().toISOString()}] DirectAPI CB: No change needed for order ${serverSideReference} (payload matches existing DB state or no new info). DB update skipped. Current status: '${order.status}'.`);
     }
 
     if (dbUpdateError) {
@@ -1763,22 +1608,10 @@ app.post('/api/payhero-callback', async (req, res) => {
         // Responding 500 might cause PayHero to retry, which might be good if the error was temporary.
         // However, for this debugging, let's first ensure logging is clear.
         // For now, still respond 200 to PayHero to avoid retry loops during debugging, but log the critical failure.
-        console.error(`[${new Date().toISOString()}] DirectAPI CB: DB update failed for ${serverSideReference} - manual intervention needed`);
+        console.error(`[${new Date().toISOString()}] DirectAPI CB: Critical - DB update failed for ${serverSideReference} but responding 200 to PayHero to prevent immediate retry. MANUAL INTERVENTION MAY BE NEEDED.`);
         res.status(200).json({ success: false, message: "Callback acknowledged, but internal processing error occurred." });
     } else {
         res.status(200).json({ success: true, message: "Callback processed." });
-    }
-
-    // Clear rate limit for this phone number when payment completes (success or failure)
-    if (PayerPhone) {
-      const normalizedPhoneForClearing = PayerPhone.startsWith('+') ? PayerPhone.substring(1) : (PayerPhone.startsWith('0') ? `254${PayerPhone.substring(1)}` : PayerPhone);
-      const rateLimitKey = `stk_pending:${normalizedPhoneForClearing}`;
-      try {
-        await redisClient.del(rateLimitKey);
-        console.log(`[${new Date().toISOString()}] DirectAPI CB: Rate limit cleared for phone ${normalizedPhoneForClearing} after payment completion`);
-      } catch (redisError) {
-        console.error(`[${new Date().toISOString()}] DirectAPI CB: Error clearing rate limit for phone ${normalizedPhoneForClearing}:`, redisError.message);
-      }
     }
 
   } catch (error) {
@@ -1853,17 +1686,17 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
       try {
         minErrorJson = JSON.parse(minErrorText);
       } catch(e) {
-        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum amount for ${pay_currency}`);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching minimum payment amount for ${pay_currency} to ${price_currency}: ${minErrorText}`);
       }
       const errorMessage = minErrorJson.message || `Failed to fetch minimum payment amount from NOWPayments (Status: ${minAmountResponse.status}, Body: ${minErrorText})`;
-              console.error(`[${new Date().toISOString()}] NOWPayments: Minimum amount check failed for ${pay_currency}:`, minErrorJson.message || `HTTP ${minAmountResponse.status}`);
+      console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching minimum payment amount for ${pay_currency} to ${price_currency}:`, minErrorJson.message || minErrorText);
       return res.status(500).json({ success: false, error: errorMessage });
     }
     const minAmountData = await minAmountResponse.json();
     const minimumCryptoAmount = parseFloat(minAmountData.min_amount);
 
     if (!minimumCryptoAmount && minimumCryptoAmount !== 0) { // Check if it's a valid number (0 is a valid min amount)
-        console.error(`[${new Date().toISOString()}] NOWPayments: Invalid minimum amount data for ${pay_currency}`);
+        console.error(`[${new Date().toISOString()}] NOWPayments: min_amount was not a valid number or not found in response for ${pay_currency} to ${price_currency}. Data:`, minAmountData);
         return res.status(500).json({ success: false, error: `Could not determine minimum payment amount for ${pay_currency.toUpperCase()}.` });
     }
 
@@ -1879,23 +1712,23 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
         try {
             estErrorJson = JSON.parse(estErrorText);
         } catch(e) {
-            console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${pay_currency}`);
+            console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}: ${estErrorText}`);
         }
         const errorMessage = estErrorJson.message || `Could not get payment estimate from NOWPayments (Status: ${estimateResponse.status}, Body: ${estErrorText})`;
-        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate calculation failed for ${pay_currency}:`, estErrorJson.message || `HTTP ${estimateResponse.status}`);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estErrorJson.message || estErrorText);
         return res.status(500).json({ success: false, error: errorMessage });
     }
     const estimateData = await estimateResponse.json();
     const estimatedCryptoAmount = parseFloat(estimateData.estimated_amount);
 
     if (!estimatedCryptoAmount && estimatedCryptoAmount !== 0) { // Check if it's a valid number
-        console.error(`[${new Date().toISOString()}] NOWPayments: Invalid estimate data for ${pay_currency}`);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Estimate data did not return a valid estimated_amount for ${pay_currency}. Data:`, estimateData);
         return res.status(500).json({ success: false, error: `Could not retrieve estimated crypto amount for ${pay_currency.toUpperCase()}.`});
     }
 
     // Step 3: Compare estimated crypto amount with the minimum crypto amount
     if (estimatedCryptoAmount < minimumCryptoAmount) {
-        console.warn(`[${new Date().toISOString()}] NOWPayments: Amount below minimum for ${pay_currency.toUpperCase()}`);
+        console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency.toUpperCase()} is less than minimum ${minimumCryptoAmount} ${pay_currency.toUpperCase()}.`);
         return res.status(400).json({
             success: false,
             error: `The amount for ${product.name} (${price_amount} ${price_currency.toUpperCase()}) is below the minimum required for ${pay_currency.toUpperCase()}. Minimum: ${minimumCryptoAmount} ${pay_currency.toUpperCase()}. Your order's equivalent: ~${estimatedCryptoAmount} ${pay_currency.toUpperCase()}. Please increase the quantity or contact support if prices seem incorrect.`,
@@ -1931,7 +1764,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     const paymentData = await paymentResponse.json();
 
     if (!paymentResponse.ok || !paymentData.payment_id) {
-      console.error(`[${new Date().toISOString()}] NOWPayments payment creation failed:`, paymentData.message || `HTTP ${paymentResponse.status}`);
+      console.error(`[${new Date().toISOString()}] Error creating NOWPayments payment:`, paymentData);
       throw new Error(paymentData.message || `Failed to create payment with NOWPayments (Status: ${paymentResponse.status})`);
     }
 
@@ -2087,11 +1920,11 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
     const calculatedSignature = hmac.digest('hex');
 
     if (calculatedSignature !== receivedHmac) {
-              console.warn(`[${new Date().toISOString()}] NOWPayments IPN: HMAC signature mismatch`);
+      console.warn(`[${new Date().toISOString()}] NOWPayments IPN: HMAC signature mismatch. Received: ${receivedHmac}, Calculated: ${calculatedSignature}. Body:`, JSON.stringify(requestBody));
       return res.status(403).send('Invalid signature.');
     }
 
-    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Processing order ${requestBody.order_id} - status: ${requestBody.payment_status}`);
+    console.log(`[${new Date().toISOString()}] NOWPayments IPN: Signature VERIFIED. Processing IPN for order_id: ${requestBody.order_id}, payment_id: ${requestBody.payment_id}, status: ${requestBody.payment_status}`);
 
     const orderId = requestBody.order_id; // This is our internal orderId
     const nowpaymentsPaymentId = requestBody.payment_id;
@@ -2108,7 +1941,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       .single();
 
     if (dbError || !order) {
-              console.error(`[${new Date().toISOString()}] NOWPayments IPN: Order not found for ${orderId}`);
+      console.error(`[${new Date().toISOString()}] NOWPayments IPN: Order not found for ref_code ${orderId} and NP payment_id ${nowpaymentsPaymentId}. DB Error:`, dbError);
       // Still respond 200 to NOWPayments to prevent retries for non-existent orders.
       return res.status(200).send('Order not found, IPN acknowledged.');
     }
@@ -2120,7 +1953,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       newLocalStatus = 'confirmed_nowpayments';
       const updatePayload = {
         status: newLocalStatus,
-        notes: `Payment confirmed via NOWPayments IPN`,
+        notes: `NOWPayments IPN: finished. Paid: ${actuallyPaid} ${payCurrency}. Original pay amount: ${payAmount} ${payCurrency}.`,
         amount_paid_crypto: parseFloat(actuallyPaid)
       };
       if (parseFloat(actuallyPaid) < parseFloat(payAmount)) {
@@ -2130,7 +1963,7 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       }
       await supabase.from('orders').update(updatePayload).eq('ref_code', orderId);
 
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} confirmed`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
 
       const product = cachedData.products.find(p => p.item === order.item);
       if (product && order.email && !order.downloaded) {
@@ -2141,17 +1974,17 @@ app.post('/api/nowpayments/ipn', async (req, res) => {
       newLocalStatus = 'partially_paid_nowpayments';
       await supabase.from('orders').update({
           status: newLocalStatus,
-          notes: `Partial payment received via NOWPayments`,
+          notes: `NOWPayments IPN: partially_paid. Paid: ${actuallyPaid} ${payCurrency} of expected ${payAmount} ${payCurrency}.`,
           amount_paid_crypto: parseFloat(actuallyPaid)
       }).eq('ref_code', orderId);
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} partially paid`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
       // Decide if you want to email for partial payments. Usually not for delivery.
     } else if (['failed', 'refunded', 'expired'].includes(paymentStatus) && !order.status.startsWith('failed_nowpayments_') && order.status !== 'confirmed_nowpayments' && order.status !== 'partially_paid_nowpayments') {
       newLocalStatus = `failed_nowpayments_${paymentStatus}`;
       await supabase.from('orders').update({ status: newLocalStatus, notes: `NOWPayments IPN: ${paymentStatus}` }).eq('ref_code', orderId);
-      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} ${paymentStatus}`);
+      console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} updated to ${newLocalStatus}.`);
     } else {
-        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status ${paymentStatus} - no action needed`);
+        console.log(`[${new Date().toISOString()}] NOWPayments IPN: Order ${orderId} status '${paymentStatus}' received. Local status is '${order.status}'. No specific action or already processed.`);
     }
 
     res.status(200).send('IPN received and processed.');
@@ -2235,29 +2068,4 @@ app.listen(PORT, async () => {
       clearInterval(checkInit);
     }
   }, 100);
-});
-
-// Admin endpoint to clear rate limits
-app.post('/api/admin/clear-rate-limit', isAuthenticated, async (req, res) => {
-  try {
-    const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ success: false, error: 'Phone number is required' });
-    }
-
-    const normalizedPhone = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
-    const rateLimitKey = `stk_pending:${normalizedPhone}`;
-    
-    await redisClient.del(rateLimitKey);
-    console.log(`[${new Date().toISOString()}] Admin: Rate limit cleared for phone ${normalizedPhone}`);
-    
-    res.json({ success: true, message: `Rate limit cleared for phone ${normalizedPhone}` });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error clearing rate limit:`, error.message);
-    res.status(500).json({ success: false, error: 'Failed to clear rate limit' });
-  }
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
 });
