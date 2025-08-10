@@ -80,16 +80,19 @@ The custom bot system includes:
 - Database schema design
 - Terms and Privacy Policy pages
 - Custom bot request form with comprehensive validation
-- Payment integration and processing
+- Payment integration and processing (M-Pesa & Crypto ready)
+- Email notification system (NodeMailer integration)
+- Admin panel management with full CRUD operations
 - Form validation and UX
 - Mobile responsive design
 - Navigation integration throughout the site
 - Strategic placement of custom bot links across all pages
+- Copy-to-clipboard functionality for admin panel
+- Status management and refund processing
+- Comprehensive email templates for all stages
 
 🔄 **IN PROGRESS**:
-- Email notification system
-- Admin panel management
-- Order tracking system
+- Order tracking system (customer-facing)
 
 ### Step 5: Next Development Phase
 

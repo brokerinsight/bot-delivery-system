@@ -148,8 +148,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Send email notification to admin about new order
-    // TODO: Send confirmation email to customer with tracking number
+    // Send email notifications
+    try {
+      const { sendOrderConfirmationEmail, sendAdminNewOrderNotification } = await import('@/lib/email');
+      
+      // Send confirmation email to customer
+      await sendOrderConfirmationEmail(result.data!);
+      
+      // Send notification email to admin
+      await sendAdminNewOrderNotification(result.data!);
+    } catch (emailError) {
+      console.error('Error sending email notifications:', emailError);
+      // Don't fail the order creation if email fails
+    }
 
     return NextResponse.json({
       success: true,

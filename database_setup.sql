@@ -91,3 +91,21 @@ ON CONFLICT (reason) DO NOTHING;
 GRANT ALL ON public.custom_bot_orders TO authenticated;
 GRANT ALL ON public.refund_reasons TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- Environment Variables Setup Instructions
+-- Add these to your .env.local file:
+
+-- Email Configuration (NodeMailer)
+-- SMTP_HOST=smtp.gmail.com
+-- SMTP_PORT=587
+-- SMTP_USER=your-email@gmail.com
+-- SMTP_PASS=your-app-password
+-- ADMIN_EMAIL=admin@yourstore.com
+
+-- Payment Integration (if using existing providers)
+-- PAYHERO_CHANNEL_ID=your-channel-id
+-- PAYHERO_PAYMENT_URL=https://backend.payhero.co.ke/api/v2/payments
+-- PAYHERO_AUTH_TOKEN=your-auth-token
+
+-- Site Configuration
+-- NEXT_PUBLIC_SITE_URL=https://yoursite.com

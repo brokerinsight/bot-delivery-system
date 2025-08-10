@@ -13,6 +13,7 @@ import {
   DocumentTextIcon,
   CurrencyDollarIcon,
   EnvelopeIcon,
+  CpuChipIcon,
   TagIcon,
   ArchiveBoxIcon
 } from '@heroicons/react/24/outline';
@@ -29,6 +30,12 @@ const navigationItems = [
     href: '/admin/orders',
     icon: ShoppingBagIcon,
     badge: '12',
+  },
+  {
+    name: 'Custom Bots',
+    href: '/admin/custom-bots',
+    icon: CpuChipIcon,
+    badge: null,
   },
   {
     name: 'Products',
