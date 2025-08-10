@@ -87,9 +87,44 @@ INSERT INTO public.refund_reasons (reason) VALUES
   ('Other')
 ON CONFLICT (reason) DO NOTHING;
 
+-- Create download_tokens table for multi-item cart downloads
+CREATE TABLE IF NOT EXISTS public.download_tokens (
+  id SERIAL PRIMARY KEY,
+  token TEXT NOT NULL UNIQUE,
+  order_ids INTEGER[] NOT NULL,
+  files JSONB NOT NULL,
+  customer_email TEXT NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  used_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for download_tokens
+CREATE INDEX IF NOT EXISTS idx_download_tokens_token ON public.download_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_download_tokens_customer_email ON public.download_tokens(customer_email);
+CREATE INDEX IF NOT EXISTS idx_download_tokens_expires_at ON public.download_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_download_tokens_used ON public.download_tokens(used);
+
+-- Create trigger for download_tokens updated_at
+CREATE TRIGGER update_download_tokens_updated_at 
+  BEFORE UPDATE ON public.download_tokens 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable RLS for download_tokens
+ALTER TABLE public.download_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for download_tokens
+CREATE POLICY "Allow all operations for authenticated users" ON public.download_tokens
+  FOR ALL TO authenticated
+  USING (true);
+
 -- Grant necessary permissions (adjust as needed)
 GRANT ALL ON public.custom_bot_orders TO authenticated;
 GRANT ALL ON public.refund_reasons TO authenticated;
+GRANT ALL ON public.download_tokens TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
 -- Environment Variables Setup Instructions
