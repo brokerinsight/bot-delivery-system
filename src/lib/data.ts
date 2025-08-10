@@ -10,6 +10,10 @@ let cachedData: {
   staticPages: StaticPage[];
 } | null = null;
 
+// Track last cache time
+let lastCacheTime: number = 0;
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes in milliseconds
+
 // Default settings
 const DEFAULT_SETTINGS: Settings = {
   supportEmail: 'support@derivbotstore.com',
@@ -63,6 +67,11 @@ const FALLBACK_REF_CODE_MODAL: StaticPage = {
     <button id="ref-code-cancel" class="mt-2 w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
   `
 };
+
+// Check if running during build time
+function isStaticGeneration(): boolean {
+  return typeof window === 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_RUNTIME;
+}
 
 // Load all data from Supabase
 export async function loadData(): Promise<typeof cachedData> {
@@ -156,7 +165,8 @@ export async function loadData(): Promise<typeof cachedData> {
     let staticPages: StaticPage[] = (pagesData || []).map(row => ({
       title: row.title,
       slug: row.slug,
-      content: row.content
+      content: row.content,
+      isActive: row.is_active !== false // Default to active if not specified
     }));
 
     // Add fallback modals if they don't exist
@@ -169,13 +179,20 @@ export async function loadData(): Promise<typeof cachedData> {
 
     // Cache the data
     cachedData = { products, categories, settings, staticPages };
+    lastCacheTime = Date.now();
 
-    // Cache in Redis with 15-minute TTL (same as old server)
-    const cacheSuccess = await redisClient.cacheData('cachedData', cachedData, 900);
-    if (cacheSuccess) {
-      console.log(`[${new Date().toISOString()}] Data loaded and cached in Redis successfully`);
-    } else {
-      console.log(`[${new Date().toISOString()}] Data loaded (Redis caching failed)`);
+    // Only try to cache in Redis during runtime, not during static generation
+    if (!isStaticGeneration()) {
+      try {
+        const cacheSuccess = await redisClient.cacheData('cachedData', cachedData, 900);
+        if (cacheSuccess) {
+          console.log(`[${new Date().toISOString()}] Data loaded and cached in Redis successfully`);
+        } else {
+          console.log(`[${new Date().toISOString()}] Data loaded (Redis caching failed)`);
+        }
+      } catch (redisError) {
+        console.warn(`[${new Date().toISOString()}] Redis caching failed during runtime:`, redisError);
+      }
     }
 
     console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase`);
@@ -188,21 +205,31 @@ export async function loadData(): Promise<typeof cachedData> {
 
 // Get cached data (load if not cached)
 export async function getCachedData() {
-  // First try Redis cache
-  const cached = await redisClient.getCachedData('cachedData');
-  if (cached) {
-    console.log(`[${new Date().toISOString()}] Served data from Redis cache`);
-    cachedData = cached;
-    return cached;
-  }
+  // Check if cache is still valid
+  const now = Date.now();
+  const cacheIsValid = cachedData && (now - lastCacheTime) < CACHE_TTL;
   
-  // If not in Redis, try in-memory cache
-  if (cachedData) {
+  if (cacheIsValid) {
     console.log(`[${new Date().toISOString()}] Served data from memory cache`);
-    return cachedData;
+    return cachedData!;
+  }
+
+  // Only try Redis during runtime, not during static generation
+  if (!isStaticGeneration()) {
+    try {
+      const cached = await redisClient.getCachedData('cachedData');
+      if (cached) {
+        console.log(`[${new Date().toISOString()}] Served data from Redis cache`);
+        cachedData = cached;
+        lastCacheTime = now;
+        return cached;
+      }
+    } catch (redisError) {
+      console.warn(`[${new Date().toISOString()}] Redis fetch failed during runtime:`, redisError);
+    }
   }
   
-  // If no cache, load from database
+  // If no cache or during static generation, load from database
   console.log(`[${new Date().toISOString()}] Loading fresh data from database`);
   await loadData();
   return cachedData!;
