@@ -26,8 +26,6 @@ interface Settings {
 export function EnhancedFooter() {
   const [staticPages, setStaticPages] = useState<StaticPage[]>([]);
   const [settings, setSettings] = useState<Settings>({});
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedPage, setSelectedPage] = useState<StaticPage | null>(null);
 
   useEffect(() => {
     loadData();
@@ -47,23 +45,7 @@ export function EnhancedFooter() {
     }
   };
 
-  const openPageModal = (page: StaticPage) => {
-    setSelectedPage(page);
-    setModalOpen(true);
-    document.body.classList.add('overflow-hidden');
-  };
 
-  const closeModal = () => {
-    setModalOpen(false);
-    setSelectedPage(null);
-    document.body.classList.remove('overflow-hidden');
-  };
-
-  const cleanContent = (content: string) => {
-    return content
-      .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
-      .trim();
-  };
 
   const activePages = staticPages.filter(page => page.isActive);
 
@@ -104,13 +86,13 @@ export function EnhancedFooter() {
           {activePages.length > 0 && (
             <div className="mt-4 flex justify-center space-x-4 flex-wrap">
               {activePages.map(page => (
-                <button
+                <Link
                   key={page.id}
-                  onClick={() => openPageModal(page)}
+                  href={`/page${page.slug}`}
                   className="text-gray-500 hover:text-green-600 transition-colors"
                 >
                   {page.title}
-                </button>
+                </Link>
               ))}
             </div>
           )}
@@ -120,40 +102,15 @@ export function EnhancedFooter() {
       {/* Mobile Footer Links - for mobile navigation */}
       <div id="mobile-footer-links" className="hidden">
         {activePages.map(page => (
-          <button
+          <Link
             key={`mobile-${page.id}`}
-            onClick={() => openPageModal(page)}
+            href={`/page${page.slug}`}
             className="text-gray-500 hover:text-green-600 text-sm block w-full text-left py-1"
           >
             {page.title}
-          </button>
+          </Link>
         ))}
       </div>
-
-      {/* Static Page Modal */}
-      {modalOpen && selectedPage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 relative max-h-[80vh] overflow-y-auto">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10"
-            >
-              <XMarkIcon className="w-6 h-6" />
-            </button>
-            
-            <h3 className="text-2xl font-bold text-gray-900 mb-4 pr-8">
-              {selectedPage.title}
-            </h3>
-            
-            <div 
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ 
-                __html: cleanContent(selectedPage.content) || '<p>No content available.</p>' 
-              }}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -32,6 +32,32 @@ export async function GET(request: NextRequest) {
   </url>
 `;
 
+    // Custom Bot page
+    sitemap += `
+  <url>
+    <loc>${baseUrl}/custom-bot</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+`;
+
+    // Terms pages
+    sitemap += `
+  <url>
+    <loc>${baseUrl}/terms/custom-bot-policy</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/terms/privacy-policy</loc>
+    <lastmod>${currentDate}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+`;
+
     // Cart and checkout pages
     sitemap += `
   <url>
@@ -48,12 +74,12 @@ export async function GET(request: NextRequest) {
   </url>
 `;
 
-    // Static pages
+    // Static pages (with new routing)
     for (const page of data.staticPages) {
-      if (page.slug && !page.slug.includes('modal')) {
+      if (page.slug && page.isActive && !page.slug.includes('modal')) {
         sitemap += `
   <url>
-    <loc>${baseUrl}${page.slug}</loc>
+    <loc>${baseUrl}/page${page.slug}</loc>
     <lastmod>${currentDate}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
