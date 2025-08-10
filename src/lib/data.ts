@@ -138,9 +138,10 @@ export async function loadData(): Promise<typeof cachedData> {
       console.warn(`Failed to load categories: ${categoriesError.message}`);
     }
 
-    const categories: Category[] = [...new Set((categoriesData || []).map(row => row.name))];
+    const uniqueCategories = Array.from(new Set((categoriesData || []).map(row => row.name)));
+    const categories: Category[] = uniqueCategories.map(name => ({ name }));
     if (categories.length === 0) {
-      categories.push('General');
+      categories.push({ name: 'General' });
     }
 
     // Load static pages

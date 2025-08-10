@@ -88,8 +88,20 @@ export interface Admin {
 }
 
 export interface Settings {
-  key: string;
-  value: string;
+  [key: string]: any;
+  supportEmail?: string;
+  copyrightText?: string;
+  logoUrl?: string;
+  socials?: any;
+  urgentMessage?: any;
+  fallbackRate?: number;
+  adminEmail?: string;
+  adminPassword?: string;
+  mpesaTill?: string;
+  payheroChannelId?: string;
+  payheroPaymentUrl?: string;
+  payheroAuthToken?: string;
+  activePaymentOptions?: any;
 }
 
 export interface StaticPage {

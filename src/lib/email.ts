@@ -11,7 +11,7 @@ const emailConfig = {
 };
 
 // Create transporter
-const transporter = nodemailer.createTransporter(emailConfig);
+const transporter = nodemailer.createTransport(emailConfig);
 
 // Verify connection configuration
 export async function verifyEmailConfig() {
@@ -594,7 +594,7 @@ export async function sendCustomBotOrderNotification(trackingNumber: string, ref
     console.log(`[${new Date().toISOString()}] Custom bot order notification email sent successfully for ref code ${refCode}`);
     return { success: true };
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send custom bot order notification email:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to send custom bot order notification email:`, error instanceof Error ? error.message : error);
     return { success: false, error: error };
   }
 }
@@ -638,7 +638,7 @@ export async function sendAdminOTPEmail(email: string, code: string) {
     console.log(`[${new Date().toISOString()}] Admin OTP email sent to ${email}`);
     return { success: true };
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send admin OTP email:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to send admin OTP email:`, error instanceof Error ? error.message : error);
     return { success: false, error: error };
   }
 }
@@ -655,7 +655,7 @@ export async function sendOrderNotification(item: string, refCode: string, amoun
     console.log(`[${new Date().toISOString()}] Order notification email sent successfully for ref code ${refCode}`);
     return { success: true };
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error instanceof Error ? error.message : error);
     return { success: false, error: error };
   }
 }
@@ -718,7 +718,7 @@ export async function sendCustomBotCompletionEmail(order: any) {
     return { success: true };
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to send custom bot completion email:`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : error };
   }
 }
 
@@ -796,6 +796,6 @@ export async function sendCustomBotRefundEmail(order: any, refundReason: string,
     return { success: true };
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to send custom bot refund email:`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : error };
   }
 }

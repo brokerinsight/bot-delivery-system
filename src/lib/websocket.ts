@@ -242,7 +242,7 @@ class AdminWebSocket {
     };
   }
 
-  private getConnectionQuality(): 'excellent' | 'good' | 'poor' | 'disconnected' {
+  public getConnectionQuality(): 'excellent' | 'good' | 'poor' | 'disconnected' {
     if (!this.isConnected) return 'disconnected';
     
     const timeSinceLastPong = Date.now() - this.lastPongReceived;

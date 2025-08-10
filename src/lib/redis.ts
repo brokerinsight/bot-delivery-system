@@ -62,7 +62,7 @@ class RedisClient {
           this.reconnectAttempts = 0; // Reset on successful connection
           
         } catch (pingError) {
-          console.warn(`[${new Date().toISOString()}] ⚠️ Redis ping attempt ${attempts} failed:`, pingError.message);
+          console.warn(`[${new Date().toISOString()}] ⚠️ Redis ping attempt ${attempts} failed:`, pingError instanceof Error ? pingError.message : pingError);
           
           if (attempts < maxAttempts) {
             await this.delay(1000 * attempts); // Progressive delay
@@ -130,7 +130,11 @@ class RedisClient {
       return false;
     }
     try {
-      await this.client!.set(key, value, options);
+      if (options?.EX) {
+        await this.client!.setex(key, options.EX, value);
+      } else {
+        await this.client!.set(key, value);
+      }
       return true;
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Redis SET error for key ${key}:`, error);

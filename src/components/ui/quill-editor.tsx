@@ -2,14 +2,21 @@
 
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import dynamic from 'next/dynamic';
+import 'quill/dist/quill.snow.css';
 
-// Dynamically import Quill to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill'), { 
-  ssr: false,
-  loading: () => <div className="border rounded-lg p-12 bg-gray-50 dark:bg-gray-800 animate-pulse">Loading editor...</div>
-});
-
-import 'react-quill/dist/quill.snow.css';
+// Only import Quill on client side to avoid SSR issues
+const QuillClient = dynamic(
+  () => import('./quill-client').then(mod => mod.QuillClient),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="border rounded-lg p-12 bg-gray-50 dark:bg-gray-800 animate-pulse">
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
+        <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    )
+  }
+);
 
 interface QuillEditorProps {
   value: string;
@@ -37,95 +44,39 @@ const QuillEditor = forwardRef<QuillEditorRef, QuillEditorProps>(({
   toolbar = 'full',
   className = ''
 }, ref) => {
-  const quillRef = useRef<any>(null);
-
-  // Toolbar configurations
-  const toolbarConfigs = {
-    minimal: [
-      ['bold', 'italic'],
-      ['link'],
-      ['clean']
-    ],
-    basic: [
-      [{ 'header': [1, 2, 3, false] }],
-      ['bold', 'italic', 'underline'],
-      ['link'],
-      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-      ['clean']
-    ],
-    full: [
-      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-      [{ 'font': [] }],
-      [{ 'size': ['small', false, 'large', 'huge'] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'color': [] }, { 'background': [] }],
-      [{ 'script': 'sub' }, { 'script': 'super' }],
-      ['blockquote', 'code-block'],
-      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-      [{ 'indent': '-1' }, { 'indent': '+1' }],
-      [{ 'direction': 'rtl' }],
-      [{ 'align': [] }],
-      ['link', 'image', 'video'],
-      ['clean']
-    ]
-  };
-
-  const modules = {
-    toolbar: toolbarConfigs[toolbar],
-    clipboard: {
-      matchVisual: false,
-    },
-  };
-
-  const formats = [
-    'header', 'font', 'size',
-    'bold', 'italic', 'underline', 'strike', 'blockquote',
-    'list', 'bullet', 'indent',
-    'link', 'image', 'video',
-    'color', 'background',
-    'align', 'direction',
-    'code-block', 'script'
-  ];
+  const editorRef = useRef<any>(null);
 
   useImperativeHandle(ref, () => ({
-    getEditor: () => null,
-    focus: () => {},
-    blur: () => {},
+    getEditor: () => editorRef.current?.getEditor?.() || null,
+    focus: () => editorRef.current?.focus?.(),
+    blur: () => editorRef.current?.blur?.(),
     clear: () => {
       onChange('');
+      editorRef.current?.clear?.();
     }
   }));
 
-  // Clean HTML output to remove Quill artifacts
-  const cleanHtml = (html: string) => {
-    if (!html) return '';
-    
-    return html
-      .replace(/<span class="ql-ui"[^>]*><\/span>/g, '')
-      .replace(/<p><br><\/p>/g, '<p></p>')
-      .trim();
-  };
-
-  const handleChange = (content: string) => {
-    const cleaned = cleanHtml(content);
-    onChange(cleaned);
-  };
-
   return (
     <div className={`quill-editor-wrapper ${className}`}>
-      <style jsx global>{`
-        .quill-editor-wrapper .ql-container {
+      <style jsx>{`
+        .quill-editor-wrapper {
+          border: 1px solid #e5e7eb;
+          border-radius: 0.5rem;
+          overflow: hidden;
+        }
+        
+        .quill-editor-wrapper :global(.ql-container) {
           min-height: ${minHeight};
           font-family: inherit;
         }
         
-        .quill-editor-wrapper .ql-editor {
+        .quill-editor-wrapper :global(.ql-editor) {
           min-height: ${minHeight};
           padding: 12px 15px;
           line-height: 1.6;
         }
         
-        .quill-editor-wrapper .ql-toolbar {
+        .quill-editor-wrapper :global(.ql-toolbar) {
           border-top: 1px solid #e5e7eb;
           border-left: 1px solid #e5e7eb;
           border-right: 1px solid #e5e7eb;
@@ -134,74 +85,31 @@ const QuillEditor = forwardRef<QuillEditorRef, QuillEditorProps>(({
           background: #f9fafb;
         }
         
-        .quill-editor-wrapper .ql-container {
-          border-bottom: 1px solid #e5e7eb;
+        .quill-editor-wrapper :global(.ql-container) {
           border-left: 1px solid #e5e7eb;
           border-right: 1px solid #e5e7eb;
-          border-top: none;
+          border-bottom: 1px solid #e5e7eb;
           border-radius: 0 0 0.5rem 0.5rem;
-          background: white;
         }
         
-        .dark .quill-editor-wrapper .ql-toolbar {
-          background: #374151;
-          border-color: #4b5563;
-          color: #f3f4f6;
-        }
-        
-        .dark .quill-editor-wrapper .ql-container {
-          background: #1f2937;
-          border-color: #4b5563;
-          color: #f3f4f6;
-        }
-        
-        .dark .quill-editor-wrapper .ql-editor {
-          color: #f3f4f6;
-        }
-        
-        .dark .quill-editor-wrapper .ql-editor.ql-blank::before {
-          color: #9ca3af;
-        }
-        
-        .quill-editor-wrapper .ql-toolbar .ql-stroke {
-          stroke: #6b7280;
-        }
-        
-        .dark .quill-editor-wrapper .ql-toolbar .ql-stroke {
-          stroke: #d1d5db;
-        }
-        
-        .quill-editor-wrapper .ql-toolbar .ql-fill {
-          fill: #6b7280;
-        }
-        
-        .dark .quill-editor-wrapper .ql-toolbar .ql-fill {
-          fill: #d1d5db;
-        }
-        
-        .quill-editor-wrapper .ql-tooltip {
-          z-index: 1000;
+        .quill-editor-wrapper :global(.ql-snow .ql-tooltip) {
+          z-index: 9999;
         }
         
         ${disabled ? `
-          .quill-editor-wrapper .ql-toolbar {
-            opacity: 0.5;
-            pointer-events: none;
-          }
-          .quill-editor-wrapper .ql-container {
+          .quill-editor-wrapper {
             opacity: 0.7;
           }
         ` : ''}
       `}</style>
       
-      <ReactQuill
-        theme="snow"
+      <QuillClient
+        ref={editorRef}
         value={value}
-        onChange={handleChange}
+        onChange={onChange}
         placeholder={placeholder}
-        modules={modules}
-        formats={formats}
-        readOnly={disabled}
+        disabled={disabled}
+        toolbar={toolbar}
       />
     </div>
   );

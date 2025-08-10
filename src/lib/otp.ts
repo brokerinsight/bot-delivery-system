@@ -14,7 +14,7 @@ const otpStore = new Map<string, OTPData>();
 // Clean up expired OTPs every minute
 setInterval(() => {
   const now = Date.now();
-  for (const [email, data] of otpStore.entries()) {
+  for (const [email, data] of Array.from(otpStore.entries())) {
     if (data.expiresAt < now) {
       otpStore.delete(email);
     }
