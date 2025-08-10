@@ -141,18 +141,11 @@ export function CheckoutForm() {
     setIsLoading(true);
 
     try {
-      // Simulate API call to process payment
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Generate a mock reference code
-      const refCode = 'REF' + Math.random().toString(36).substr(2, 9).toUpperCase();
-
-      // Create order
-      const orderData = {
+      // Handle different payment methods
+      let orderPayload: any = {
         items: items.map(item => ({
           product_id: item.product.item,
           quantity: item.quantity,
-          price: item.product.price,
         })),
         customer: {
           email: formData.email,
@@ -161,13 +154,66 @@ export function CheckoutForm() {
           phone: formData.phone,
           country: formData.country,
         },
-        payment: {
-          method: formData.paymentMethod,
-          reference: refCode,
-        },
+        paymentMethod: formData.paymentMethod,
       };
 
-      console.log('Order data:', orderData);
+      // Handle M-Pesa payment
+      if (formData.paymentMethod === 'mpesa') {
+        if (!formData.mpesaRefCode?.trim()) {
+          toast.error('Please enter M-Pesa reference code');
+          setIsLoading(false);
+          return;
+        }
+        orderPayload.mpesaRefCode = formData.mpesaRefCode.trim();
+      }
+
+      // Handle crypto payment
+      if (formData.paymentMethod === 'crypto') {
+        if (!formData.selectedCrypto) {
+          toast.error('Please select a cryptocurrency');
+          setIsLoading(false);
+          return;
+        }
+        
+        // For crypto, we need to create a NOWPayments order first
+        const totalAmount = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+        
+        const cryptoResponse = await fetch('/api/nowpayments/create-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            price_amount: totalAmount,
+            price_currency: 'USD',
+            pay_currency: formData.selectedCrypto,
+            order_description: `Bulk Order - ${items.length} items`,
+            customer_email: formData.email
+          }),
+        });
+
+        const cryptoResult = await cryptoResponse.json();
+        if (!cryptoResult.success) {
+          throw new Error(cryptoResult.error || 'Failed to create crypto payment');
+        }
+
+        orderPayload.cryptoOrderId = cryptoResult.data.orderId;
+      }
+
+      // Create bulk order
+      const response = await fetch('/api/orders/create-bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create order');
+      }
 
       // Clear cart
       clearCart();
@@ -175,11 +221,23 @@ export function CheckoutForm() {
       // Show success message
       toast.success('Order placed successfully!');
 
-      // Redirect to success page
-      router.push(`/download/${refCode}`);
+      // Handle different payment flows
+      if (formData.paymentMethod === 'crypto' && orderPayload.cryptoOrderId) {
+        // Redirect to crypto payment gateway
+        // This would typically be handled by NOWPayments redirect
+        toast.success('Redirecting to crypto payment...');
+        // The actual redirect would happen in the NOWPayments response
+      } else if (result.downloadToken) {
+        // Payment already confirmed, redirect to download
+        router.push(`/download/${result.downloadToken}`);
+      } else {
+        // Payment pending, redirect to order status
+        router.push(`/order-status/${result.mainRefCode}`);
+      }
+
     } catch (error) {
       console.error('Checkout error:', error);
-      toast.error('Payment failed. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Payment failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
