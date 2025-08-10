@@ -18,7 +18,7 @@ export default function VirusLayout({
 
   const checkSession = async () => {
     try {
-      const response = await fetch('/api/auth/check-session', { 
+      const response = await fetch('/api/auth/session', { 
         credentials: 'include' 
       });
       const result = await response.json();
