@@ -64,21 +64,18 @@ export async function withAuth<T>(
 // Validate admin credentials
 export async function validateAdminCredentials(email: string, password: string): Promise<boolean> {
   try {
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', ['adminEmail', 'adminPassword']);
+    const { data: admin, error } = await supabase
+      .from('admins')
+      .select('email, password_hash')
+      .eq('email', email)
+      .single();
 
-    if (!settings) return false;
+    if (error || !admin) {
+      console.log('Admin not found:', error?.message);
+      return false;
+    }
 
-    const settingsMap = Object.fromEntries(settings.map(s => [s.key, s.value]));
-    const adminEmail = settingsMap.adminEmail;
-    const adminPasswordHash = settingsMap.adminPassword;
-
-    if (!adminEmail || !adminPasswordHash) return false;
-    if (email !== adminEmail) return false;
-
-    return await bcrypt.compare(password, adminPasswordHash);
+    return await bcrypt.compare(password, admin.password_hash);
   } catch (error) {
     console.error('Error validating admin credentials:', error);
     return false;

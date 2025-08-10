@@ -166,7 +166,7 @@ export async function loadData(): Promise<typeof cachedData> {
       title: row.title,
       slug: row.slug,
       content: row.content,
-      isActive: row.is_active !== false // Default to active if not specified
+      isActive: true // Default to active since the column doesn't exist in schema
     }));
 
     // Add fallback modals if they don't exist

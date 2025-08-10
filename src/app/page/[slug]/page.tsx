@@ -91,7 +91,7 @@ export async function generateStaticParams() {
   try {
     // During static generation, directly query Supabase to avoid Redis calls
     const { data: pagesData, error } = await import('@/lib/supabase').then(mod => 
-      mod.supabase.from('static_pages').select('slug, is_active')
+      mod.supabase.from('static_pages').select('slug')
     );
     
     if (error) {
@@ -105,7 +105,7 @@ export async function generateStaticParams() {
     }
     
     return (pagesData || [])
-      .filter((page: any) => page.is_active !== false && page.slug && page.slug.startsWith('/'))
+      .filter((page: any) => page.slug && page.slug.startsWith('/'))
       .map((page: any) => ({
         slug: page.slug.substring(1), // Remove leading slash
       }));

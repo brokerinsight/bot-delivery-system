@@ -13,17 +13,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if admin credentials already exist
-    const { data: existingSettings } = await supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', ['adminEmail', 'adminPassword']);
+    // Check if admin already exists
+    const { data: existingAdmin, error: checkError } = await supabase
+      .from('admins')
+      .select('email')
+      .eq('email', email)
+      .single();
 
-    const existingMap = Object.fromEntries((existingSettings || []).map(s => [s.key, s.value]));
-    
-    if (existingMap.adminEmail && existingMap.adminPassword) {
+    if (existingAdmin) {
       return NextResponse.json(
-        { success: false, error: 'Admin credentials already exist' },
+        { success: false, error: 'Admin with this email already exists' },
         { status: 409 }
       );
     }
@@ -31,23 +30,21 @@ export async function POST(request: NextRequest) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Insert or update admin credentials
-    const settingsToUpsert = [
-      { key: 'adminEmail', value: email },
-      { key: 'adminPassword', value: hashedPassword }
-    ];
-
+    // Insert new admin
     const { error } = await supabase
-      .from('settings')
-      .upsert(settingsToUpsert, { onConflict: 'key' });
+      .from('admins')
+      .insert({
+        email,
+        password_hash: hashedPassword
+      });
 
     if (error) {
-      throw new Error(`Failed to save admin credentials: ${error.message}`);
+      throw new Error(`Failed to create admin: ${error.message}`);
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Admin credentials set up successfully'
+      message: 'Admin created successfully'
     });
   } catch (error) {
     console.error('Setup admin error:', error);
