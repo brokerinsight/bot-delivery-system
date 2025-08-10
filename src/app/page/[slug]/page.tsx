@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { getCachedData } from '@/lib/data';
 import { generateMetadata as generateSEOMetadata } from '@/lib/seo';
 
@@ -61,6 +62,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

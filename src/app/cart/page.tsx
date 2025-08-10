@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { CartContent } from '@/components/cart/cart-content';
 import { CartSummary } from '@/components/cart/cart-summary';
 import { RecommendedProducts } from '@/components/cart/recommended-products';
@@ -25,6 +26,7 @@ export default function CartPage() {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         {/* Breadcrumbs */}

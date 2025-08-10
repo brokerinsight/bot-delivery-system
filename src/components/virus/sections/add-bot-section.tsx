@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { CloudArrowUpIcon, DocumentIcon } from '@heroicons/react/24/outline';
+import { QuillEditor, QuillEditorRef } from '@/components/ui/quill-editor';
 
 interface AddBotSectionProps {
   data: any;
@@ -34,6 +35,7 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const descriptionEditorRef = useRef<QuillEditorRef>(null);
   
   const categories = data.categories || ['General'];
 
@@ -65,6 +67,9 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
     setUploadProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (descriptionEditorRef.current) {
+      descriptionEditorRef.current.clear();
     }
   };
 
@@ -328,15 +333,16 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Description
             </label>
-            <textarea
+            <QuillEditor
+              ref={descriptionEditorRef}
               value={form.desc}
-              onChange={(e) => setForm({...form, desc: e.target.value})}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              rows={4}
+              onChange={(value) => setForm({...form, desc: value})}
               placeholder="Enter detailed description of the bot's features and functionality..."
+              toolbar="full"
+              minHeight="200px"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              You can use HTML formatting for rich text.
+            <p className="text-xs text-gray-500 mt-2">
+              Use rich formatting to create an appealing description that highlights the bot's key features and benefits.
             </p>
           </div>
 

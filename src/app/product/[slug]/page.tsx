@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { ProductDetails } from '@/components/product/product-details';
 import { ProductGallery } from '@/components/product/product-gallery';
 import { ProductReviews } from '@/components/product/product-reviews';
@@ -103,6 +104,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         {/* Breadcrumbs */}

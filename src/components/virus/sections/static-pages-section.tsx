@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { PencilIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { QuillEditor, QuillEditorRef } from '@/components/ui/quill-editor';
 
 interface StaticPagesSectionProps {
   data: any;
@@ -29,6 +30,8 @@ export function StaticPagesSection({ data, onDataUpdate, onSave }: StaticPagesSe
     content: '',
     isActive: true
   });
+  const newPageEditorRef = useRef<QuillEditorRef>(null);
+  const editPageEditorRef = useRef<QuillEditorRef>(null);
 
   useEffect(() => {
     setPages(data.staticPages || []);
@@ -50,6 +53,13 @@ export function StaticPagesSection({ data, onDataUpdate, onSave }: StaticPagesSe
     setEditModalOpen(false);
     setEditingPage(null);
     setIsNewPage(false);
+    // Clear editors
+    if (editPageEditorRef.current) {
+      editPageEditorRef.current.clear();
+    }
+    if (newPageEditorRef.current) {
+      newPageEditorRef.current.clear();
+    }
   };
 
   const generateSlug = (title: string) => {
@@ -334,15 +344,16 @@ export function StaticPagesSection({ data, onDataUpdate, onSave }: StaticPagesSe
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Page Content *
                 </label>
-                <textarea
+                <QuillEditor
+                  ref={editPageEditorRef}
                   value={editingPage.content}
-                  onChange={(e) => setEditingPage({...editingPage, content: e.target.value})}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  rows={12}
-                  placeholder="Enter page content (HTML supported)..."
+                  onChange={(value) => setEditingPage({...editingPage, content: value})}
+                  placeholder="Enter page content..."
+                  toolbar="full"
+                  minHeight="300px"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  You can use HTML formatting for rich content.
+                <p className="text-xs text-gray-500 mt-2">
+                  Use rich formatting to create professional-looking content for your static page.
                 </p>
               </div>
 

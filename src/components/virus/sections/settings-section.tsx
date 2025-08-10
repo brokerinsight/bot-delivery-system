@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { EyeIcon, EyeSlashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { QuillEditor, QuillEditorRef } from '@/components/ui/quill-editor';
 
 interface SettingsSectionProps {
   data: any;
@@ -32,6 +33,11 @@ export function SettingsSection({ data, onDataUpdate, onSave }: SettingsSectionP
     oldPassword: '',
     newPassword: ''
   });
+  const [urgentMessage, setUrgentMessage] = useState({
+    enabled: false,
+    text: ''
+  });
+  const urgentMessageEditorRef = useRef<QuillEditorRef>(null);
 
   useEffect(() => {
     setSettings(data.settings || {});
@@ -46,6 +52,21 @@ export function SettingsSection({ data, onDataUpdate, onSave }: SettingsSectionP
         setPaymentOptions(parsed);
       } catch {
         // Keep defaults
+      }
+    }
+    
+    // Parse urgent message
+    if (data.settings?.urgentMessage) {
+      try {
+        const message = typeof data.settings.urgentMessage === 'string' 
+          ? JSON.parse(data.settings.urgentMessage)
+          : data.settings.urgentMessage;
+        setUrgentMessage({
+          enabled: message.enabled || false,
+          text: message.text || ''
+        });
+      } catch {
+        setUrgentMessage({ enabled: false, text: '' });
       }
     }
   }, [data]);
@@ -120,6 +141,22 @@ export function SettingsSection({ data, onDataUpdate, onSave }: SettingsSectionP
     const paymentOptionsJson = JSON.stringify(paymentOptions);
     await updateSetting('activePaymentOptions', paymentOptionsJson);
     toast.success('Payment options saved successfully');
+  };
+
+  const saveUrgentMessage = async () => {
+    try {
+      const urgentMessageData = {
+        enabled: urgentMessage.enabled,
+        text: urgentMessage.text
+      };
+      
+      const urgentMessageJson = JSON.stringify(urgentMessageData);
+      await updateSetting('urgentMessage', urgentMessageJson);
+      toast.success('Urgent message saved successfully');
+    } catch (error) {
+      console.error('Error saving urgent message:', error);
+      toast.error('Failed to save urgent message');
+    }
   };
 
   const changeAdminCredentials = async () => {
@@ -387,43 +424,89 @@ export function SettingsSection({ data, onDataUpdate, onSave }: SettingsSectionP
 
         {/* Urgent Message */}
         <div className="mb-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-2">Urgent Message</h4>
-          <div className="flex items-center mb-2">
-            <input
-              type="checkbox"
-              checked={settings.urgentMessage?.enabled || false}
-              onChange={(e) => setSettings({
-                ...settings, 
-                urgentMessage: { 
-                  ...settings.urgentMessage, 
-                  enabled: e.target.checked 
-                }
-              })}
-              className="mr-2 h-5 w-5 text-green-600"
-            />
-            <label className="text-sm font-medium text-gray-700">Enable Urgent Message</label>
+          <div className="flex items-center gap-3 mb-4">
+            <ExclamationTriangleIcon className="w-6 h-6 text-orange-500" />
+            <h4 className="text-lg font-semibold text-gray-900">Urgent Message</h4>
           </div>
           
-          <textarea
-            value={settings.urgentMessage?.text || ''}
-            onChange={(e) => setSettings({
-              ...settings,
-              urgentMessage: {
-                ...settings.urgentMessage,
-                text: e.target.value
-              }
-            })}
-            className="w-full p-2 border rounded-md mb-2"
-            rows={3}
-            placeholder="Enter urgent message text..."
-          />
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
+            <p className="text-sm text-orange-800 dark:text-orange-300 mb-2">
+              <strong>How it works:</strong> When enabled, this message will appear as a popup modal on all frontend pages 
+              for users who haven't dismissed it yet.
+            </p>
+            <ul className="text-xs text-orange-700 dark:text-orange-400 list-disc list-inside space-y-1">
+              <li>Users can dismiss the message by clicking "Got it, thanks!"</li>
+              <li>Once dismissed, the same message won't show again to that user</li>
+              <li>Edit the message and save to show it to all users again</li>
+              <li>Use rich formatting to make your message stand out</li>
+            </ul>
+          </div>
           
-          <button
-            onClick={() => updateSetting('urgentMessage', settings.urgentMessage)}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-          >
-            Save Urgent Message
-          </button>
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              checked={urgentMessage.enabled}
+              onChange={(e) => setUrgentMessage(prev => ({
+                ...prev,
+                enabled: e.target.checked
+              }))}
+              className="mr-3 h-5 w-5 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+            />
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Enable Urgent Message (Show popup on frontend)
+            </label>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Message Content
+            </label>
+            <QuillEditor
+              ref={urgentMessageEditorRef}
+              value={urgentMessage.text}
+              onChange={(value) => setUrgentMessage(prev => ({
+                ...prev,
+                text: value
+              }))}
+              placeholder="Enter your urgent message here. You can use rich formatting to make it stand out..."
+              disabled={!urgentMessage.enabled}
+              toolbar="basic"
+              minHeight="150px"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Tip: Use bold text, colors, and formatting to make your message more noticeable.
+            </p>
+          </div>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={saveUrgentMessage}
+              disabled={!urgentMessage.enabled && !urgentMessage.text.trim()}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
+            >
+              Save Urgent Message
+            </button>
+            
+            {urgentMessage.enabled && urgentMessage.text.trim() && (
+              <button
+                onClick={() => {
+                  setUrgentMessage(prev => ({ ...prev, enabled: false }));
+                  saveUrgentMessage();
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors"
+              >
+                Disable & Save
+              </button>
+            )}
+          </div>
+          
+          {urgentMessage.enabled && urgentMessage.text.trim() && (
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm text-green-800 dark:text-green-300">
+                ✅ <strong>Active:</strong> This urgent message will appear on all frontend pages as a popup modal.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

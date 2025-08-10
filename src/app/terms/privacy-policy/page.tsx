@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { generateMetadata as generateSEOMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = generateSEOMetadata({
@@ -13,6 +14,7 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

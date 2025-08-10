@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { CheckCircleIcon, ClockIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -57,6 +58,7 @@ export default async function CustomBotSuccessPage({ params }: CustomBotSuccessP
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16 pb-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

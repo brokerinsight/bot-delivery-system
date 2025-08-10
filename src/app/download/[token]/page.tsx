@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { DownloadContent } from '@/components/download/download-content';
 import { DownloadSecurity } from '@/components/download/download-security';
 
@@ -110,6 +111,7 @@ export default async function DownloadPage({ params }: DownloadPageProps) {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         {/* Page Header */}

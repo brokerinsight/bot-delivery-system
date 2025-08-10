@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { CustomBotPaymentForm } from '@/components/custom-bot/custom-bot-payment-form';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -63,6 +64,7 @@ export default async function CustomBotPaymentPage({ params }: CustomBotPaymentP
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16 pb-16">
         {/* Breadcrumbs */}

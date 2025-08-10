@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { PencilIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { QuillEditor, QuillEditorRef } from '@/components/ui/quill-editor';
 
 interface ManageBotsSectionProps {
   data: any;
@@ -28,6 +29,7 @@ export function ManageBotsSection({ data, onDataUpdate, onSave }: ManageBotsSect
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [originalItem, setOriginalItem] = useState('');
+  const editDescriptionEditorRef = useRef<QuillEditorRef>(null);
 
   useEffect(() => {
     setProducts(data.products || []);
@@ -355,15 +357,16 @@ export function ManageBotsSection({ data, onDataUpdate, onSave }: ManageBotsSect
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description
               </label>
-              <textarea
+              <QuillEditor
+                ref={editDescriptionEditorRef}
                 value={editingProduct.desc}
-                onChange={(e) => setEditingProduct({...editingProduct, desc: e.target.value})}
-                className="w-full p-2 border rounded-md"
-                rows={4}
+                onChange={(value) => setEditingProduct({...editingProduct, desc: value})}
                 placeholder="Enter bot description..."
+                toolbar="full"
+                minHeight="180px"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                You can use HTML formatting for rich text.
+              <p className="text-xs text-gray-500 mt-2">
+                Use rich formatting to create an appealing description that highlights the bot's key features.
               </p>
             </div>
 

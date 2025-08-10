@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { CheckoutForm } from '@/components/checkout/checkout-form';
 import { CheckoutSummary } from '@/components/checkout/checkout-summary';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -25,6 +26,7 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16 pb-16">
         {/* Breadcrumbs */}
