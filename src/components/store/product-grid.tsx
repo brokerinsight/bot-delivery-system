@@ -19,64 +19,45 @@ interface ProductGridProps {
   searchParams: SearchParams;
 }
 
-// Mock data - replace with actual API call
-const mockProducts: Product[] = [
-  {
-    item: 'advanced-martingale-bot',
-    file_id: 'file_1',
-    price: 299,
-    name: 'Advanced Martingale Bot',
-    description: 'Professional martingale strategy with advanced risk management and customizable settings for binary options trading.',
-    image: '/api/placeholder/400/300',
-    category: 'Martingale',
-    embed: '<iframe>...</iframe>',
-    is_new: true,
-    is_archived: false,
-    original_file_name: 'advanced_martingale.xml',
-    created_at: '2024-01-15T10:00:00Z',
-  },
-  {
-    item: 'scalping-master-pro',
-    file_id: 'file_2',
-    price: 199,
-    name: 'Scalping Master Pro',
-    description: 'High-frequency scalping bot designed for quick profits in volatile markets with built-in stop-loss protection.',
-    image: '/api/placeholder/400/300',
-    category: 'Scalping',
-    embed: '<iframe>...</iframe>',
-    is_new: false,
-    is_archived: false,
-    original_file_name: 'scalping_master.xml',
-    created_at: '2024-01-10T10:00:00Z',
-  },
-  {
-    item: 'trend-follower-ai',
-    file_id: 'file_3',
-    price: 399,
-    name: 'AI Trend Follower',
-    description: 'Machine learning powered trend analysis bot that adapts to market conditions automatically.',
-    image: '/api/placeholder/400/300',
-    category: 'AI Trading',
-    embed: '<iframe>...</iframe>',
-    is_new: true,
-    is_archived: false,
-    original_file_name: 'ai_trend_follower.xml',
-    created_at: '2024-01-20T10:00:00Z',
-  },
-];
-
 export function ProductGrid({ searchParams }: ProductGridProps) {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { addItem } = useCartStore();
 
-  // Filter products based on search params
+  // Fetch real products from database
   useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/data');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.products) {
+            // Filter out archived products for the storefront
+            const activeProducts = result.data.products.filter((product: Product) => !product.isArchived);
+            setAllProducts(activeProducts);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Filter and sort products based on search params
+  useEffect(() => {
+    if (allProducts.length === 0) return;
+    
     setLoading(true);
-    // Simulate API call delay
+    // Add slight delay for smooth UI transition
     setTimeout(() => {
-      let filteredProducts = mockProducts;
+      let filteredProducts = [...allProducts];
 
       // Apply search filter
       if (searchParams.query) {
@@ -122,7 +103,7 @@ export function ProductGrid({ searchParams }: ProductGridProps) {
       setProducts(filteredProducts);
       setLoading(false);
     }, 500);
-  }, [searchParams]);
+  }, [searchParams, allProducts]);
 
   const toggleFavorite = (productId: string) => {
     setFavorites(prev => {

@@ -10,24 +10,7 @@ import { RelatedProducts } from '@/components/product/related-products';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Product } from '@/types';
 import { generateProductStructuredData, generateBreadcrumbStructuredData } from '@/lib/seo';
-
-// Mock data - replace with actual API call
-const mockProducts: Record<string, Product> = {
-  'advanced-martingale-bot': {
-    item: 'advanced-martingale-bot',
-    file_id: 'file_1',
-    price: 299,
-    name: 'Advanced Martingale Bot',
-    description: 'Professional martingale strategy with advanced risk management and customizable settings for binary options trading. This bot implements sophisticated position sizing algorithms and includes multiple safety mechanisms to protect your capital while maximizing profit potential.',
-    image: '/api/placeholder/800/600',
-    category: 'Martingale',
-    embed: '<iframe src="https://example.com/preview" width="100%" height="400"></iframe>',
-    is_new: true,
-    is_archived: false,
-    original_file_name: 'advanced_martingale.xml',
-    created_at: '2024-01-15T10:00:00Z',
-  },
-};
+import { getCachedData } from '@/lib/data';
 
 interface ProductPageProps {
   params: {
@@ -36,9 +19,14 @@ interface ProductPageProps {
 }
 
 async function getProduct(slug: string): Promise<Product | null> {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 100));
-  return mockProducts[slug] || null;
+  try {
+    const cachedData = await getCachedData();
+    const product = cachedData.products.find(p => p.item === slug && !p.isArchived);
+    return product || null;
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
