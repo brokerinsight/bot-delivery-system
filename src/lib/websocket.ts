@@ -15,23 +15,48 @@ interface AdminWebSocketEvents {
 class AdminWebSocket {
   private ws: WebSocket | null = null;
   private isConnected = false;
+  private isConnecting = false;
+  private shouldReconnect = true;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10; // Increased for critical payment scenarios
+  private baseReconnectDelay = 1000;
+  private maxReconnectDelay = 30000; // Max 30 seconds
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private eventListeners: Map<string, Set<Function>> = new Map();
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private heartbeatTimeout: NodeJS.Timeout | null = null;
+  private lastPongReceived = Date.now();
 
   connect(): Promise<void> {
+    if (this.isConnecting || this.isConnected) {
+      return Promise.resolve();
+    }
+
     return new Promise((resolve, reject) => {
       try {
+        this.isConnecting = true;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/ws/admin`;
         
+        console.log(`[WebSocket] Connecting to ${wsUrl} (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+        
         this.ws = new WebSocket(wsUrl);
 
+        const connectionTimeout = setTimeout(() => {
+          if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+            console.error('[WebSocket] Connection timeout');
+            this.ws.close();
+            reject(new Error('WebSocket connection timeout'));
+          }
+        }, 10000); // 10 second timeout
+
         this.ws.onopen = () => {
-          console.log('Admin WebSocket connected');
+          clearTimeout(connectionTimeout);
+          console.log('[WebSocket] ✅ Admin WebSocket connected successfully');
           this.isConnected = true;
+          this.isConnecting = false;
           this.reconnectAttempts = 0;
+          this.lastPongReceived = Date.now();
           
           // Send auth token
           const token = localStorage.getItem('admin-session') || document.cookie
@@ -43,13 +68,22 @@ class AdminWebSocket {
             this.send('auth', { token });
           }
           
+          // Start heartbeat
+          this.startHeartbeat();
+          
           resolve();
         };
 
-        this.ws.onclose = () => {
-          console.log('Admin WebSocket disconnected');
+        this.ws.onclose = (event) => {
+          clearTimeout(connectionTimeout);
+          console.log(`[WebSocket] 🔌 Connection closed (code: ${event.code}, reason: ${event.reason})`);
           this.isConnected = false;
-          this.attemptReconnect();
+          this.isConnecting = false;
+          this.stopHeartbeat();
+          
+          if (this.shouldReconnect) {
+            this.attemptReconnect();
+          }
         };
 
         this.ws.onerror = (error) => {
@@ -77,38 +111,103 @@ class AdminWebSocket {
   }
 
   private attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectTimeout = setTimeout(() => {
-        console.log(`Attempting to reconnect... (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
-        this.connect().catch(() => {
-          // Reconnection failed, will try again
-        });
-      }, 1000 * Math.pow(2, this.reconnectAttempts)); // Exponential backoff
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[WebSocket] ❌ Max reconnection attempts reached. WebSocket disabled.');
+      return;
     }
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    const delay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts),
+      this.maxReconnectDelay
+    );
+
+    console.log(`[WebSocket] 🔄 Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+
+    this.reconnectTimeout = setTimeout(async () => {
+      this.reconnectAttempts++;
+      
+      try {
+        await this.connect();
+        console.log('[WebSocket] ✅ Reconnection successful');
+      } catch (error) {
+        console.error('[WebSocket] ❌ Reconnection failed:', error);
+        this.attemptReconnect(); // Try again
+      }
+    }, delay);
   }
 
   private handleMessage(message: { type: string; data: any }) {
+    // Handle pong responses for heartbeat
+    if (message.type === 'pong') {
+      this.lastPongReceived = Date.now();
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
+      return;
+    }
+
     const listeners = this.eventListeners.get(message.type);
     if (listeners) {
       listeners.forEach(callback => {
         try {
           callback(message.data);
         } catch (error) {
-          console.error('Error in WebSocket event callback:', error);
+          console.error('[WebSocket] Error in event callback:', error);
         }
       });
     }
   }
 
   disconnect() {
+    this.shouldReconnect = false;
+    
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
+    
+    this.stopHeartbeat();
     
     if (this.ws) {
       this.ws.close();
       this.ws = null;
       this.isConnected = false;
+      this.isConnecting = false;
+    }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    
+    // Send ping every 30 seconds
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected && this.ws?.readyState === WebSocket.OPEN) {
+        this.send('ping', { timestamp: Date.now() });
+        
+        // Set timeout for pong response (10 seconds)
+        this.heartbeatTimeout = setTimeout(() => {
+          console.error('[WebSocket] ❌ Heartbeat timeout - connection appears dead');
+          if (this.ws) {
+            this.ws.close();
+          }
+        }, 10000);
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    
+    if (this.heartbeatTimeout) {
+      clearTimeout(this.heartbeatTimeout);
+      this.heartbeatTimeout = null;
     }
   }
 
@@ -136,8 +235,36 @@ class AdminWebSocket {
   getConnectionStatus() {
     return {
       connected: this.isConnected,
-      reconnectAttempts: this.reconnectAttempts
+      connecting: this.isConnecting,
+      reconnectAttempts: this.reconnectAttempts,
+      lastPongReceived: this.lastPongReceived,
+      quality: this.getConnectionQuality()
     };
+  }
+
+  private getConnectionQuality(): 'excellent' | 'good' | 'poor' | 'disconnected' {
+    if (!this.isConnected) return 'disconnected';
+    
+    const timeSinceLastPong = Date.now() - this.lastPongReceived;
+    
+    if (timeSinceLastPong < 35000) return 'excellent'; // Within expected heartbeat + buffer
+    if (timeSinceLastPong < 60000) return 'good';      // Slight delay but acceptable
+    return 'poor';                                      // Connection may be unstable
+  }
+
+  // Force reconnection (useful for manual recovery)
+  forceReconnect() {
+    console.log('[WebSocket] 🔄 Force reconnection requested');
+    this.reconnectAttempts = 0; // Reset attempts
+    this.disconnect();
+    this.shouldReconnect = true;
+    
+    // Immediate reconnection attempt
+    setTimeout(() => {
+      this.connect().catch(error => {
+        console.error('[WebSocket] Force reconnection failed:', error);
+      });
+    }, 1000);
   }
 }
 

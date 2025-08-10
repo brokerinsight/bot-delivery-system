@@ -134,9 +134,10 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 -- EMAIL_USER=your-email@gmail.com
 -- EMAIL_PASS=your-app-password
 
--- Redis Configuration (Upstash Redis for caching and rate limiting)
+-- Redis Configuration (Upstash Redis for caching and rate limiting - CRITICAL FOR PAYMENT STABILITY)
 -- UPSTASH_REDIS_REST_URL=https://your-redis-endpoint.upstash.io
 -- UPSTASH_REDIS_REST_TOKEN=your-redis-token
+-- Note: These exact variable names are used in the old server.js and must match exactly
 
 -- Payment Integration (if using existing providers)
 -- PAYHERO_CHANNEL_ID=your-channel-id

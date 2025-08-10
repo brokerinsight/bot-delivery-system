@@ -5,6 +5,10 @@ class RedisClient {
   private static instance: RedisClient;
   private client: Redis | null = null;
   private isConnected: boolean = false;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 10;
+  private reconnectDelay: number = 1000; // Start with 1 second
+  private maxReconnectDelay: number = 30000; // Max 30 seconds
 
   private constructor() {
     this.initializeClient();
@@ -23,33 +27,81 @@ class RedisClient {
       
       // Check if environment variables are set
       if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-        console.warn('Upstash Redis environment variables not configured. Running without Redis cache.');
+        console.warn('Upstash Redis environment variables (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN) not configured. Running without Redis cache.');
         return;
       }
       
-      // Initialize Upstash Redis REST client - using fromEnv() for automatic config
+      // Initialize Upstash Redis REST client with retry configuration
       this.client = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        retry: {
+          retries: 3,
+          backoff: (retryCount) => Math.min(1000 * Math.pow(2, retryCount), 5000)
+        },
+        // Upstash-specific configurations for stability
+        automaticDeserialization: false
       });
       
-      // Test the connection with a simple ping
-      try {
-        const pingResult = await this.client.ping();
-        console.log(`[${new Date().toISOString()}] ✅ Successfully connected to Upstash Redis`);
-        console.log(`[${new Date().toISOString()}] 📊 Ping result:`, pingResult);
-        this.isConnected = true;
-      } catch (pingError) {
-        console.warn(`[${new Date().toISOString()}] ⚠️ Redis ping failed but client initialized:`, pingError);
-        // For Upstash REST API, we still consider it connected even if ping fails
-        // as the connection is stateless HTTP-based
+      // Test the connection with multiple attempts
+      let connected = false;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!connected && attempts < maxAttempts) {
+        try {
+          attempts++;
+          console.log(`[${new Date().toISOString()}] Testing Redis connection (attempt ${attempts}/${maxAttempts})...`);
+          
+          const pingResult = await this.client.ping();
+          console.log(`[${new Date().toISOString()}] ✅ Successfully connected to Upstash Redis`);
+          console.log(`[${new Date().toISOString()}] 📊 Ping result:`, pingResult);
+          
+          connected = true;
+          this.isConnected = true;
+          this.reconnectAttempts = 0; // Reset on successful connection
+          
+        } catch (pingError) {
+          console.warn(`[${new Date().toISOString()}] ⚠️ Redis ping attempt ${attempts} failed:`, pingError.message);
+          
+          if (attempts < maxAttempts) {
+            await this.delay(1000 * attempts); // Progressive delay
+          }
+        }
+      }
+      
+      if (!connected) {
+        console.warn(`[${new Date().toISOString()}] ⚠️ Redis connection failed after ${maxAttempts} attempts, but REST client initialized`);
+        // For Upstash REST API, we can still try operations even if ping fails
         this.isConnected = true;
       }
       
     } catch (error) {
       console.error(`[${new Date().toISOString()}] ❌ Failed to initialize Redis:`, error);
       this.isConnected = false;
+      await this.scheduleReconnect();
     }
+  }
+
+  private async scheduleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error(`[${new Date().toISOString()}] ❌ Max Redis reconnection attempts reached. Running without Redis.`);
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
+    
+    console.log(`[${new Date().toISOString()}] 🔄 Scheduling Redis reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+    
+    setTimeout(async () => {
+      console.log(`[${new Date().toISOString()}] 🔄 Attempting Redis reconnection...`);
+      await this.initializeClient();
+    }, delay);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public isReady(): boolean {
