@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 
-// Mark this route as dynamic to prevent static generation issues
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
