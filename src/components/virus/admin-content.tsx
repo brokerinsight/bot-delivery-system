@@ -9,6 +9,7 @@ import { SettingsSection } from './sections/settings-section';
 import { StaticPagesSection } from './sections/static-pages-section';
 import { OrdersSection } from './sections/orders-section';
 import { DashboardSection } from './sections/dashboard-section';
+import { CustomBotsSection } from './sections/custom-bots-section';
 
 type AdminSection = 'dashboard' | 'add-bot' | 'manage-bots' | 'settings' | 'static-pages' | 'orders' | 'custom-bots';
 
@@ -198,6 +199,13 @@ export function AdminContent() {
             data={data}
             onDataUpdate={updateData}
             onFetchOrders={fetchOrders}
+          />
+        )}
+        
+        {activeSection === 'custom-bots' && (
+          <CustomBotsSection 
+            data={data}
+            onDataUpdate={updateData}
           />
         )}
       </div>

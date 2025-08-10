@@ -158,6 +158,82 @@ export function Header() {
                 {item.name}
               </Link>
             ))}
+            
+            {/* Custom Bot CTA */}
+            <div className="pt-2">
+              <Link
+                href="/custom-bot"
+                className="block w-full px-4 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-xl transition-all duration-300 text-center"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                🤖 Need Custom Bot?
+              </Link>
+            </div>
+            
+            {/* Quick Links */}
+            <div className="pt-4 border-t border-white/20">
+              <h3 className="text-sm font-semibold text-secondary-700 dark:text-secondary-300 mb-3">
+                Quick Links
+              </h3>
+              <div className="space-y-2">
+                <Link
+                  href="/page/privacy-policy"
+                  className="block text-sm text-secondary-600 hover:text-primary-600 dark:text-secondary-400 dark:hover:text-primary-400 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Privacy Policy
+                </Link>
+                <Link
+                  href="/page/terms-of-service"
+                  className="block text-sm text-secondary-600 hover:text-primary-600 dark:text-secondary-400 dark:hover:text-primary-400 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Terms of Service
+                </Link>
+                <Link
+                  href="/terms/custom-bot-policy"
+                  className="block text-sm text-secondary-600 hover:text-primary-600 dark:text-secondary-400 dark:hover:text-primary-400 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Custom Bot Terms
+                </Link>
+              </div>
+            </div>
+            
+            {/* Social Media */}
+            <div className="pt-4 border-t border-white/20">
+              <h3 className="text-sm font-semibold text-secondary-700 dark:text-secondary-300 mb-3">
+                Follow Us
+              </h3>
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://t.me/derivbotstore"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <span className="text-lg">📱</span>
+                </a>
+                <a
+                  href="https://www.youtube.com/@derivbotstore"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <span className="text-lg">📺</span>
+                </a>
+                <a
+                  href="https://x.com/derivbotstore"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 bg-gray-900 hover:bg-black text-white rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <span className="text-lg">🐦</span>
+                </a>
+              </div>
+            </div>
+            
+            {/* Connection Status */}
             <div className="pt-4 border-t border-white/20">
               <div className="flex items-center space-x-2 text-sm text-secondary-500 dark:text-secondary-400">
                 <div 

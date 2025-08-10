@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { MagnifyingGlassIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
 export function StoreHeader() {
@@ -41,10 +42,27 @@ export function StoreHeader() {
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-secondary-800 dark:text-secondary-200 mb-4">
             Trading Bots <span className="bg-gradient-to-r from-primary-600 to-accent-500 bg-clip-text text-transparent">Store</span>
           </h1>
-          <p className="text-lg text-secondary-600 dark:text-secondary-300 mb-8 max-w-3xl mx-auto">
+          <p className="text-lg text-secondary-600 dark:text-secondary-300 mb-6 max-w-3xl mx-auto">
             Discover premium automated trading strategies designed by professionals. 
             Find the perfect bot for your trading style and market preferences.
           </p>
+
+          {/* Custom Bot CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.15 }}
+            className="mb-8"
+          >
+            <Link
+              href="/custom-bot"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105 shadow-lg"
+            >
+              <span>🤖</span>
+              <span>Need a Custom Bot?</span>
+              <ArrowRightIcon className="w-4 h-4" />
+            </Link>
+          </motion.div>
 
           {/* Search Bar */}
           <motion.form

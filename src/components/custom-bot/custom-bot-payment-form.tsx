@@ -1,17 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CustomBotOrder } from '@/types';
 import toast from 'react-hot-toast';
-import {
+import { 
   CreditCardIcon,
-  PhoneIcon,
+  DevicePhoneMobileIcon,
   CurrencyDollarIcon,
-  ClockIcon,
-  CheckCircleIcon
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
+
+interface CustomBotOrder {
+  id: number;
+  ref_code: string;
+  client_email: string;
+  budget_amount: number;
+  tracking_number: string;
+  payment_status: string;
+}
+
+interface PaymentOptions {
+  mpesa_manual: boolean;
+  mpesa_payhero: boolean;
+  crypto_nowpayments: boolean;
+}
 
 interface CustomBotPaymentFormProps {
   order: CustomBotOrder;
@@ -19,28 +31,48 @@ interface CustomBotPaymentFormProps {
 
 export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
   const router = useRouter();
+  const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentData, setPaymentData] = useState({
-    mpesaPhone: '',
-    cryptoCurrency: 'bitcoin'
+  const [paymentOptions, setPaymentOptions] = useState<PaymentOptions>({
+    mpesa_manual: true,
+    mpesa_payhero: true,
+    crypto_nowpayments: true
   });
+  const [mpesaRefCode, setMpesaRefCode] = useState('');
 
-  const handleMpesaPayment = async () => {
-    if (!paymentData.mpesaPhone) {
-      toast.error('Please enter your M-Pesa phone number');
-      return;
+  useEffect(() => {
+    fetchPaymentOptions();
+  }, []);
+
+  const fetchPaymentOptions = async () => {
+    try {
+      const response = await fetch('/api/data');
+      const result = await response.json();
+      
+      if (result.success && result.data.settings?.activePaymentOptions) {
+        const options = typeof result.data.settings.activePaymentOptions === 'string' 
+          ? JSON.parse(result.data.settings.activePaymentOptions)
+          : result.data.settings.activePaymentOptions;
+        setPaymentOptions(options);
+        
+        // Set default to first available option
+        const availableOptions = Object.entries(options).filter(([, enabled]) => enabled);
+        if (availableOptions.length > 0 && !selectedMethod) {
+          setSelectedMethod(availableOptions[0][0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching payment options:', error);
     }
+  };
 
-    // Validate M-Pesa phone number
-    const phoneRegex = /^254\d{9}$/;
-    const cleanPhone = paymentData.mpesaPhone.replace(/\s+/g, '');
-    if (!phoneRegex.test(cleanPhone)) {
-      toast.error('Please enter a valid M-Pesa number (254XXXXXXXXX)');
+  const handleMpesaManualPayment = async () => {
+    if (!mpesaRefCode.trim()) {
+      toast.error('Please enter M-Pesa reference code');
       return;
     }
 
     setIsProcessing(true);
-
     try {
       const response = await fetch('/api/custom-bot/payment/mpesa', {
         method: 'POST',
@@ -49,7 +81,7 @@ export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
         },
         body: JSON.stringify({
           ref_code: order.ref_code,
-          phone_number: cleanPhone,
+          mpesa_ref_code: mpesaRefCode.trim(),
           amount: order.budget_amount
         }),
       });
@@ -57,18 +89,27 @@ export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
       const result = await response.json();
 
       if (result.success) {
-        toast.success('Payment request sent! Please check your phone for M-Pesa prompt.');
-        
-        // Poll for payment status
-        setTimeout(() => {
-          checkPaymentStatus();
-        }, 5000);
+        toast.success('M-Pesa payment submitted successfully!');
+        router.push(`/custom-bot/success/${order.ref_code}`);
       } else {
-        toast.error(result.error || 'Payment failed. Please try again.');
+        throw new Error(result.error || 'Payment submission failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('M-Pesa payment error:', error);
-      toast.error('Payment processing failed. Please try again.');
+      toast.error(error.message || 'Payment submission failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleMpesaPayheroPayment = async () => {
+    setIsProcessing(true);
+    try {
+      // This would integrate with PayHero API
+      toast.info('PayHero M-Pesa integration coming soon. Please use manual M-Pesa for now.');
+    } catch (error: any) {
+      console.error('PayHero payment error:', error);
+      toast.error('PayHero payment failed');
     } finally {
       setIsProcessing(false);
     }
@@ -76,7 +117,6 @@ export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
 
   const handleCryptoPayment = async () => {
     setIsProcessing(true);
-
     try {
       const response = await fetch('/api/custom-bot/payment/crypto', {
         method: 'POST',
@@ -85,261 +125,222 @@ export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
         },
         body: JSON.stringify({
           ref_code: order.ref_code,
-          currency: paymentData.cryptoCurrency,
-          amount: order.budget_amount
+          amount: order.budget_amount,
+          currency: 'USD'
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        // Redirect to crypto payment provider
-        window.location.href = result.payment_url;
+        // Redirect to crypto payment gateway
+        window.location.href = result.data.invoice_url;
       } else {
-        toast.error(result.error || 'Payment initialization failed. Please try again.');
+        throw new Error(result.error || 'Crypto payment initialization failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Crypto payment error:', error);
-      toast.error('Payment processing failed. Please try again.');
+      toast.error(error.message || 'Crypto payment failed');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const checkPaymentStatus = async () => {
-    try {
-      const response = await fetch(`/api/custom-bot/payment/status/${order.ref_code}`);
-      const result = await response.json();
-
-      if (result.success && result.payment_status === 'paid') {
-        toast.success('Payment confirmed! Redirecting...');
-        setTimeout(() => {
-          router.push(`/custom-bot/payment/${order.ref_code}`);
-        }, 2000);
-      } else {
-        // Check again in 5 seconds
-        setTimeout(checkPaymentStatus, 5000);
-      }
-    } catch (error) {
-      console.error('Payment status check error:', error);
+  const handlePayment = () => {
+    switch (selectedMethod) {
+      case 'mpesa_manual':
+        handleMpesaManualPayment();
+        break;
+      case 'mpesa_payhero':
+        handleMpesaPayheroPayment();
+        break;
+      case 'crypto_nowpayments':
+        handleCryptoPayment();
+        break;
+      default:
+        toast.error('Please select a payment method');
     }
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="space-y-6"
-    >
-      {/* Payment Methods */}
-      {order.payment_method === 'mpesa' ? (
-        <div className="glass-card rounded-2xl p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <PhoneIcon className="w-6 h-6 text-green-600" />
-            <h2 className="text-xl font-semibold text-secondary-800 dark:text-secondary-200">
-              M-Pesa Payment
-            </h2>
-          </div>
+  // If payment is already completed
+  if (order.payment_status === 'confirmed') {
+    return (
+      <div className="glass-card rounded-2xl p-8 text-center">
+        <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+          <ShieldCheckIcon className="w-8 h-8 text-green-600" />
+        </div>
+        
+        <h2 className="text-2xl font-bold text-secondary-800 dark:text-secondary-200 mb-4">
+          Payment Completed
+        </h2>
+        
+        <p className="text-secondary-600 dark:text-secondary-400 mb-6">
+          Your payment has been processed successfully. Development has begun!
+        </p>
+        
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+          <p className="text-sm text-green-700 dark:text-green-300">
+            You'll receive your custom bot within 24 hours via email. 
+            Check your inbox for updates and tracking information.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                M-Pesa Phone Number *
+  const availablePaymentMethods = [
+    {
+      id: 'mpesa_manual',
+      name: 'M-Pesa Manual',
+      description: 'Pay via M-Pesa and enter reference code',
+      icon: DevicePhoneMobileIcon,
+      enabled: paymentOptions.mpesa_manual
+    },
+    {
+      id: 'mpesa_payhero',
+      name: 'M-Pesa PayHero',
+      description: 'Automated M-Pesa payment',
+      icon: DevicePhoneMobileIcon,
+      enabled: paymentOptions.mpesa_payhero
+    },
+    {
+      id: 'crypto_nowpayments',
+      name: 'Cryptocurrency',
+      description: 'Pay with Bitcoin, USDT, or other crypto',
+      icon: CurrencyDollarIcon,
+      enabled: paymentOptions.crypto_nowpayments
+    }
+  ].filter(method => method.enabled);
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card rounded-2xl p-6">
+        <h2 className="text-xl font-semibold text-secondary-800 dark:text-secondary-200 mb-6">
+          Choose Payment Method
+        </h2>
+
+        {/* Payment Method Selection */}
+        <div className="space-y-3 mb-6">
+          {availablePaymentMethods.map((method) => (
+            <label key={method.id} className="relative block">
+              <input
+                type="radio"
+                name="paymentMethod"
+                value={method.id}
+                checked={selectedMethod === method.id}
+                onChange={(e) => setSelectedMethod(e.target.value)}
+                className="sr-only"
+              />
+              <div className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                selectedMethod === method.id
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}>
+                <div className="flex items-center gap-4">
+                  <method.icon className="w-6 h-6 text-primary-600" />
+                  <div className="flex-1">
+                    <div className="font-medium text-secondary-800 dark:text-secondary-200">
+                      {method.name}
+                    </div>
+                    <div className="text-sm text-secondary-600 dark:text-secondary-400">
+                      {method.description}
+                    </div>
+                  </div>
+                  <div className={`w-4 h-4 rounded-full border-2 ${
+                    selectedMethod === method.id
+                      ? 'border-primary-500 bg-primary-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {selectedMethod === method.id && (
+                      <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {/* M-Pesa Manual Instructions */}
+        {selectedMethod === 'mpesa_manual' && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6">
+            <h3 className="font-medium text-blue-900 dark:text-blue-300 mb-3">
+              M-Pesa Payment Instructions
+            </h3>
+            <div className="space-y-2 text-sm text-blue-800 dark:text-blue-400">
+              <p>1. Go to M-Pesa menu on your phone</p>
+              <p>2. Select "Lipa na M-Pesa" → "Pay Bill"</p>
+              <p>3. Enter Business Number: <strong>174379</strong></p>
+              <p>4. Account Number: <strong>{order.ref_code}</strong></p>
+              <p>5. Amount: <strong>KES {Math.round(order.budget_amount * 130)}</strong></p>
+              <p>6. Enter your M-Pesa PIN and confirm</p>
+              <p>7. Copy the M-Pesa reference code and paste it below</p>
+            </div>
+            
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                M-Pesa Reference Code *
               </label>
               <input
-                type="tel"
-                value={paymentData.mpesaPhone}
-                onChange={(e) => setPaymentData(prev => ({ ...prev, mpesaPhone: e.target.value }))}
-                className="w-full px-4 py-3 bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
-                placeholder="254712345678"
+                type="text"
+                value={mpesaRefCode}
+                onChange={(e) => setMpesaRefCode(e.target.value)}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+                placeholder="e.g., QHX21GR34T"
+                required
               />
-              <p className="mt-1 text-xs text-secondary-500 dark:text-secondary-500">
-                Enter the M-Pesa number to receive the payment prompt
-              </p>
             </div>
+          </div>
+        )}
 
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-              <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">
-                Payment Instructions
-              </h3>
-              <ol className="text-sm text-green-700 dark:text-green-300 space-y-1">
-                <li>1. Click "Pay with M-Pesa" below</li>
-                <li>2. You'll receive an STK push prompt on your phone</li>
-                <li>3. Enter your M-Pesa PIN to complete payment</li>
-                <li>4. You'll be redirected automatically upon success</li>
-              </ol>
-            </div>
-
-            <motion.button
-              onClick={handleMpesaPayment}
-              disabled={isProcessing}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-200 ${
-                isProcessing
-                  ? 'bg-secondary-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 shadow-lg hover:shadow-xl'
-              }`}
-            >
-              {isProcessing ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Processing Payment...</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center space-x-2">
-                  <PhoneIcon className="w-5 h-5" />
-                  <span>Pay with M-Pesa - ${order.budget_amount}</span>
+        {/* Amount Summary */}
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-medium text-secondary-800 dark:text-secondary-200">
+              Total Amount:
+            </span>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary-600">
+                ${order.budget_amount.toFixed(2)} USD
+              </div>
+              {selectedMethod === 'mpesa_manual' && (
+                <div className="text-sm text-secondary-600 dark:text-secondary-400">
+                  ≈ KES {Math.round(order.budget_amount * 130)}
                 </div>
               )}
-            </motion.button>
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="glass-card rounded-2xl p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <CurrencyDollarIcon className="w-6 h-6 text-orange-600" />
-            <h2 className="text-xl font-semibold text-secondary-800 dark:text-secondary-200">
-              Cryptocurrency Payment
-            </h2>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                Select Cryptocurrency *
-              </label>
-              <select
-                value={paymentData.cryptoCurrency}
-                onChange={(e) => setPaymentData(prev => ({ ...prev, cryptoCurrency: e.target.value }))}
-                className="w-full px-4 py-3 bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
-              >
-                <option value="bitcoin">Bitcoin (BTC)</option>
-                <option value="ethereum">Ethereum (ETH)</option>
-                <option value="litecoin">Litecoin (LTC)</option>
-                <option value="bitcoin_cash">Bitcoin Cash (BCH)</option>
-                <option value="dogecoin">Dogecoin (DOGE)</option>
-              </select>
+        {/* Payment Button */}
+        <button
+          onClick={handlePayment}
+          disabled={isProcessing || !selectedMethod}
+          className={`w-full py-4 rounded-lg font-semibold transition-colors ${
+            isProcessing || !selectedMethod
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-green-600 hover:bg-green-700'
+          } text-white`}
+        >
+          {isProcessing ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Processing Payment...
             </div>
+          ) : (
+            <>
+              <CreditCardIcon className="inline w-5 h-5 mr-2" />
+              Complete Payment
+            </>
+          )}
+        </button>
 
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
-              <h3 className="font-semibold text-orange-800 dark:text-orange-200 mb-2">
-                Payment Instructions
-              </h3>
-              <ol className="text-sm text-orange-700 dark:text-orange-300 space-y-1">
-                <li>1. Click "Pay with Crypto" below</li>
-                <li>2. You'll be redirected to our payment processor</li>
-                <li>3. Send the exact amount to the provided address</li>
-                <li>4. Your order will be confirmed automatically</li>
-              </ol>
-            </div>
-
-            <motion.button
-              onClick={handleCryptoPayment}
-              disabled={isProcessing}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-200 ${
-                isProcessing
-                  ? 'bg-secondary-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-lg hover:shadow-xl'
-              }`}
-            >
-              {isProcessing ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Initializing Payment...</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center space-x-2">
-                  <CurrencyDollarIcon className="w-5 h-5" />
-                  <span>Pay with Crypto - ${order.budget_amount}</span>
-                </div>
-              )}
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      {/* Order Timeline */}
-      <div className="glass-card rounded-2xl p-6">
-        <div className="flex items-center space-x-3 mb-6">
-          <ClockIcon className="w-6 h-6 text-blue-600" />
-          <h2 className="text-xl font-semibold text-secondary-800 dark:text-secondary-200">
-            What Happens Next?
-          </h2>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-start space-x-4">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <CheckCircleIcon className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-secondary-800 dark:text-secondary-200">
-                Payment Confirmation
-              </h3>
-              <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                You'll receive an email confirmation with your tracking number immediately after payment.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start space-x-4">
-            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">2</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-secondary-800 dark:text-secondary-200">
-                Development Begins
-              </h3>
-              <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                Our team will review your requirements and start developing your custom bot.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start space-x-4">
-            <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-sm">3</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-secondary-800 dark:text-secondary-200">
-                Delivery (24 Hours)
-              </h3>
-              <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                Your completed custom bot will be delivered to your email with setup instructions.
-              </p>
-            </div>
-          </div>
+        {/* Security Notice */}
+        <div className="flex items-center gap-2 mt-4 text-sm text-secondary-600 dark:text-secondary-400">
+          <ShieldCheckIcon className="w-4 h-4 text-green-600" />
+          <span>Secure payment processing • SSL encrypted • Money-back guarantee</span>
         </div>
       </div>
-
-      {/* Support */}
-      <div className="glass-card rounded-2xl p-6">
-        <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-4">
-          Need Help with Payment?
-        </h3>
-        <div className="space-y-3">
-          <a 
-            href="mailto:support@derivbotstore.com"
-            className="flex items-center space-x-3 p-3 hover:bg-secondary-50 dark:hover:bg-secondary-800 rounded-lg transition-colors duration-200"
-          >
-            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-              <span className="text-sm">📧</span>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-secondary-800 dark:text-secondary-200">Email Support</div>
-              <div className="text-xs text-secondary-500">support@derivbotstore.com</div>
-            </div>
-          </a>
-          
-          <div className="text-xs text-secondary-500 dark:text-secondary-500">
-            Having payment issues? Contact us immediately and we'll help resolve any problems.
-          </div>
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
