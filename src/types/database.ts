@@ -82,7 +82,7 @@ export interface Database {
           status: string;
           downloaded?: boolean;
           payer_phone_number?: string | null;
-          payment_method: string;
+          payment_method?: string;
           email?: string | null;
           currency_paid?: string | null;
           nowpayments_payment_id?: string | null;
@@ -107,6 +107,81 @@ export interface Database {
           notes?: string | null;
         };
       };
+      custom_bot_orders: {
+        Row: {
+          id: number;
+          tracking_number: string;
+          client_email: string;
+          bot_description: string;
+          bot_features: string;
+          budget_amount: number;
+          payment_method: string;
+          refund_method: string;
+          refund_crypto_wallet?: string | null;
+          refund_crypto_network?: string | null;
+          refund_mpesa_number?: string | null;
+          refund_mpesa_name?: string | null;
+          status: string; // 'pending', 'completed', 'refunded'
+          payment_status: string; // 'pending', 'paid', 'failed'
+          ref_code: string;
+          payment_id?: string | null;
+          mpesa_receipt_number?: string | null;
+          refund_reason?: string | null;
+          custom_refund_message?: string | null;
+          created_at: string;
+          updated_at: string;
+          completed_at?: string | null;
+          refunded_at?: string | null;
+        };
+        Insert: {
+          tracking_number: string;
+          client_email: string;
+          bot_description: string;
+          bot_features: string;
+          budget_amount: number;
+          payment_method: string;
+          refund_method: string;
+          refund_crypto_wallet?: string | null;
+          refund_crypto_network?: string | null;
+          refund_mpesa_number?: string | null;
+          refund_mpesa_name?: string | null;
+          status?: string;
+          payment_status?: string;
+          ref_code: string;
+          payment_id?: string | null;
+          mpesa_receipt_number?: string | null;
+          refund_reason?: string | null;
+          custom_refund_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+          refunded_at?: string | null;
+        };
+        Update: {
+          tracking_number?: string;
+          client_email?: string;
+          bot_description?: string;
+          bot_features?: string;
+          budget_amount?: number;
+          payment_method?: string;
+          refund_method?: string;
+          refund_crypto_wallet?: string | null;
+          refund_crypto_network?: string | null;
+          refund_mpesa_number?: string | null;
+          refund_mpesa_name?: string | null;
+          status?: string;
+          payment_status?: string;
+          ref_code?: string;
+          payment_id?: string | null;
+          mpesa_receipt_number?: string | null;
+          refund_reason?: string | null;
+          custom_refund_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+          refunded_at?: string | null;
+        };
+      };
       admins: {
         Row: {
           id: string;
@@ -118,12 +193,14 @@ export interface Database {
         Insert: {
           email: string;
           password_hash: string;
+          id?: string;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           email?: string;
           password_hash?: string;
+          id?: string;
           created_at?: string;
           updated_at?: string;
         };

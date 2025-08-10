@@ -37,6 +37,7 @@ export function Header() {
 
   const navigation = [
     { name: 'Store', href: '/store' },
+    { name: 'Custom Bot', href: '/custom-bot' },
     { name: 'Categories', href: '/categories' },
     { name: 'About', href: '/about' },
     { name: 'Support', href: '/support' },

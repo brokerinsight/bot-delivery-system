@@ -39,6 +39,46 @@ export interface Order {
   notes: string | null;
 }
 
+export interface CustomBotOrder {
+  id: number;
+  tracking_number: string;
+  client_email: string;
+  bot_description: string;
+  bot_features: string;
+  budget_amount: number;
+  payment_method: string;
+  refund_method: string;
+  refund_crypto_wallet?: string | null;
+  refund_crypto_network?: string | null;
+  refund_mpesa_number?: string | null;
+  refund_mpesa_name?: string | null;
+  status: 'pending' | 'completed' | 'refunded';
+  payment_status: 'pending' | 'paid' | 'failed';
+  ref_code: string;
+  payment_id?: string | null;
+  mpesa_receipt_number?: string | null;
+  refund_reason?: string | null;
+  custom_refund_message?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+  refunded_at?: string | null;
+}
+
+export interface CustomBotOrderRequest {
+  client_email: string;
+  bot_description: string;
+  bot_features: string;
+  budget_amount: number;
+  payment_method: string;
+  refund_method: string;
+  refund_crypto_wallet?: string;
+  refund_crypto_network?: string;
+  refund_mpesa_number?: string;
+  refund_mpesa_name?: string;
+  terms_accepted: boolean;
+}
+
 export interface Admin {
   id: string;
   email: string;
