@@ -95,12 +95,9 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 -- Environment Variables Setup Instructions
 -- Add these to your .env.local file:
 
--- Email Configuration (NodeMailer)
--- SMTP_HOST=smtp.gmail.com
--- SMTP_PORT=587
--- SMTP_USER=your-email@gmail.com
--- SMTP_PASS=your-app-password
--- ADMIN_EMAIL=admin@yourstore.com
+-- Email Configuration (NodeMailer - matches existing server.js setup)
+-- EMAIL_USER=your-email@gmail.com
+-- EMAIL_PASS=your-app-password
 
 -- Payment Integration (if using existing providers)
 -- PAYHERO_CHANNEL_ID=your-channel-id

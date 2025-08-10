@@ -598,3 +598,20 @@ export async function sendCustomBotOrderNotification(trackingNumber: string, ref
     return { success: false, error: error };
   }
 }
+
+// Regular order notification function - matches existing server.js sendOrderNotification exactly
+export async function sendOrderNotification(item: string, refCode: string, amount: number | string) {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: `New Order - KES ${parseFloat(amount.toString()).toFixed(2)}`,
+      text: `M-PESA Ref/Order Ref: ${refCode}\nItem Number: ${item}\nAmount: KES ${parseFloat(amount.toString()).toFixed(2)}`
+    });
+    console.log(`[${new Date().toISOString()}] Order notification email sent successfully for ref code ${refCode}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error.message);
+    return { success: false, error: error };
+  }
+}

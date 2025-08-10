@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { updateOrderStatus } from '@/lib/data';
+import { updateOrderStatus, getCachedData } from '@/lib/data';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,12 +24,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'no payment', 'partial payment'];
-    if (!validStatuses.includes(status)) {
+    // Validate status - matches server.js validStatuses
+    const validStatuses = ['confirmed', 'no payment', 'partial payment', 'pending_stk_push', 'confirmed_server_stk', 'failed_stk_initiation', 'failed_stk_cb_timeout', 'failed_amount_mismatch'];
+    if (!validStatuses.some(s => status.startsWith(s))) {
+      if (!status.startsWith('failed_stk_cb_')) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid status value provided' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Get order details before updating (needed for email notification)
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('ref_code', refCode)
+      .single();
+
+    if (!order) {
       return NextResponse.json(
-        { success: false, error: 'Invalid status' },
-        { status: 400 }
+        { success: false, error: 'Order not found' },
+        { status: 404 }
       );
     }
 
@@ -39,6 +56,18 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Failed to update order status' },
         { status: 500 }
       );
+    }
+
+    // Send email notification if status was updated to confirmed_server_stk (matches server.js)
+    if (status === 'confirmed_server_stk') {
+      try {
+        const { sendOrderNotification } = await import('@/lib/email');
+        await sendOrderNotification(order.item, refCode, order.amount);
+        console.log(`[${new Date().toISOString()}] Order notification email sent for ${refCode} after status update to confirmed_server_stk.`);
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, emailError.message);
+        // Don't fail the request if email fails
+      }
     }
 
     return NextResponse.json({

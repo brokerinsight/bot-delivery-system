@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCustomBotOrder, updateCustomBotPaymentStatus } from '@/lib/custom-bot';
-import { sendPaymentConfirmationEmail, sendAdminPaymentNotification } from '@/lib/email';
+import { sendPaymentConfirmationEmail, sendCustomBotOrderNotification } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -150,7 +150,14 @@ export async function PUT(request: NextRequest) {
         // Send email notifications
         try {
           await sendPaymentConfirmationEmail(updateResult.data!);
-          await sendAdminPaymentNotification(updateResult.data!);
+          
+          // Send simple notification email to admin (matches existing server.js pattern)
+          await sendCustomBotOrderNotification(
+            updateResult.data!.tracking_number,
+            updateResult.data!.ref_code,
+            updateResult.data!.budget_amount,
+            `${updateResult.data!.client_email} - PAYMENT CONFIRMED`
+          );
         } catch (emailError) {
           console.error('Error sending payment confirmation emails:', emailError);
         }
