@@ -98,8 +98,17 @@ const nextConfig = {
 
   // Rewrites for dynamic routing and file serving
   async rewrites() {
+    // Development-only legacy API proxy (mirrors previous next.config.mjs)
+    const devOnlyBeforeFiles = process.env.NODE_ENV !== 'production' ? [
+      {
+        source: '/api/legacy/:path*',
+        destination: 'http://localhost:3001/:path*',
+      },
+    ] : [];
+
     return {
       beforeFiles: [
+        ...devOnlyBeforeFiles,
         // API rewrites for backward compatibility
         {
           source: '/api/order-status/:item/:refCode',
