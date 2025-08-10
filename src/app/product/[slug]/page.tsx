@@ -21,7 +21,7 @@ interface ProductPageProps {
 async function getProduct(slug: string): Promise<Product | null> {
   try {
     const cachedData = await getCachedData();
-    const product = cachedData.products.find(p => p.item === slug && !p.isArchived);
+    const product = cachedData.products.find((p: any) => p.item === slug && !p.isArchived);
     return product || null;
   } catch (error) {
     console.error('Error fetching product:', error);
@@ -203,12 +203,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
         )}
 
         {/* Reviews Section */}
-        <ProductReviews productId={product.item} />
+        <ProductReviews />
 
         {/* Related Products */}
         <RelatedProducts 
           currentProduct={product} 
-          category={product.category} 
         />
       </main>
       

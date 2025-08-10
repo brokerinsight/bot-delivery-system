@@ -88,14 +88,11 @@ const QuillEditor = forwardRef<QuillEditorRef, QuillEditorProps>(({
   ];
 
   useImperativeHandle(ref, () => ({
-    getEditor: () => quillRef.current?.getEditor(),
-    focus: () => quillRef.current?.focus(),
-    blur: () => quillRef.current?.blur(),
+    getEditor: () => null,
+    focus: () => {},
+    blur: () => {},
     clear: () => {
-      if (quillRef.current) {
-        quillRef.current.getEditor().setText('');
-        onChange('');
-      }
+      onChange('');
     }
   }));
 
@@ -198,7 +195,6 @@ const QuillEditor = forwardRef<QuillEditorRef, QuillEditorProps>(({
       `}</style>
       
       <ReactQuill
-        ref={quillRef}
         theme="snow"
         value={value}
         onChange={handleChange}

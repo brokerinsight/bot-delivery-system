@@ -113,7 +113,7 @@ export function SettingsSection({ data, onDataUpdate, onSave }: SettingsSectionP
       return;
     }
 
-    const updatedCategories = categories.filter(cat => cat !== categoryToDelete);
+    const updatedCategories = categories.filter((cat: string) => cat !== categoryToDelete);
     const updatedProducts = data.products.map((product: any) => ({
       ...product,
       category: product.category === categoryToDelete ? 'General' : product.category

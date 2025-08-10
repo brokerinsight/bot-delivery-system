@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth';
 export async function GET(request: NextRequest) {
   try {
     // Check admin authentication
-    const session = await getSession(request);
+    const session = await getSession();
     if (!session.isAuthenticated) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },

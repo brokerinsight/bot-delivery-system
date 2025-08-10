@@ -659,3 +659,143 @@ export async function sendOrderNotification(item: string, refCode: string, amoun
     return { success: false, error: error };
   }
 }
+
+// Send custom bot completion email to client
+export async function sendCustomBotCompletionEmail(order: any) {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: order.customer_email,
+      subject: `✅ Your Custom Bot is Ready! - Order #${order.tracking_number}`,
+      html: getEmailTemplate(`
+        <div class="header">
+          <h1 style="color: #059669; margin: 0;">🎉 Your Custom Bot is Complete!</h1>
+        </div>
+        
+        <div class="content">
+          <p>Great news! Your custom bot has been successfully developed and is ready for delivery.</p>
+          
+          <div class="order-details">
+            <h3>Order Details:</h3>
+            <ul>
+              <li><strong>Order ID:</strong> ${order.ref_code}</li>
+              <li><strong>Tracking Number:</strong> ${order.tracking_number}</li>
+              <li><strong>Budget:</strong> $${order.budget_usd}</li>
+              <li><strong>Status:</strong> <span style="color: #059669; font-weight: bold;">Completed</span></li>
+            </ul>
+          </div>
+          
+          <div class="bot-description">
+            <h3>Bot Logic Summary:</h3>
+            <p style="background: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin: 15px 0;">
+              ${order.bot_logic.substring(0, 200)}${order.bot_logic.length > 200 ? '...' : ''}
+            </p>
+          </div>
+          
+          <div class="next-steps" style="background: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #065f46; margin-top: 0;">What happens next:</h3>
+            <ol style="color: #065f46;">
+              <li>Your custom bot will be delivered to this email address within the next few hours</li>
+              <li>You'll receive installation instructions and documentation</li>
+              <li>Free support is included for the first 7 days</li>
+            </ol>
+          </div>
+          
+          <p>Thank you for choosing our custom bot development service!</p>
+        </div>
+        
+        <div class="footer">
+          <p><strong>Need help?</strong> Reply to this email for support.</p>
+          <p style="font-size: 14px; color: #6b7280;">
+            This is an automated email. Please don't reply to this message.
+          </p>
+        </div>
+      `, 'Custom Bot Completed')
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[${new Date().toISOString()}] Custom bot completion email sent to ${order.customer_email}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send custom bot completion email:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Send custom bot refund email to client
+export async function sendCustomBotRefundEmail(order: any, refundReason: string, customMessage?: string) {
+  try {
+    const refundDetails = order.refund_details ? JSON.parse(order.refund_details) : {};
+    
+    let refundMethodText = '';
+    if (refundDetails.method === 'crypto' && refundDetails.wallet_address) {
+      refundMethodText = `
+        <p><strong>Refund Method:</strong> Cryptocurrency</p>
+        <p><strong>Wallet Address:</strong> ${refundDetails.wallet_address}</p>
+        <p><strong>Network:</strong> ${refundDetails.network}</p>
+      `;
+    } else if (refundDetails.method === 'mpesa' && refundDetails.phone_number) {
+      refundMethodText = `
+        <p><strong>Refund Method:</strong> M-Pesa</p>
+        <p><strong>Phone Number:</strong> ${refundDetails.phone_number}</p>
+        <p><strong>M-Pesa Names:</strong> ${refundDetails.mpesa_names}</p>
+      `;
+    }
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: order.customer_email,
+      subject: `💰 Refund Processed - Order #${order.tracking_number}`,
+      html: getEmailTemplate(`
+        <div class="header">
+          <h1 style="color: #dc2626; margin: 0;">💰 Refund Processed</h1>
+        </div>
+        
+        <div class="content">
+          <p>We have processed a refund for your custom bot order. We apologize for any inconvenience.</p>
+          
+          <div class="order-details">
+            <h3>Order Details:</h3>
+            <ul>
+              <li><strong>Order ID:</strong> ${order.ref_code}</li>
+              <li><strong>Tracking Number:</strong> ${order.tracking_number}</li>
+              <li><strong>Refund Amount:</strong> $${order.budget_usd}</li>
+              <li><strong>Status:</strong> <span style="color: #dc2626; font-weight: bold;">Refunded</span></li>
+            </ul>
+          </div>
+          
+          <div class="refund-details" style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #991b1b; margin-top: 0;">Refund Information:</h3>
+            <p><strong>Reason:</strong> ${refundReason}</p>
+            ${refundMethodText}
+            ${customMessage ? `<p><strong>Additional Message:</strong> ${customMessage}</p>` : ''}
+          </div>
+          
+          <div class="timeline" style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>Refund Timeline:</h3>
+            <ul>
+              <li><strong>Cryptocurrency:</strong> 1-24 hours</li>
+              <li><strong>M-Pesa:</strong> Instant to 1 hour</li>
+            </ul>
+          </div>
+          
+          <p>If you don't receive your refund within the expected timeframe, please contact our support team.</p>
+        </div>
+        
+        <div class="footer">
+          <p><strong>Questions?</strong> Reply to this email for support.</p>
+          <p style="font-size: 14px; color: #6b7280;">
+            We hope to serve you better in the future.
+          </p>
+        </div>
+      `, 'Refund Processed')
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`[${new Date().toISOString()}] Custom bot refund email sent to ${order.customer_email}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send custom bot refund email:`, error);
+    return { success: false, error: error.message };
+  }
+}

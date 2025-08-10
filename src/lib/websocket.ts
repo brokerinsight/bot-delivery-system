@@ -363,3 +363,60 @@ export function useRealTimeStats(onStatsUpdate: (stats: any) => void) {
     };
   }, [connected, onStatsUpdate]);
 }
+
+// Hook for connection status
+export function useConnectionStatus() {
+  const [status, setStatus] = useState(adminWebSocket.getConnectionStatus());
+
+  useEffect(() => {
+    const updateStatus = () => {
+      setStatus(adminWebSocket.getConnectionStatus());
+    };
+
+    const interval = setInterval(updateStatus, 1000);
+    
+    adminWebSocket.on('connect', updateStatus);
+    adminWebSocket.on('disconnect', updateStatus);
+
+    return () => {
+      clearInterval(interval);
+      adminWebSocket.off('connect', updateStatus);
+      adminWebSocket.off('disconnect', updateStatus);
+    };
+  }, []);
+
+  return status;
+}
+
+// Hook for order status updates specifically
+export function useOrderStatusUpdates(onUpdate: (order: any) => void) {
+  const { connected } = useAdminWebSocket();
+
+  useEffect(() => {
+    if (!connected) return;
+
+    adminWebSocket.on('order_updated', onUpdate);
+    adminWebSocket.on('payment_confirmed', onUpdate);
+
+    return () => {
+      adminWebSocket.off('order_updated', onUpdate);
+      adminWebSocket.off('payment_confirmed', onUpdate);
+    };
+  }, [connected, onUpdate]);
+}
+
+// Hook for auto-connection management
+export function useAutoConnect() {
+  const { connected, reconnecting } = useAdminWebSocket();
+
+  const forceReconnect = useCallback(() => {
+    adminWebSocket.forceReconnect();
+  }, []);
+
+  return {
+    connected,
+    reconnecting,
+    forceReconnect,
+    connectionQuality: connected ? adminWebSocket.getConnectionQuality() : 'disconnected'
+  };
+}

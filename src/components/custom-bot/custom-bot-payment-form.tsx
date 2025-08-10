@@ -106,7 +106,7 @@ export function CustomBotPaymentForm({ order }: CustomBotPaymentFormProps) {
     setIsProcessing(true);
     try {
       // This would integrate with PayHero API
-      toast.info('PayHero M-Pesa integration coming soon. Please use manual M-Pesa for now.');
+      toast('PayHero M-Pesa integration coming soon. Please use manual M-Pesa for now.');
     } catch (error: any) {
       console.error('PayHero payment error:', error);
       toast.error('PayHero payment failed');

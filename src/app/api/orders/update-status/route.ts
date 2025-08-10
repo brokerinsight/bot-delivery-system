@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         await sendOrderNotification(order.item, refCode, order.amount);
         console.log(`[${new Date().toISOString()}] Order notification email sent for ${refCode} after status update to confirmed_server_stk.`);
       } catch (emailError) {
-        console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, emailError.message);
+        console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, emailError instanceof Error ? emailError.message : emailError);
         // Don't fail the request if email fails
       }
     }

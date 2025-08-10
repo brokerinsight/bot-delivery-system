@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Create individual orders for each cart item
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const product = products.find(p => p.item === item.product_id);
+      const product = products.find((p: any) => p.item === item.product_id);
       
       if (!product) {
         return NextResponse.json(
@@ -133,14 +133,11 @@ export async function POST(request: NextRequest) {
       
       // Send admin notification for manual verification
       try {
-        await sendOrderNotification({
-          item: `Bulk Order (${items.length} items)`,
-          refCode: mainRefCode,
-          amount: createdOrders.reduce((sum, order) => sum + order.amount, 0),
-          customerEmail: customer.email,
-          paymentMethod: 'M-Pesa Till',
-          mpesaRefCode: mpesaRefCode
-        });
+        await sendOrderNotification(
+          `Bulk Order (${items.length} items)`,
+          mainRefCode,
+          createdOrders.reduce((sum, order) => sum + order.amount, 0)
+        );
       } catch (emailError) {
         console.error('Error sending admin notification:', emailError);
       }

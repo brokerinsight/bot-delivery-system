@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { RefreshIcon, WifiIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, WifiIcon } from '@heroicons/react/24/outline';
 import { useRealTimeOrders, useAdminWebSocket } from '@/lib/websocket';
 
 interface OrdersSectionProps {
@@ -175,7 +175,7 @@ export function OrdersSection({ data, onDataUpdate, onFetchOrders }: OrdersSecti
                 loading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Manual Refresh
             </button>
           </div>

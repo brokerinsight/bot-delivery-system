@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     // Build file list
     const files = [];
     for (const order of orders) {
-      const product = products.find(p => p.item === order.item);
+      const product = products.find((p: any) => p.item === order.item);
       if (product && product.fileId) {
         files.push({
           id: product.fileId,

@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession(request);
+    const session = await getSession();
     if (!session) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },

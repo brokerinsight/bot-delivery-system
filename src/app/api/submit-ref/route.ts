@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     // Get cached data to find the product
     const cachedData = await getCachedData();
-    const product = cachedData.products.find(p => p.item === item);
+    const product = cachedData.products.find((p: any) => p.item === item);
     
     if (!product) {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error submitting ref code:`, error instanceof Error ? error.message : error);
     return NextResponse.json(
       { success: false, error: 'Failed to submit ref code' },
       { status: 500 }
@@ -70,6 +70,6 @@ async function sendOrderNotification(item: string, refCode: string, amount: numb
     const { sendOrderNotification: emailSender } = await import('@/lib/email');
     await emailSender(item, refCode, amount);
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error.message);
+    console.error(`[${new Date().toISOString()}] Failed to send order notification email:`, error instanceof Error ? error.message : error);
   }
 }

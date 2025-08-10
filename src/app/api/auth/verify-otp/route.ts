@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create session
-    const sessionId = createSession(email);
+    const sessionId = createSession(email, `admin-${Date.now()}`);
     const cookieStore = cookies();
     
     cookieStore.set('admin-session', sessionId, {

@@ -36,7 +36,7 @@ export async function GET(
     // If order is confirmed and not downloaded, generate download link
     if ((status === 'confirmed' || status === 'confirmed_server_stk') && !downloaded) {
       const cachedData = await getCachedData();
-      const product = cachedData.products.find(p => p.item === item);
+      const product = cachedData.products.find((p: any) => p.item === item);
       
       if (!product || !product.fileId) {
         console.error(`[${new Date().toISOString()}] Order Status: Product file details not found for item ${item} (Ref: ${refCode})`);
@@ -84,7 +84,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error checking order status for ${item}/${refCode}:`, error instanceof Error ? error.message : error);
     return NextResponse.json(
       { success: false, error: 'Failed to check order status' },
       { status: 500 }

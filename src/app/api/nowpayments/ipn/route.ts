@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
       // Send email notification if product exists and order has email (matches server.js)
       const cachedData = await getCachedData();
-      const product = cachedData.products.find(p => p.item === order.item);
+      const product = cachedData.products.find((p: any) => p.item === order.item);
       if (product && order.email && !order.downloaded) {
         try {
           const { sendOrderNotification } = await import('@/lib/email');
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           notificationSent = true;
           console.log(`[${new Date().toISOString()}] NOWPayments IPN: Email notification sent for ${orderId}`);
         } catch (emailError) {
-          console.error(`[${new Date().toISOString()}] NOWPayments IPN: Failed to send email for ${orderId}:`, emailError.message);
+          console.error(`[${new Date().toISOString()}] NOWPayments IPN: Failed to send email for ${orderId}:`, emailError instanceof Error ? emailError.message : emailError);
         }
       }
     } else if (payment_status === 'partially_paid' && order.status !== 'partially_paid_nowpayments') {
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] NOWPayments IPN error:`, error.message);
+    console.error(`[${new Date().toISOString()}] NOWPayments IPN error:`, error instanceof Error ? error.message : error);
     return NextResponse.json(
       { error: 'IPN processing failed' },
       { status: 500 }

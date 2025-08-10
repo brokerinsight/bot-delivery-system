@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     // Get cached data to find the product
     const cachedData = await getCachedData();
-    const product = cachedData.products.find(p => p.item === item);
+    const product = cachedData.products.find((p: any) => p.item === item);
     
     if (!product) {
       return NextResponse.json(
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error creating NOWPayments payment:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error creating NOWPayments payment:`, error instanceof Error ? error.message : error);
     return NextResponse.json(
       { success: false, error: 'Failed to create payment' },
       { status: 500 }

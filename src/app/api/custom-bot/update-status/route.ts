@@ -5,7 +5,7 @@ import { sendCustomBotCompletionEmail, sendCustomBotRefundEmail } from '@/lib/em
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession(request);
+    const session = await getSession();
     if (!session) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -64,22 +64,13 @@ export async function POST(request: NextRequest) {
     // Send appropriate email notification
     try {
       if (status === 'completed') {
-        await sendCustomBotCompletionEmail({
-          clientEmail: order.client_email,
-          trackingNumber: order.tracking_number,
-          refCode: order.ref_code
-        });
+        await sendCustomBotCompletionEmail(order);
       } else if (status === 'refunded') {
-        await sendCustomBotRefundEmail({
-          clientEmail: order.client_email,
-          trackingNumber: order.tracking_number,
-          refCode: order.ref_code,
-          refundReason: refundReason || 'Technical limitations',
-          customMessage: customMessage || '',
-          refundMethod: order.refund_method,
-          refundDetails: order.refund_details,
-          budgetAmount: order.budget_amount
-        });
+        await sendCustomBotRefundEmail(
+          order,
+          refundReason || 'Technical limitations',
+          customMessage || ''
+        );
       }
     } catch (emailError) {
       console.error('Error sending notification email:', emailError);

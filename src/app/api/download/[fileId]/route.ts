@@ -65,7 +65,7 @@ export async function GET(
 
     // Get product data
     const cachedData = await getCachedData();
-    const product = cachedData.products.find(p => p.item === item && p.fileId === fileId);
+    const product = cachedData.products.find((p: any) => p.item === item && p.fileId === fileId);
     
     if (!product) {
       console.log(`[${new Date().toISOString()}] Product file not found for download: ${fileId}/${item}`);
@@ -113,7 +113,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error.message);
+    console.error(`[${new Date().toISOString()}] Error downloading file ${fileId}:`, error instanceof Error ? error.message : error);
     return new NextResponse(
       `<script>alert("Failed to download file due to a server error."); window.close();</script>`,
       {

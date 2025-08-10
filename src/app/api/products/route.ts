@@ -10,11 +10,11 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const data = await getCachedData();
-    let products = data.products.filter(product => !product.isArchived);
+    let products = data.products.filter((product: any) => !product.isArchived);
 
     // Filter by category
     if (category && category !== 'all') {
-      products = products.filter(product => 
+      products = products.filter((product: any) => 
         product.category.toLowerCase() === category.toLowerCase()
       );
     }
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Filter by search query
     if (search) {
       const searchLower = search.toLowerCase();
-      products = products.filter(product =>
+      products = products.filter((product: any) =>
         product.name.toLowerCase().includes(searchLower) ||
         product.description.toLowerCase().includes(searchLower) ||
         product.category.toLowerCase().includes(searchLower)

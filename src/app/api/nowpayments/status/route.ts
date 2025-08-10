@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
       // Send email notification (matches server.js)
       const cachedData = await getCachedData();
-      const product = cachedData.products.find(p => p.item === localOrder.item);
+      const product = cachedData.products.find((p: any) => p.item === localOrder.item);
       if (product && localOrder.email) {
         try {
           const { sendOrderNotification } = await import('@/lib/email');
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
           );
           console.log(`[${new Date().toISOString()}] Email notification sent for confirmed NOWPayments order ${orderId}`);
         } catch (emailError) {
-          console.error(`[${new Date().toISOString()}] Failed to send email for ${orderId}:`, emailError.message);
+          console.error(`[${new Date().toISOString()}] Failed to send email for ${orderId}:`, emailError instanceof Error ? emailError.message : emailError);
         }
       }
       message = 'Payment successful! Preparing download...';
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] NOWPayments status check error:`, error.message);
+    console.error(`[${new Date().toISOString()}] NOWPayments status check error:`, error instanceof Error ? error.message : error);
     return NextResponse.json(
       { success: false, error: 'Failed to check payment status' },
       { status: 500 }

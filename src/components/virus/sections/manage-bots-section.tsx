@@ -301,7 +301,7 @@ export function ManageBotsSection({ data, onDataUpdate, onSave }: ManageBotsSect
                     onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
                     className="w-full p-2 border rounded-md"
                   >
-                    {categories.map(cat => (
+                    {categories.map((cat: string) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>

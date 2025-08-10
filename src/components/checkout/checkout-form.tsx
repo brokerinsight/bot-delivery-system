@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   CreditCardIcon,
   DevicePhoneMobileIcon,
-  CurrencyBitcoinIcon,
+  CurrencyDollarIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { useCartStore } from '@/lib/cart';
@@ -22,7 +22,9 @@ interface FormData {
   country: string;
   paymentMethod: PaymentMethod;
   mpesaPhone: string;
+  mpesaRefCode: string;
   cryptoCurrency: string;
+  selectedCrypto: string;
   agreeToTerms: boolean;
 }
 
@@ -49,7 +51,9 @@ export function CheckoutForm() {
     country: 'KE',
     paymentMethod: 'mpesa',
     mpesaPhone: '',
+    mpesaRefCode: '',
     cryptoCurrency: 'BTC',
+    selectedCrypto: 'BTC',
     agreeToTerms: false,
   });
 
@@ -97,7 +101,7 @@ export function CheckoutForm() {
         id: 'crypto' as PaymentMethod,
         name: 'Cryptocurrency',
         description: 'Pay with Bitcoin, USDT, or other crypto',
-        icon: CurrencyBitcoinIcon,
+        icon: CurrencyDollarIcon,
         available: paymentOptions.crypto_nowpayments,
       },
       {

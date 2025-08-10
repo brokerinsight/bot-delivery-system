@@ -7,7 +7,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
   CpuChipIcon,
-  TrendingUpIcon
+  ArrowTrendingUpIcon
 } from '@heroicons/react/24/outline';
 
 // Mock stats - in production, fetch from API
@@ -63,7 +63,7 @@ export function CustomBotOrdersStats() {
       value: `$${mockStats.averageOrderValue}`,
       change: '+5.7%',
       changeType: 'positive' as const,
-      icon: TrendingUpIcon,
+      icon: ArrowTrendingUpIcon,
       color: 'blue'
     },
     {
@@ -186,7 +186,7 @@ export function CustomBotOrdersStats() {
           className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800"
         >
           <div className="flex items-center space-x-3">
-            <TrendingUpIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <ArrowTrendingUpIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             <div>
               <h3 className="font-semibold text-blue-800 dark:text-blue-200">
                 Conversion Rate

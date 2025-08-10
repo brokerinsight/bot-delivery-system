@@ -116,7 +116,7 @@ export function CustomBotRequestForm() {
     if (budget < 10) {
       const suggested = Math.max(25, Math.ceil(budget * 2.5));
       setFormData(prev => ({ ...prev, budgetAmount: suggested.toString() }));
-      toast.info(`We suggest a budget of $${suggested} for better bot quality`);
+      toast(`We suggest a budget of $${suggested} for better bot quality`);
     }
   };
 
