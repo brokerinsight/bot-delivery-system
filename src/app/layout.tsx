@@ -4,6 +4,7 @@ import './globals.css';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'react-hot-toast';
 import { WebSocketProvider } from '@/components/providers/websocket-provider';
+import { generateWebsiteStructuredData, generateOrganizationStructuredData } from '@/lib/seo';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -88,6 +89,20 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#16a34a" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        
+        {/* Structured Data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(generateWebsiteStructuredData())
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(generateOrganizationStructuredData())
+          }}
+        />
       </head>
       <body className={`${inter.className} antialiased`}>
         <ThemeProvider

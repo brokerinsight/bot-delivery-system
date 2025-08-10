@@ -1,15 +1,19 @@
 export interface Product {
   item: string;
-  file_id: string;
+  fileId?: string;
+  file_id?: string;
   price: number;
   name: string;
-  description: string | null;
-  image: string | null;
+  description: string;
+  image: string;
   category: string;
-  embed: string | null;
-  is_new: boolean;
-  is_archived: boolean;
-  original_file_name: string | null;
+  embed?: string;
+  isNew?: boolean;
+  is_new?: boolean;
+  isArchived?: boolean;
+  is_archived?: boolean;
+  originalFileName?: string;
+  original_file_name?: string;
   created_at: string;
 }
 

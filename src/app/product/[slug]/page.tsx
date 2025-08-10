@@ -8,6 +8,7 @@ import { ProductReviews } from '@/components/product/product-reviews';
 import { RelatedProducts } from '@/components/product/related-products';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Product } from '@/types';
+import { generateProductStructuredData, generateBreadcrumbStructuredData } from '@/lib/seo';
 
 // Mock data - replace with actual API call
 const mockProducts: Record<string, Product> = {
@@ -227,29 +228,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Product',
-            name: product.name,
-            description: product.description,
-            image: product.image,
-            category: product.category,
-            offers: {
-              '@type': 'Offer',
-              price: product.price,
-              priceCurrency: 'USD',
-              availability: 'https://schema.org/InStock',
-              seller: {
-                '@type': 'Organization',
-                name: 'Deriv Bot Store',
-              },
-            },
-            aggregateRating: {
-              '@type': 'AggregateRating',
-              ratingValue: '4.8',
-              reviewCount: '127',
-            },
-          }),
+          __html: JSON.stringify(generateProductStructuredData({
+            ...product,
+            description: product.description || '',
+            image: product.image || '',
+            fileId: product.file_id,
+            originalFileName: product.original_file_name,
+            isNew: product.is_new,
+            isArchived: product.is_archived
+          }))
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(generateBreadcrumbStructuredData([
+            { name: 'Home', url: '/' },
+            { name: 'Store', url: '/store' },
+            { name: product.category, url: `/store?category=${encodeURIComponent(product.category)}` },
+            { name: product.name, url: `/product/${params.slug}` }
+          ]))
         }}
       />
     </div>

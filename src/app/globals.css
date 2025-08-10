@@ -216,3 +216,146 @@ html {
   background-color: rgba(34, 197, 94, 0.3);
   color: inherit;
 }
+
+/* Responsive Design Utilities */
+@layer utilities {
+  /* Container utilities */
+  .container-safe {
+    @apply px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto;
+  }
+  
+  /* Text sizing utilities */
+  .text-responsive {
+    @apply text-sm sm:text-base lg:text-lg;
+  }
+  
+  .text-display {
+    @apply text-4xl sm:text-5xl lg:text-6xl xl:text-7xl;
+  }
+  
+  .text-hero {
+    @apply text-3xl sm:text-4xl lg:text-5xl xl:text-6xl;
+  }
+  
+  .text-section {
+    @apply text-2xl sm:text-3xl lg:text-4xl;
+  }
+  
+  .text-card {
+    @apply text-lg sm:text-xl lg:text-2xl;
+  }
+  
+  /* Layout utilities */
+  .grid-responsive {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+  
+  .flex-responsive {
+    @apply flex flex-col sm:flex-row;
+  }
+  
+  /* Spacing utilities */
+  .space-mobile {
+    @apply space-y-4 sm:space-y-6 lg:space-y-8;
+  }
+  
+  .padding-mobile {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+  
+  .margin-mobile {
+    @apply m-4 sm:m-6 lg:m-8;
+  }
+  
+  /* Touch-friendly buttons */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+  
+  /* Mobile navigation */
+  .mobile-menu {
+    @apply fixed inset-0 z-50 lg:hidden;
+  }
+  
+  .mobile-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50;
+  }
+  
+  .mobile-panel {
+    @apply fixed right-0 top-0 h-full w-full max-w-sm bg-white dark:bg-secondary-900 shadow-xl;
+  }
+  
+  /* Responsive hiding/showing */
+  .mobile-only {
+    @apply block sm:hidden;
+  }
+  
+  .desktop-only {
+    @apply hidden sm:block;
+  }
+  
+  .tablet-only {
+    @apply hidden sm:block lg:hidden;
+  }
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 640px) {
+  /* Reduce motion for better performance on mobile */
+  .hover-lift:hover {
+    transform: translateY(-2px);
+  }
+  
+  /* Larger touch targets */
+  button, 
+  a[role="button"], 
+  input[type="button"], 
+  input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better text readability */
+  p, li, span {
+    line-height: 1.6;
+  }
+  
+  /* Prevent zoom on input focus */
+  input, 
+  textarea, 
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .glass-card {
+    padding: 1.5rem;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-3px);
+  }
+}
+
+/* Large screen optimizations */
+@media (min-width: 1025px) {
+  .glass-card {
+    padding: 2rem;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-5px);
+  }
+}
+
+/* High DPI screen optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .glass-card,
+  .glass-nav,
+  .glass-modal {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
