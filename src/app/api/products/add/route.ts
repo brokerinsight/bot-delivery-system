@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { addProduct } from '@/lib/data';
+import { adminWebSocket } from '@/lib/websocket-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +64,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Broadcast product update via WebSocket
+    adminWebSocket.broadcastProductUpdate({
+      action: 'added',
+      product: product
+    });
 
     return NextResponse.json({
       success: true,

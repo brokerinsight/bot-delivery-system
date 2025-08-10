@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { updateOrderStatus, getCachedData } from '@/lib/data';
 import { supabaseAdmin } from '@/lib/supabase';
+import { adminWebSocket } from '@/lib/websocket-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,6 +70,14 @@ export async function POST(request: NextRequest) {
         // Don't fail the request if email fails
       }
     }
+
+    // Broadcast order update via WebSocket
+    adminWebSocket.broadcastOrderUpdate({
+      action: 'statusUpdated',
+      refCode,
+      status,
+      timestamp: new Date().toISOString()
+    });
 
     return NextResponse.json({
       success: true,
