@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import { EnhancedFooter } from '@/components/layout/enhanced-footer';
 import { StoreHeader } from '@/components/store/store-header';
 import { ProductGrid } from '@/components/store/product-grid';
 import { StoreSidebar } from '@/components/store/store-sidebar';
@@ -50,7 +50,7 @@ export default function StorePage({ searchParams }: StorePageProps) {
         </div>
       </main>
       
-      <Footer />
+      <EnhancedFooter />
     </div>
   );
 }

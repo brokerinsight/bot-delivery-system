@@ -9,7 +9,7 @@ Allow: /store
 Allow: /product/*
 
 # Disallow admin and private pages
-Disallow: /admin/
+Disallow: /virus/
 Disallow: /download/
 Disallow: /checkout/
 Disallow: /cart/

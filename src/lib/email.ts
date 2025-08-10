@@ -498,7 +498,7 @@ export async function sendAdminNewOrderNotification(order: CustomBotOrder) {
 
     <p>Please review the order and begin development once payment is confirmed.</p>
 
-    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/admin/custom-bots" class="btn">View in Admin Panel</a>
+    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/virus/custom-bots" class="btn">View in Admin Panel</a>
   `;
 
   const mailOptions = {
@@ -562,7 +562,7 @@ export async function sendAdminPaymentNotification(order: CustomBotOrder) {
 
     <p>Remember to mark the order as completed in the admin panel once the bot is ready and delivered.</p>
 
-    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/admin/custom-bots" class="btn">Manage Order</a>
+    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/virus/custom-bots" class="btn">Manage Order</a>
   `;
 
   const mailOptions = {
@@ -595,6 +595,50 @@ export async function sendCustomBotOrderNotification(trackingNumber: string, ref
     return { success: true };
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Failed to send custom bot order notification email:`, error.message);
+    return { success: false, error: error };
+  }
+}
+
+// Send OTP email to admin
+export async function sendAdminOTPEmail(email: string, code: string) {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Admin Login - OTP Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
+            <h1 style="margin: 0; font-size: 28px;">Admin Login</h1>
+            <p style="margin: 10px 0 0 0; opacity: 0.9;">Deriv Bot Store</p>
+          </div>
+          
+          <div style="background: #f8fafc; padding: 30px; border-radius: 10px; text-align: center;">
+            <h2 style="color: #1e293b; margin-bottom: 20px;">Your OTP Code</h2>
+            <div style="background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; display: inline-block;">
+              <span style="font-size: 32px; font-weight: bold; color: #16a34a; letter-spacing: 8px;">${code}</span>
+            </div>
+            <p style="color: #64748b; margin: 20px 0;">
+              This code will expire in <strong>5 minutes</strong>.
+            </p>
+            <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 15px; margin: 20px 0;">
+              <p style="color: #92400e; margin: 0; font-size: 14px;">
+                <strong>Security Notice:</strong> Never share this code with anyone. Our team will never ask for your OTP code.
+              </p>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px; color: #64748b; font-size: 12px;">
+            <p>If you didn't request this code, please ignore this email.</p>
+            <p>© Deriv Bot Store - Admin Panel</p>
+          </div>
+        </div>
+      `
+    });
+    console.log(`[${new Date().toISOString()}] Admin OTP email sent to ${email}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send admin OTP email:`, error.message);
     return { success: false, error: error };
   }
 }

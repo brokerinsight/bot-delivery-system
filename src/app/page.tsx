@@ -6,7 +6,7 @@ import { StatsSection } from '@/components/landing/stats-section';
 import { TestimonialsSection } from '@/components/landing/testimonials-section';
 import { CTASection } from '@/components/landing/cta-section';
 import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import { EnhancedFooter } from '@/components/layout/enhanced-footer';
 
 export default function LandingPage() {
   return (
@@ -28,7 +28,7 @@ export default function LandingPage() {
       {/* Call to Action Section */}
       <CTASection />
       
-      <Footer />
+      <EnhancedFooter />
     </main>
   );
 }
