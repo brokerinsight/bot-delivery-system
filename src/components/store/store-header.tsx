@@ -94,6 +94,27 @@ export function StoreHeader() {
               <span>10K+ Downloads</span>
             </div>
           </motion.div>
+
+          {/* Custom Bot Notice */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="mt-6"
+          >
+            <div className="inline-flex items-center space-x-3 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-xl px-6 py-3">
+              <span className="text-green-600 dark:text-green-400">🎯</span>
+              <span className="text-sm text-secondary-700 dark:text-secondary-300">
+                Can't find what you need?
+              </span>
+              <a
+                href="/custom-bot"
+                className="text-sm font-semibold text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 underline underline-offset-2 transition-colors"
+              >
+                Request Custom Bot →
+              </a>
+            </div>
+          </motion.div>
         </motion.div>
       </div>
     </section>

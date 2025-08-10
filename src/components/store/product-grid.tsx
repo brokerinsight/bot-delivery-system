@@ -158,9 +158,29 @@ export function ProductGrid({ searchParams }: ProductGridProps) {
         <h3 className="text-xl font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
           No trading bots found
         </h3>
-        <p className="text-secondary-600 dark:text-secondary-400">
+        <p className="text-secondary-600 dark:text-secondary-400 mb-6">
           Try adjusting your search or filter criteria
         </p>
+        
+        {/* Custom Bot Suggestion */}
+        <div className="max-w-md mx-auto bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
+          <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">🎯</span>
+          </div>
+          <h4 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
+            Can't Find What You Need?
+          </h4>
+          <p className="text-sm text-secondary-600 dark:text-secondary-400 mb-4">
+            Let us build a custom trading bot tailored specifically to your strategy and requirements.
+          </p>
+          <a
+            href="/custom-bot"
+            className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-105"
+          >
+            <span>Request Custom Bot</span>
+            <span>→</span>
+          </a>
+        </div>
       </div>
     );
   }

@@ -7,6 +7,7 @@ export function Footer() {
   const navigation = {
     products: [
       { name: 'Trading Bots', href: '/store' },
+      { name: 'Custom Bot', href: '/custom-bot' },
       { name: 'Categories', href: '/categories' },
       { name: 'New Releases', href: '/store?filter=new' },
       { name: 'Popular', href: '/store?sort=popular' },

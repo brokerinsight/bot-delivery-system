@@ -63,10 +63,11 @@ export function CTASection() {
               </Link>
 
               <Link
-                href="/contact"
-                className="px-8 py-4 glass-modal hover:bg-white/20 dark:hover:bg-white/10 text-secondary-700 dark:text-secondary-300 font-semibold rounded-2xl border border-secondary-200 dark:border-secondary-700 hover:border-primary-500 dark:hover:border-primary-500 transition-all duration-300"
+                href="/custom-bot"
+                className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center space-x-2"
               >
-                Contact Support
+                <span>Request Custom Bot</span>
+                <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
               </Link>
             </motion.div>
 

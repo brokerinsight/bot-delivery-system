@@ -112,6 +112,14 @@ export function HeroSection() {
               <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
             </Link>
 
+            <Link
+              href="/custom-bot"
+              className="group px-8 py-4 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center space-x-2"
+            >
+              <span>Request Custom Bot</span>
+              <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
+            </Link>
+
             <button className="group px-8 py-4 glass-card hover:glass-modal text-secondary-700 dark:text-secondary-300 font-semibold rounded-2xl hover-lift flex items-center space-x-2 transition-all duration-300">
               <PlayIcon className="w-5 h-5" />
               <span>Watch Demo</span>

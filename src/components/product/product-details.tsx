@@ -220,6 +220,31 @@ export function ProductDetails({ product }: ProductDetailsProps) {
           </div>
         </div>
       </div>
+
+      {/* Custom Bot Notice */}
+      <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-6">
+        <div className="flex items-start space-x-4">
+          <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="text-2xl">🎯</span>
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
+              Need Something Different?
+            </h3>
+            <p className="text-sm text-secondary-600 dark:text-secondary-400 mb-4">
+              Our ready-made bots are great, but sometimes you need something perfectly tailored to your strategy. 
+              Get a custom bot built just for you with your exact requirements.
+            </p>
+            <a
+              href="/custom-bot"
+              className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <span>Request Custom Bot</span>
+              <span>→</span>
+            </a>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
