@@ -19,6 +19,7 @@ interface ProductForm {
   embed: string;
   category: string;
   img: string;
+  isNew: boolean;
 }
 
 export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps) {
@@ -29,7 +30,8 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
     desc: '',
     embed: '',
     category: 'General',
-    img: ''
+    img: '',
+    isNew: false
   });
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -61,7 +63,8 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
       desc: '',
       embed: '',
       category: 'General',
-      img: ''
+      img: '',
+      isNew: false
     });
     setFile(null);
     setUploadProgress(0);
@@ -118,6 +121,7 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
       formData.append('embed', form.embed.trim());
       formData.append('category', form.category);
       formData.append('img', form.img.trim());
+      formData.append('isNew', form.isNew.toString());
 
       // Simulate upload progress
       const progressInterval = setInterval(() => {
@@ -254,6 +258,22 @@ export function AddBotSection({ data, onDataUpdate, onSave }: AddBotSectionProps
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Optional: URL to bot preview image
+                </p>
+              </div>
+
+              {/* Mark as New Checkbox */}
+              <div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={form.isNew}
+                    onChange={(e) => setForm({...form, isNew: e.target.checked})}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Mark as New</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Display "NEW" badge on the bot
                 </p>
               </div>
 
