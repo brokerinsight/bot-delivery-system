@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { redisClient } from './redis';
 import type { Product, Category, Settings, StaticPage, Order } from '@/types';
 
 // Cache for in-memory data storage
@@ -168,6 +169,14 @@ export async function loadData(): Promise<typeof cachedData> {
     // Cache the data
     cachedData = { products, categories, settings, staticPages };
 
+    // Cache in Redis with 15-minute TTL (same as old server)
+    const cacheSuccess = await redisClient.cacheData('cachedData', cachedData, 900);
+    if (cacheSuccess) {
+      console.log(`[${new Date().toISOString()}] Data loaded and cached in Redis successfully`);
+    } else {
+      console.log(`[${new Date().toISOString()}] Data loaded (Redis caching failed)`);
+    }
+
     console.log(`[${new Date().toISOString()}] Data loaded successfully from Supabase`);
     return cachedData;
   } catch (error) {
@@ -178,9 +187,23 @@ export async function loadData(): Promise<typeof cachedData> {
 
 // Get cached data (load if not cached)
 export async function getCachedData() {
-  if (!cachedData) {
-    await loadData();
+  // First try Redis cache
+  const cached = await redisClient.getCachedData('cachedData');
+  if (cached) {
+    console.log(`[${new Date().toISOString()}] Served data from Redis cache`);
+    cachedData = cached;
+    return cached;
   }
+  
+  // If not in Redis, try in-memory cache
+  if (cachedData) {
+    console.log(`[${new Date().toISOString()}] Served data from memory cache`);
+    return cachedData;
+  }
+  
+  // If no cache, load from database
+  console.log(`[${new Date().toISOString()}] Loading fresh data from database`);
+  await loadData();
   return cachedData!;
 }
 

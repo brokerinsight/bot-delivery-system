@@ -134,10 +134,15 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 -- EMAIL_USER=your-email@gmail.com
 -- EMAIL_PASS=your-app-password
 
+-- Redis Configuration (Upstash Redis for caching and rate limiting)
+-- UPSTASH_REDIS_REST_URL=https://your-redis-endpoint.upstash.io
+-- UPSTASH_REDIS_REST_TOKEN=your-redis-token
+
 -- Payment Integration (if using existing providers)
 -- PAYHERO_CHANNEL_ID=your-channel-id
 -- PAYHERO_PAYMENT_URL=https://backend.payhero.co.ke/api/v2/payments
 -- PAYHERO_AUTH_TOKEN=your-auth-token
+-- NOWPAYMENTS_API_KEY=your-nowpayments-api-key
 
 -- Site Configuration
 -- NEXT_PUBLIC_SITE_URL=https://yoursite.com

@@ -103,6 +103,34 @@ export function ProductDetails({ product }: ProductDetailsProps) {
         </div>
       </div>
 
+      {/* Product Description */}
+      {product.description && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200">
+            Description
+          </h3>
+          <div 
+            className="prose prose-secondary max-w-none text-secondary-700 dark:text-secondary-300 text-sm leading-relaxed"
+            dangerouslySetInnerHTML={{ 
+              __html: product.description.replace(/<span class="ql-ui"[^>]*><\/span>/g, '').trim()
+            }}
+          />
+        </div>
+      )}
+
+      {/* Embedded Content (Video/Demo) */}
+      {product.embed && (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200">
+            Demo & Preview
+          </h3>
+          <div 
+            className="w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800"
+            dangerouslySetInnerHTML={{ __html: product.embed }}
+          />
+        </div>
+      )}
+
       {/* Price */}
       <div className="space-y-2">
         <div className="text-3xl font-bold text-primary-600 dark:text-primary-400">
