@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
@@ -26,10 +26,21 @@ interface FormData {
   agreeToTerms: boolean;
 }
 
+interface PaymentOptions {
+  mpesa_manual: boolean;
+  mpesa_payhero: boolean;
+  crypto_nowpayments: boolean;
+}
+
 export function CheckoutForm() {
   const router = useRouter();
   const { items, clearCart } = useCartStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [paymentOptions, setPaymentOptions] = useState<PaymentOptions>({
+    mpesa_manual: true,
+    mpesa_payhero: true,
+    crypto_nowpayments: true
+  });
   const [formData, setFormData] = useState<FormData>({
     email: '',
     firstName: '',
@@ -42,29 +53,66 @@ export function CheckoutForm() {
     agreeToTerms: false,
   });
 
-  const paymentMethods = [
-    {
-      id: 'mpesa' as PaymentMethod,
-      name: 'M-Pesa',
-      description: 'Pay with M-Pesa mobile money',
-      icon: DevicePhoneMobileIcon,
-      available: true,
-    },
-    {
-      id: 'crypto' as PaymentMethod,
-      name: 'Cryptocurrency',
-      description: 'Pay with Bitcoin, USDT, or other crypto',
-      icon: CurrencyBitcoinIcon,
-      available: true,
-    },
-    {
-      id: 'card' as PaymentMethod,
-      name: 'Credit/Debit Card',
-      description: 'Pay with Visa, Mastercard, or others',
-      icon: CreditCardIcon,
-      available: false, // Coming soon
-    },
-  ];
+  // Fetch payment options from settings
+  useEffect(() => {
+    const fetchPaymentOptions = async () => {
+      try {
+        const response = await fetch('/api/data');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.settings?.activePaymentOptions) {
+            const options = typeof result.data.settings.activePaymentOptions === 'string'
+              ? JSON.parse(result.data.settings.activePaymentOptions)
+              : result.data.settings.activePaymentOptions;
+            setPaymentOptions(options);
+            
+            // Set default payment method to the first available option
+            if (options.mpesa_manual || options.mpesa_payhero) {
+              setFormData(prev => ({ ...prev, paymentMethod: 'mpesa' }));
+            } else if (options.crypto_nowpayments) {
+              setFormData(prev => ({ ...prev, paymentMethod: 'crypto' }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching payment options:', error);
+      }
+    };
+
+    fetchPaymentOptions();
+  }, []);
+
+  const getAvailablePaymentMethods = () => {
+    const allMethods = [
+      {
+        id: 'mpesa' as PaymentMethod,
+        name: 'M-Pesa',
+        description: paymentOptions.mpesa_payhero 
+          ? 'Pay with M-Pesa STK Push or Manual Till'
+          : 'Pay with M-Pesa Till Number',
+        icon: DevicePhoneMobileIcon,
+        available: paymentOptions.mpesa_manual || paymentOptions.mpesa_payhero,
+      },
+      {
+        id: 'crypto' as PaymentMethod,
+        name: 'Cryptocurrency',
+        description: 'Pay with Bitcoin, USDT, or other crypto',
+        icon: CurrencyBitcoinIcon,
+        available: paymentOptions.crypto_nowpayments,
+      },
+      {
+        id: 'card' as PaymentMethod,
+        name: 'Credit/Debit Card',
+        description: 'Pay with Visa, Mastercard, or others',
+        icon: CreditCardIcon,
+        available: false, // Not implemented yet
+      },
+    ];
+
+    return allMethods.filter(method => method.available);
+  };
+
+  const paymentMethods = getAvailablePaymentMethods();
 
   const cryptoCurrencies = [
     { code: 'BTC', name: 'Bitcoin' },

@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
+import { EnhancedFooter } from '@/components/layout/enhanced-footer';
 import { CheckoutForm } from '@/components/checkout/checkout-form';
 import { CheckoutSummary } from '@/components/checkout/checkout-summary';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -122,7 +122,7 @@ export default function CheckoutPage() {
         </section>
       </main>
       
-      <Footer />
+      <EnhancedFooter />
     </div>
   );
 }
