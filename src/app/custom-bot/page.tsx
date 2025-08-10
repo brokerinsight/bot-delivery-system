@@ -1,207 +1,137 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { CustomBotForm } from '@/components/custom-bot/custom-bot-form';
-import { CustomBotInfo } from '@/components/custom-bot/custom-bot-info';
-import { generateMetadata as generateSEOMetadata } from '@/lib/seo';
+import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { CustomBotRequestForm } from '@/components/custom-bot/custom-bot-request-form';
+import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
-export const metadata: Metadata = generateSEOMetadata({
-  title: 'Request Custom Trading Bot',
-  description: 'Order a custom trading bot tailored to your specific strategy and requirements. Professional development with 24-hour delivery.',
-  keywords: ['custom trading bot', 'bespoke bot development', 'personalized trading strategy', 'deriv custom bot']
-});
+export const metadata: Metadata = {
+  title: 'Request Custom Trading Bot - Deriv Bot Store',
+  description: 'Get a custom trading bot built specifically for your needs. Professional development with 24-hour delivery guarantee.',
+  keywords: 'custom trading bot, forex bot development, automated trading, deriv bot custom',
+};
+
+const breadcrumbItems = [
+  { label: 'Home', href: '/' },
+  { label: 'Store', href: '/store' },
+  { label: 'Request Custom Bot', href: '/custom-bot' },
+];
 
 export default function CustomBotPage() {
   return (
     <div className="min-h-screen">
       <Header />
       
-      <main className="pt-16">
+      <main className="pt-16 pb-16">
+        {/* Breadcrumbs */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <Breadcrumbs items={breadcrumbItems} />
+        </div>
+
         {/* Hero Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center mb-12">
-            <h1 className="text-hero font-bold text-secondary-800 dark:text-secondary-200 mb-6">
-              Request Your Custom Trading Bot
+            <h1 className="text-4xl sm:text-5xl font-bold text-secondary-800 dark:text-secondary-200 mb-6">
+              Request Your 
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-accent-600">
+                {" "}Custom Trading Bot
+              </span>
             </h1>
-            <p className="text-xl text-secondary-600 dark:text-secondary-400 max-w-3xl mx-auto mb-8">
-              Get a personalized trading bot designed specifically for your strategy. 
-              Our expert developers will create a custom solution tailored to your exact requirements.
+            <p className="text-xl text-secondary-600 dark:text-secondary-300 max-w-3xl mx-auto mb-8">
+              Get a personalized trading bot built specifically for your strategy. 
+              Professional development with expert support and 24-hour delivery guarantee.
             </p>
             
-            {/* Key Benefits */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            {/* Features Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-12">
               <div className="glass-card rounded-2xl p-6">
-                <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">⚡</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
+                <div className="text-3xl mb-3">⚡</div>
+                <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
                   Fast Delivery
                 </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Receive your custom bot within 24 hours
+                <p className="text-secondary-600 dark:text-secondary-400 text-sm">
+                  Your custom bot delivered within 24 hours or full refund guaranteed
                 </p>
               </div>
               
               <div className="glass-card rounded-2xl p-6">
-                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🎯</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Tailored Strategy
+                <div className="text-3xl mb-3">🎯</div>
+                <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
+                  Your Strategy
                 </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Built exactly to your specifications
+                <p className="text-secondary-600 dark:text-secondary-400 text-sm">
+                  Built exactly to your specifications and trading requirements
                 </p>
               </div>
               
               <div className="glass-card rounded-2xl p-6">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🛡️</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Money-Back Guarantee
+                <div className="text-3xl mb-3">🛡️</div>
+                <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
+                  Money Back
                 </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Full refund if technically impossible
+                <p className="text-secondary-600 dark:text-secondary-400 text-sm">
+                  If technically impossible, full refund to your preferred method
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Main Content */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form */}
-            <div className="lg:col-span-2">
-              <CustomBotForm />
-            </div>
-            
-            {/* Info Sidebar */}
-            <div className="lg:col-span-1">
-              <CustomBotInfo />
-            </div>
-          </div>
-        </section>
-
-        {/* Process Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="glass-card rounded-3xl p-8 lg:p-12">
-            <h2 className="text-section font-bold text-secondary-800 dark:text-secondary-200 mb-8 text-center">
-              How It Works
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-xl">1</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Submit Request
-                </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Fill out the form with your bot requirements and strategy details
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-xl">2</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Make Payment
-                </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Complete payment via M-Pesa or cryptocurrency
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-xl">3</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Development
-                </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Our experts develop your custom bot according to specifications
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white font-bold text-xl">4</span>
-                </div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Delivery
-                </h3>
-                <p className="text-sm text-secondary-600 dark:text-secondary-400">
-                  Receive your completed bot via email with setup instructions
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Request Form */}
+        <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <CustomBotRequestForm />
         </section>
 
         {/* FAQ Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="glass-card rounded-3xl p-8 lg:p-12">
-            <h2 className="text-section font-bold text-secondary-800 dark:text-secondary-200 mb-8 text-center">
-              Frequently Asked Questions
-            </h2>
+        <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="text-3xl font-bold text-secondary-800 dark:text-secondary-200 text-center mb-12">
+            Frequently Asked Questions
+          </h2>
+          
+          <div className="space-y-6">
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-3">
+                How long does development take?
+              </h3>
+              <p className="text-secondary-600 dark:text-secondary-400">
+                Most custom bots are delivered within 24 hours. Complex strategies may take longer, 
+                but we'll inform you immediately if that's the case.
+              </p>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  What's the minimum budget?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-                  The minimum order amount is $10. Complex strategies may require higher budgets.
-                </p>
-                
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  How long does development take?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-                  Most custom bots are completed within 24 hours. Complex requirements may take up to 5 business days.
-                </p>
-                
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  What if my strategy can't be implemented?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400">
-                  If your requirements are technically impossible, we'll provide a full refund to your chosen refund method.
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  What payment methods do you accept?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-                  We accept M-Pesa and various cryptocurrencies. Choose your preferred method during checkout.
-                </p>
-                
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Do I get the source code?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-                  You receive the XML file compatible with Deriv Bot. Source code remains our property, but you get full usage rights.
-                </p>
-                
-                <h3 className="font-semibold text-secondary-800 dark:text-secondary-200 mb-2">
-                  Is there ongoing support?
-                </h3>
-                <p className="text-secondary-600 dark:text-secondary-400">
-                  We provide 7 days of support for technical issues and setup assistance.
-                </p>
-              </div>
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-3">
+                What if my strategy is too complex?
+              </h3>
+              <p className="text-secondary-600 dark:text-secondary-400">
+                If your trading logic isn't technically feasible with current tools, 
+                we'll provide a full refund to your preferred payment method.
+              </p>
+            </div>
+            
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-3">
+                What payment methods do you accept?
+              </h3>
+              <p className="text-secondary-600 dark:text-secondary-400">
+                We accept M-Pesa and various cryptocurrencies. The same payment methods 
+                are available for refunds if needed.
+              </p>
+            </div>
+            
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-secondary-800 dark:text-secondary-200 mb-3">
+                Do you provide support after delivery?
+              </h3>
+              <p className="text-secondary-600 dark:text-secondary-400">
+                Yes! We provide setup assistance and basic support to ensure your bot works correctly. 
+                Extended support packages are also available.
+              </p>
             </div>
           </div>
         </section>
       </main>
       
-      <Footer />
+      <EnhancedFooter />
     </div>
   );
 }

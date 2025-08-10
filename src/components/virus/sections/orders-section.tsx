@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { RefreshIcon } from '@heroicons/react/24/outline';
+import { RefreshIcon, WifiIcon } from '@heroicons/react/24/outline';
+import { useRealTimeOrders, useAdminWebSocket } from '@/lib/websocket';
 
 interface OrdersSectionProps {
   data: any;
@@ -26,26 +27,41 @@ interface Order {
 export function OrdersSection({ data, onDataUpdate, onFetchOrders }: OrdersSectionProps) {
   const [orders, setOrders] = useState<Order[]>(data.orders || []);
   const [loading, setLoading] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const { connected, reconnecting } = useAdminWebSocket();
 
   useEffect(() => {
     setOrders(data.orders || []);
   }, [data.orders]);
 
-  // Auto-refresh orders every 10 seconds
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(async () => {
-      try {
-        await onFetchOrders();
-      } catch (error) {
-        console.error('Auto-refresh error:', error);
+  // Real-time order updates via WebSocket
+  useRealTimeOrders((updatedOrder) => {
+    setOrders(prevOrders => {
+      const existingIndex = prevOrders.findIndex(
+        order => order.ref_code === updatedOrder.ref_code && order.item === updatedOrder.item
+      );
+      
+      if (existingIndex >= 0) {
+        // Update existing order
+        const newOrders = [...prevOrders];
+        newOrders[existingIndex] = { ...newOrders[existingIndex], ...updatedOrder };
+        onDataUpdate({ orders: newOrders });
+        return newOrders;
+      } else {
+        // Add new order
+        const newOrders = [updatedOrder, ...prevOrders];
+        onDataUpdate({ orders: newOrders });
+        return newOrders;
       }
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, onFetchOrders]);
+    });
+    
+    // Show notification for new orders
+    if (!orders.find(o => o.ref_code === updatedOrder.ref_code && o.item === updatedOrder.item)) {
+      toast.success(`New order received: ${updatedOrder.ref_code}`, {
+        duration: 4000,
+        icon: '🎉'
+      });
+    }
+  });
 
   const updateOrderStatus = async (refCode: string, item: string, newStatus: string) => {
     try {
@@ -145,15 +161,12 @@ export function OrdersSection({ data, onDataUpdate, onFetchOrders }: OrdersSecti
           </div>
           
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="h-4 w-4 text-green-600"
-              />
-              <span className="text-sm text-gray-600">Auto-refresh</span>
-            </label>
+            <div className="flex items-center gap-2">
+              <WifiIcon className={`w-4 h-4 ${connected ? 'text-green-600' : 'text-red-600'}`} />
+              <span className={`text-sm ${connected ? 'text-green-600' : 'text-red-600'}`}>
+                {reconnecting ? 'Connecting...' : connected ? 'Live Updates' : 'Disconnected'}
+              </span>
+            </div>
             
             <button
               onClick={refreshOrders}
@@ -163,7 +176,7 @@ export function OrdersSection({ data, onDataUpdate, onFetchOrders }: OrdersSecti
               }`}
             >
               <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              Manual Refresh
             </button>
           </div>
         </div>
