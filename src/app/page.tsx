@@ -7,11 +7,13 @@ import { TestimonialsSection } from '@/components/landing/testimonials-section';
 import { CTASection } from '@/components/landing/cta-section';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 
 export default function LandingPage() {
   return (
     <main className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       {/* Hero Section */}
       <HeroSection />

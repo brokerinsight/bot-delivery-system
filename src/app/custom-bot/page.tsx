@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { CustomBotRequestForm } from '@/components/custom-bot/custom-bot-request-form';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 
@@ -20,6 +21,7 @@ export default function CustomBotPage() {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16 pb-16">
         {/* Breadcrumbs */}

@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/header';
 import { EnhancedFooter } from '@/components/layout/enhanced-footer';
+import { UrgentMessageModal } from '@/components/ui/urgent-message-modal';
 import { StoreHeader } from '@/components/store/store-header';
 import { ProductGrid } from '@/components/store/product-grid';
 import { StoreSidebar } from '@/components/store/store-sidebar';
@@ -22,6 +23,7 @@ export default function StorePage({ searchParams }: StorePageProps) {
   return (
     <div className="min-h-screen">
       <Header />
+      <UrgentMessageModal />
       
       <main className="pt-16">
         {/* Store Header */}
