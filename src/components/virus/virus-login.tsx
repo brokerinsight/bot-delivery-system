@@ -54,7 +54,7 @@ export function VirusLogin() {
 
   const checkSession = async () => {
     try {
-      const response = await fetch('/api/auth/session', { 
+      const response = await fetch('/api/auth/check-session', { 
         credentials: 'include' 
       });
       const result = await response.json();
@@ -78,29 +78,6 @@ export function VirusLogin() {
     setIsLoading(true);
 
     try {
-      // First try direct login without OTP (for development/initial setup)
-      const loginResponse = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password
-        }),
-        credentials: 'include'
-      });
-
-      const loginResult = await loginResponse.json();
-
-      if (loginResult.success) {
-        toast.success('Login successful');
-        router.push('/virus');
-        router.refresh();
-        return;
-      }
-
-      // If direct login fails, try OTP route
       const response = await fetch('/api/auth/request-otp', {
         method: 'POST',
         headers: {
@@ -120,11 +97,11 @@ export function VirusLogin() {
         setTimeRemaining(300); // 5 minutes
         toast.success('OTP sent to your email');
       } else {
-        toast.error(result.error || 'Invalid credentials');
+        toast.error(result.error || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Authentication error:', error);
-      toast.error('Authentication failed');
+      console.error('OTP request error:', error);
+      toast.error('Network error. Please try again.');
     } finally {
       setIsLoading(false);
     }

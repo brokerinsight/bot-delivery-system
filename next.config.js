@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Deployment configuration
+  output: 'standalone',
+  
   // Enable experimental features for better performance
   experimental: {
     // Enable Server Components optimization

@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getCachedData } from '@/lib/data';
 
-// Mark this route as dynamic to prevent static generation issues
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
   try {
     // Check authentication for admin routes
@@ -20,7 +17,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      data
+      ...data
     });
   } catch (error) {
     console.error('Data fetch error:', error);

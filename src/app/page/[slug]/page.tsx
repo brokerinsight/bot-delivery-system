@@ -89,34 +89,16 @@ export default async function StaticPage({ params }: StaticPageProps) {
 // Generate static params for static pages
 export async function generateStaticParams() {
   try {
-    // During static generation, directly query Supabase to avoid Redis calls
-    const { data: pagesData, error } = await import('@/lib/supabase').then(mod => 
-      mod.supabase.from('static_pages').select('slug')
-    );
+    const cachedData = await getCachedData();
+    const staticPages = cachedData.staticPages || [];
     
-    if (error) {
-      console.warn('Error generating static params:', error);
-      return [
-        { slug: 'about' },
-        { slug: 'contact' },
-        { slug: 'privacy' },
-        { slug: 'terms' }
-      ];
-    }
-    
-    return (pagesData || [])
-      .filter((page: any) => page.slug && page.slug.startsWith('/'))
-      .map((page: any) => ({
+    return staticPages
+      .filter((page: StaticPage) => page.isActive && page.slug.startsWith('/'))
+      .map((page: StaticPage) => ({
         slug: page.slug.substring(1), // Remove leading slash
       }));
   } catch (error) {
     console.error('Error generating static params:', error);
-    // Return fallback static pages
-    return [
-      { slug: 'about' },
-      { slug: 'contact' },
-      { slug: 'privacy' },
-      { slug: 'terms' }
-    ];
+    return [];
   }
 }

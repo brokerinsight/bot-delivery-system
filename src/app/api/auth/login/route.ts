@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { validateAdminCredentials, createSession, rateLimit, getClientIP } from '@/lib/auth';
 
-// Mark this route as dynamic to prevent static generation issues
-export const dynamic = 'force-dynamic';
-
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting

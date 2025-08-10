@@ -31,21 +31,17 @@ export function ProductGrid({ searchParams }: ProductGridProps) {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/products');
+        const response = await fetch('/api/data');
         if (response.ok) {
           const result = await response.json();
-          if (result.success && result.products) {
+          if (result.success && result.data.products) {
             // Filter out archived products for the storefront
-            const activeProducts = result.products.filter((product: Product) => !product.isArchived);
+            const activeProducts = result.data.products.filter((product: Product) => !product.isArchived);
             setAllProducts(activeProducts);
           }
-        } else {
-          console.error('Failed to fetch products:', response.status);
-          toast.error('Failed to load products');
         }
       } catch (error) {
         console.error('Error fetching products:', error);
-        toast.error('Error loading products');
       } finally {
         setLoading(false);
       }
