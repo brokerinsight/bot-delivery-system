@@ -247,10 +247,7 @@ export function CheckoutForm() {
   };
 
   return (
-    <motion.form
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
+    <form
       onSubmit={handleSubmit}
       className="space-y-8"
     >
@@ -470,6 +467,6 @@ export function CheckoutForm() {
           'Complete Order'
         )}
       </button>
-    </motion.form>
+    </form>
   );
 }
