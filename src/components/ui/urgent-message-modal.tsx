@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface UrgentMessage {
@@ -73,66 +72,53 @@ export function UrgentMessageModal() {
   }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-[9999] pt-20"
-        style={{ backdropFilter: 'blur(4px)' }}
-      >
-        <motion.div
-          initial={{ y: -50, scale: 0.9, opacity: 0 }}
-          animate={{ y: 0, scale: 1, opacity: 1 }}
-          exit={{ y: -50, scale: 0.9, opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="relative bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-2 border-orange-200 dark:border-orange-800 rounded-2xl shadow-2xl max-w-2xl mx-4 overflow-hidden"
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`glass-card max-w-md w-full mx-auto p-6 rounded-2xl border border-white/20 shadow-2xl transform transition-transform duration-300 ${isVisible ? 'scale-100' : 'scale-95'}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-gradient-to-r from-orange-400 to-red-500 rounded-full animate-pulse"></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              🚨 Important Notice
+            </h3>
+          </div>
+          <button
+            onClick={handleDismiss}
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+            aria-label="Close"
+          >
+            <XMarkIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div 
+          className="text-gray-700 dark:text-gray-300 mb-6 prose prose-sm max-w-none dark:prose-invert"
+          dangerouslySetInnerHTML={{ __html: cleanHtml(urgentMessage.text) }}
+        />
+
+        {/* Action Button */}
+        <button
+          onClick={handleDismiss}
+          className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-200 hover:shadow-lg"
         >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                  <span className="text-lg">⚠️</span>
-                </div>
-                <h3 className="text-lg font-bold">Important Notice</h3>
-              </div>
-              <button
-                onClick={handleDismiss}
-                className="w-8 h-8 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full flex items-center justify-center transition-colors"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          Got it, thanks! 👍
+        </button>
+      </div>
 
-          {/* Content */}
-          <div className="p-6">
-            <div 
-              className="prose prose-orange max-w-none text-secondary-800 dark:text-secondary-200"
-              dangerouslySetInnerHTML={{ 
-                __html: cleanHtml(urgentMessage.text) 
-              }}
-            />
-          </div>
-
-          {/* Footer */}
-          <div className="bg-gradient-to-r from-orange-100 to-yellow-100 dark:from-orange-900/30 dark:to-yellow-900/30 px-6 py-4">
-            <div className="flex justify-center">
-              <button
-                onClick={handleDismiss}
-                className="px-6 py-2 bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700 text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105"
-              >
-                Got it, thanks!
-              </button>
-            </div>
-          </div>
-
-          {/* Decorative Elements */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-300 to-orange-300 opacity-10 rounded-full -translate-y-16 translate-x-16" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-orange-300 to-yellow-300 opacity-10 rounded-full translate-y-12 -translate-x-12" />
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      <style jsx>{`
+        .glass-card {
+          background: rgba(255, 255, 255, 0.95);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .dark .glass-card {
+          background: rgba(17, 24, 39, 0.95);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CartItem, Product } from '@/types';
 
 interface CartStore {
@@ -13,9 +12,7 @@ interface CartStore {
   getItem: (productId: string) => CartItem | undefined;
 }
 
-export const useCartStore = create<CartStore>()(
-  persist(
-    (set, get) => ({
+export const useCartStore = create<CartStore>()((set, get) => ({
       items: [],
       
       addItem: (product: Product, quantity = 1) => {
@@ -74,13 +71,7 @@ export const useCartStore = create<CartStore>()(
       getItem: (productId: string) => {
         return get().items.find(item => item.product.item === productId);
       },
-    }),
-    {
-      name: 'cart-storage',
-      storage: createJSONStorage(() => localStorage),
-    }
-  )
-);
+    }));
 
 // Cart utilities
 export const formatPrice = (price: number, currency = 'KES') => {
