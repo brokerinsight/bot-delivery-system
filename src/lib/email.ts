@@ -1,14 +1,12 @@
 import nodemailer from 'nodemailer';
 import { CustomBotOrder } from '@/types';
 
-// Email configuration
+// Email configuration - matches existing server.js setup
 const emailConfig = {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // true for 465, false for other ports
+  service: 'gmail',
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 };
 
@@ -220,7 +218,7 @@ export async function sendOrderConfirmationEmail(order: CustomBotOrder) {
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: order.client_email,
     subject: `Order Confirmed - Tracking #${order.tracking_number}`,
     html: getEmailTemplate(content, 'Order Confirmed'),
@@ -284,7 +282,7 @@ export async function sendPaymentConfirmationEmail(order: CustomBotOrder) {
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: order.client_email,
     subject: `Payment Confirmed - Development Started #${order.tracking_number}`,
     html: getEmailTemplate(content, 'Payment Confirmed'),
@@ -365,7 +363,7 @@ export async function sendBotDeliveryEmail(order: CustomBotOrder, botFileUrl?: s
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: order.client_email,
     subject: `🎉 Bot Ready! Download Your Custom Bot #${order.tracking_number}`,
     html: getEmailTemplate(content, 'Bot Ready for Download'),
@@ -431,7 +429,7 @@ export async function sendRefundNotificationEmail(order: CustomBotOrder) {
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: order.client_email,
     subject: `Refund Processed - Order #${order.tracking_number}`,
     html: getEmailTemplate(content, 'Refund Processed'),
@@ -449,7 +447,7 @@ export async function sendRefundNotificationEmail(order: CustomBotOrder) {
 
 // Send new order notification email to admin
 export async function sendAdminNewOrderNotification(order: CustomBotOrder) {
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
+  const adminEmail = process.env.EMAIL_USER; // Admin notifications go to the same email
   
   if (!adminEmail) {
     console.warn('No admin email configured for notifications');
@@ -504,7 +502,7 @@ export async function sendAdminNewOrderNotification(order: CustomBotOrder) {
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: adminEmail,
     subject: `🔔 New Custom Bot Order - ${order.tracking_number}`,
     html: getEmailTemplate(content, 'New Custom Bot Order'),
@@ -522,7 +520,7 @@ export async function sendAdminNewOrderNotification(order: CustomBotOrder) {
 
 // Send payment confirmation notification to admin
 export async function sendAdminPaymentNotification(order: CustomBotOrder) {
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
+  const adminEmail = process.env.EMAIL_USER; // Admin notifications go to the same email
   
   if (!adminEmail) {
     console.warn('No admin email configured for notifications');
@@ -568,7 +566,7 @@ export async function sendAdminPaymentNotification(order: CustomBotOrder) {
   `;
 
   const mailOptions = {
-    from: `"Deriv Bot Store" <${process.env.SMTP_USER}>`,
+    from: process.env.EMAIL_USER,
     to: adminEmail,
     subject: `💳 Payment Confirmed - Start Development ${order.tracking_number}`,
     html: getEmailTemplate(content, 'Payment Confirmed'),
@@ -580,6 +578,23 @@ export async function sendAdminPaymentNotification(order: CustomBotOrder) {
     return { success: true };
   } catch (error) {
     console.error('Error sending admin payment notification:', error);
+    return { success: false, error: error };
+  }
+}
+
+// Simple admin notification function - matches existing server.js pattern exactly
+export async function sendCustomBotOrderNotification(trackingNumber: string, refCode: string, amount: number, email: string) {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: `New Custom Bot Order - $${parseFloat(amount.toString()).toFixed(2)}`,
+      text: `Custom Bot Tracking/Order Ref: ${trackingNumber}\nRef Code: ${refCode}\nAmount: $${parseFloat(amount.toString()).toFixed(2)}\nCustomer Email: ${email}`
+    });
+    console.log(`[${new Date().toISOString()}] Custom bot order notification email sent successfully for ref code ${refCode}`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Failed to send custom bot order notification email:`, error.message);
     return { success: false, error: error };
   }
 }

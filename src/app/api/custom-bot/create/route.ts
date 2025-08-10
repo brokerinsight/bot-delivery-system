@@ -150,13 +150,18 @@ export async function POST(request: NextRequest) {
 
     // Send email notifications
     try {
-      const { sendOrderConfirmationEmail, sendAdminNewOrderNotification } = await import('@/lib/email');
+      const { sendOrderConfirmationEmail, sendCustomBotOrderNotification } = await import('@/lib/email');
       
       // Send confirmation email to customer
       await sendOrderConfirmationEmail(result.data!);
       
-      // Send notification email to admin
-      await sendAdminNewOrderNotification(result.data!);
+      // Send simple notification email to admin (matches existing server.js pattern)
+      await sendCustomBotOrderNotification(
+        result.data!.tracking_number,
+        result.data!.ref_code,
+        result.data!.budget_amount,
+        result.data!.client_email
+      );
     } catch (emailError) {
       console.error('Error sending email notifications:', emailError);
       // Don't fail the order creation if email fails
