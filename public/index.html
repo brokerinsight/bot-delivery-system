@@ -1808,7 +1808,7 @@
                 order_description: product.name,
             }),
             credentials: 'include'
-        }, 30000); // Add 30 second timeout for NOWPayments
+        });
 
         const data = await response.json();
 
@@ -1955,9 +1955,7 @@
 
 
             try {
-                const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`, {
-                    credentials: 'include'
-                }, 15000); // Add 15 second timeout for status polling
+                const response = await fetchWithTimeout(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`, {credentials: 'include'});
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -2154,7 +2152,7 @@
               used_exchange_rate: exchangeRate // Send the exchange rate used by client
             }),
             credentials: 'include'
-          }, 60000); // Increased timeout to 60 seconds for STK push
+          }, 20000);
 
           const data = await response.json();
 
@@ -2176,13 +2174,7 @@
           } else {
             const errorMsg = data.error || `Failed to initiate payment: ${response.statusText || response.status}`;
             console.error('Server STK Push Initiation Error:', errorMsg, data);
-            
-            // Handle rate limit specifically
-            if (response.status === 429) {
-              payheroStatusMessage.textContent = `You have a pending payment. Please complete it or wait a few minutes before trying again.`;
-            } else {
-              payheroStatusMessage.textContent = `Error: ${errorMsg}. Please try again.`;
-            }
+            payheroStatusMessage.textContent = `Error: ${errorMsg}. Please try again.`;
             payheroStatusMessage.style.color = 'red';
             proceedButton.disabled = false;
           }
@@ -2351,88 +2343,12 @@
                     currentStatusDisplay = data.message || "Payment successful! Downloading your file...";
                 }
             } else if (data.status && (data.status.startsWith('failed_') || data.status === 'FAILED')) {
-                clearInterval(countdown);
-                
-                // Show specific error message from server (notes field)
-                let errorMessage = data.message || `Payment failed: ${data.status}`;
-                
-                // Add appropriate contact/retry suggestions based on error type
-                if (data.status.includes('insufficient_funds') || data.status.includes('insufficient_balance')) {
-                    errorMessage += '. Please top up your M-Pesa account and try again.';
-                } else if (data.status.includes('cancelled_by_user') || data.status.includes('user_cancel')) {
-                    errorMessage += '. You can try again when ready.';
-                } else if (data.status.includes('invalid_pin')) {
-                    errorMessage += '. Please ensure you enter the correct M-Pesa PIN.';
-                } else if (data.status.includes('timeout') || data.status.includes('unreachable')) {
-                    errorMessage += '. Please ensure your phone is on and has network coverage.';
-                } else if (data.status.includes('device_locked')) {
-                    errorMessage += '. Please unlock your phone and try again.';
-                } else if (data.status.includes('limit_exceeded')) {
-                    errorMessage += '. Please contact M-Pesa support to increase your transaction limits.';
-                } else if (data.status.includes('account_blocked') || data.status.includes('account_inactive')) {
-                    errorMessage += '. Please contact M-Pesa support to resolve your account status.';
-                } else if (data.status.includes('service_unavailable')) {
-                    errorMessage += '. Please try again in a few minutes.';
-                }
-                
-                statusMessage.innerHTML = `${errorMessage} You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
-
-                // Enhanced retry logic for specific error types
-                const retryableErrors = [
-                    'failed_stk_timeout', 
-                    'failed_stk_initiation', 
-                    'failed_stk_request_timeout',
-                    'failed_stk_service_unavailable',
-                    'failed_stk_request_error',
-                    'failed_stk_lock_failed',
-                    'failed_stk_device_locked',
-                    'failed_stk_user_unreachable'
-                ];
-                
-                const userRetryableErrors = [
-                    'failed_stk_cancelled_by_user',
-                    'failed_stk_user_cancel',
-                    'failed_stk_invalid_pin',
-                    'failed_stk_insufficient_funds',
-                    'failed_stk_insufficient_balance'
-                ];
-
-                if (showRetry && retryCount < maxRetries && (retryableErrors.some(err => data.status.includes(err.replace('failed_stk_', ''))) || userRetryableErrors.some(err => data.status.includes(err.replace('failed_stk_', ''))))) {
-                    retryBtn.classList.remove('hidden');
-                    retryBtn.textContent = userRetryableErrors.some(err => data.status.includes(err.replace('failed_stk_', ''))) ? 'Try Payment Again' : 'Retry Check';
-                    retryBtn.onclick = () => {
-                        retryCount++;
-                        modal.classList.add('hidden'); 
-                        document.body.classList.remove('popup-active');
-                        clearPaymentCookie(product.item);
-                        
-                        // For user-retryable errors, restart the payment process
-                        if (userRetryableErrors.some(err => data.status.includes(err.replace('failed_stk_', '')))) {
-                            // Give user option to try payment again
-                            setTimeout(() => {
-                                if (confirm('Would you like to try the payment again?')) {
-                                    // Clear any rate limits and allow new payment
-                                    window.location.reload();
-                                }
-                            }, 1000);
-                        } else {
-                            // For system errors, just retry status check
-                            showStatusModal(product, refCode, 'Retrying status check...', showRetry);
-                        }
-                    };
-                } else {
-                    // Auto-close after showing error for a bit longer for failed payments
-                    setTimeout(() => { 
-                        modal.classList.add('hidden'); 
-                        document.body.classList.remove('popup-active'); 
-                        clearPaymentCookie(product.item); 
-                    }, 8000); // 8 seconds to read the error message
-                }
-                return; // Exit here for failed statuses
+                currentStatusDisplay = data.message || `Payment ${data.status}. Please check details or contact support.`;
             }
             // ... any other specific statuses from your backend for /api/order-status
 
             statusMessage.innerHTML = currentStatusDisplay; // Update the message
+
 
             if (!statusRes.ok && statusRes.status !== 403 && statusRes.status !== 404) { // 403/404 handled by data.message
                 clearInterval(countdown);
@@ -2488,6 +2404,30 @@
                 console.error("Confirmed status but no download link from server:", data);
                 setTimeout(() => { window.location.href = WHATSAPP_REDIRECT; }, 3000);
               }
+            } else if (data.status && data.status.startsWith('failed_')) {
+                clearInterval(countdown);
+                statusMessage.innerHTML = `${data.message || `Payment failed: ${data.status}`}. You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
+
+                // More specific retry logic for STK failures
+                const retryableStkFailures = ['failed_stk_timeout', 'failed_stk_initiation'];
+                // failed_stk_cb_ might also be retryable if it was a temporary PayHero issue
+                // but cancelled_by_user, insufficient_funds, invalid_pin are usually not directly retryable by simply re-polling.
+
+                if (showRetry && retryCount < maxRetries &&
+                    (retryableStkFailures.includes(data.status) || data.status.startsWith('failed_stk_cb_'))) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.textContent = 'Retry Payment';
+                    retryBtn.onclick = () => {
+                        retryCount++;
+                        modal.classList.add('hidden'); document.body.classList.remove('popup-active');
+                        // For STK, retrying means showing the PayHero modal again.
+                        // We need product details and original KES price.
+                        const originalKesPrice = localStorage.getItem(`payment_${product.item}_kesPrice`) || (product.price * (exchangeRate || settings.fallbackRate || 130)).toFixed(2);
+                        showPayHeroModal(product, originalKesPrice);
+                    };
+                } else {
+                    setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 7000); // Longer for failure messages
+                }
             } else if (data.status === 'no payment' || data.status === 'partial payment') { // Manual Mpesa specific
               clearInterval(countdown);
               statusMessage.innerHTML = `${data.message || 'There was an issue with your manual payment.'} Please <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
