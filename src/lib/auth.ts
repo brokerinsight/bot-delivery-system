@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 interface AdminSession {
   isAuthenticated: boolean;
   email?: string;
+  username?: string;
   id?: string;
 }
 
