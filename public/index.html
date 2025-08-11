@@ -3174,6 +3174,17 @@
         };
       }
       
+      // Ensure mobile menu close functionality works from custom bot page
+      const mobileMenuClose = document.getElementById('mobile-menu-close');
+      if (mobileMenuClose) {
+        // Remove any existing event listeners to avoid duplicates
+        mobileMenuClose.replaceWith(mobileMenuClose.cloneNode(true));
+        const newMobileMenuClose = document.getElementById('mobile-menu-close');
+        newMobileMenuClose.onclick = () => {
+          document.getElementById('mobile-menu').classList.remove('open');
+        };
+      }
+      
       // Load payment methods dynamically
       loadPaymentMethods();
       
@@ -3355,20 +3366,28 @@
     }
     
     function showCustomBotPaymentModal(order, kesAmount) {
-      // Similar to regular payment modal but for custom bot
+      // Enhanced payment modal with timer and Mpesa code input
       const modal = document.createElement('div');
       modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
       modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+          <div id="custom-countdown-timer" class="mb-4">
+            <p class="text-gray-600">Time remaining: <span id="custom-timer-text">10:00</span></p>
+            <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div id="custom-timer-bar" class="h-full bg-green-600 transition-all duration-1000" style="width: 100%;"></div>
+            </div>
+          </div>
           <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for Custom Bot</h3>
           <p class="text-gray-600 mb-4">Please send payment via MPESA to:</p>
-          <p class="font-semibold text-gray-900">Till Number: <span id="custom-till-number">${settings.mpesaTill || '4933614'}</span></p>
-          <p class="text-green-600 font-bold mt-2">Amount: ${kesAmount} KES</p>
-          <p class="text-sm text-gray-500 mt-2">Reference: ${order.trackingNumber || order.refCode}</p>
+          <div class="flex items-center space-x-2 mb-2">
+            <p class="font-semibold text-gray-900">Till Number: <span id="custom-till-number">${settings.mpesaTill || '4933614'}</span></p>
+            <button id="custom-copy-till" class="text-sm text-green-600 hover:underline">Copy Till</button>
+          </div>
+          <p class="text-green-600 font-bold mb-2">Amount: ${kesAmount} KES</p>
+          <p class="text-sm text-gray-500 mb-4">Reference: ${order.trackingNumber || order.refCode}</p>
           <div class="mt-6 space-y-3">
-            <button class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" onclick="copyCustomTillNumber()">Copy Till Number</button>
-            <button class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700" onclick="showCustomBotSuccess('${order.trackingNumber || order.refCode}', '${order.clientEmail}', '${order.trackingNumber ? 'tracking' : 'reference'}')">I Have Paid</button>
-            <button class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700" onclick="closeCustomPaymentModal()">Cancel</button>
+            <button id="custom-confirm-payment" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">I Have Paid</button>
+            <button id="custom-payment-cancel" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
           </div>
         </div>
       `;
@@ -3376,23 +3395,160 @@
       document.body.appendChild(modal);
       document.body.classList.add('popup-active');
       window.customPaymentModal = modal;
+      
+      // Start 10-minute countdown timer
+      let timeLeft = 10 * 60;
+      const timerText = document.getElementById('custom-timer-text');
+      const timerBar = document.getElementById('custom-timer-bar');
+      
+      const countdown = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(countdown);
+          closeCustomPaymentModal();
+          window.location.href = WHATSAPP_REDIRECT;
+          return;
+        }
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        const percentage = (timeLeft / (10 * 60)) * 100;
+        timerBar.style.width = `${percentage}%`;
+        timeLeft--;
+      }, 1000);
+      
+      // Copy till number functionality
+      document.getElementById('custom-copy-till').onclick = () => {
+        const tillNumber = document.getElementById('custom-till-number').textContent;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(tillNumber).then(() => {
+            document.getElementById('custom-copy-till').textContent = 'Copied';
+            setTimeout(() => {
+              document.getElementById('custom-copy-till').textContent = 'Copy Till';
+            }, 2000);
+          }).catch(() => {
+            fallbackCopyTill(tillNumber);
+          });
+        } else {
+          fallbackCopyTill(tillNumber);
+        }
+      };
+      
+      // I Have Paid button functionality
+      document.getElementById('custom-confirm-payment').onclick = () => {
+        clearInterval(countdown);
+        closeCustomPaymentModal();
+        showCustomBotRefCodeModal(order, kesAmount);
+      };
+      
+      // Cancel button functionality
+      document.getElementById('custom-payment-cancel').onclick = () => {
+        clearInterval(countdown);
+        closeCustomPaymentModal();
+      };
+      
+      // Store countdown interval for cleanup
+      window.customPaymentCountdown = countdown;
     }
     
-    function copyCustomTillNumber() {
-      const tillNumber = document.getElementById('custom-till-number').textContent;
-      navigator.clipboard.writeText(tillNumber).then(() => {
-        alert('Till number copied to clipboard!');
-      }).catch(() => {
-        // Fallback
-        const textarea = document.createElement('textarea');
-        textarea.value = tillNumber;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('Till number copied to clipboard!');
-      });
+    function fallbackCopyTill(tillNumber) {
+      const textarea = document.createElement('textarea');
+      textarea.value = tillNumber;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      document.getElementById('custom-copy-till').textContent = 'Copied';
+      setTimeout(() => {
+        document.getElementById('custom-copy-till').textContent = 'Copy Till';
+      }, 2000);
     }
+    
+    function showCustomBotRefCodeModal(order, kesAmount) {
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+          <h3 class="text-xl font-bold text-gray-900 mb-4">Enter MPESA Reference Code</h3>
+          <p class="text-gray-600 mb-4">Please enter the MPESA reference code you received after payment:</p>
+          <input id="custom-ref-code-input" type="text" placeholder="e.g., QK12345678" 
+                 class="w-full p-3 border rounded-md mb-4 uppercase" 
+                 style="text-transform: uppercase;">
+          <div class="text-sm text-gray-500 mb-4">
+            <p><strong>Amount:</strong> ${kesAmount} KES</p>
+            <p><strong>Order:</strong> ${order.trackingNumber || order.refCode}</p>
+          </div>
+          <div class="space-y-3">
+            <button id="custom-submit-ref-code" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Submit Reference Code</button>
+            <button id="custom-ref-code-cancel" class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">Cancel</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      document.body.classList.add('popup-active');
+      window.customRefCodeModal = modal;
+      
+      // Auto-uppercase input
+      const refCodeInput = document.getElementById('custom-ref-code-input');
+      refCodeInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase();
+      });
+      
+      // Submit reference code
+      document.getElementById('custom-submit-ref-code').onclick = async () => {
+        const refCode = refCodeInput.value.trim();
+        if (!refCode.match(/^[A-Z0-9]{8,12}$/)) {
+          alert('Please enter a valid MPESA reference code (8-12 alphanumeric characters).');
+          return;
+        }
+        
+        const submitBtn = document.getElementById('custom-submit-ref-code');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+        
+        try {
+          const response = await fetch(`${BASE_URL}/api/custom-bot/submit-ref-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              refCode: order.refCode,
+              mpesaRefCode: refCode,
+              amount: kesAmount,
+              timestamp: new Date().toISOString()
+            })
+          });
+          
+          const result = await response.json();
+          if (response.ok && result.success) {
+            closeCustomRefCodeModal();
+            showCustomBotSuccess(order.trackingNumber || order.refCode, order.clientEmail || order.client_email, 'tracking');
+          } else {
+            throw new Error(result.error || 'Failed to submit reference code');
+          }
+        } catch (error) {
+          console.error('Error submitting reference code:', error);
+          alert(`Error: ${error.message}. Please try again or contact support.`);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Reference Code';
+        }
+      };
+      
+      // Cancel button
+      document.getElementById('custom-ref-code-cancel').onclick = () => {
+        closeCustomRefCodeModal();
+      };
+    }
+    
+    function closeCustomRefCodeModal() {
+      if (window.customRefCodeModal) {
+        window.customRefCodeModal.remove();
+        document.body.classList.remove('popup-active');
+        window.customRefCodeModal = null;
+      }
+    }
+    
+
     
     function showCustomBotSuccess(identifier, email, type = 'reference') {
       closeCustomPaymentModal();
@@ -3430,9 +3586,16 @@
     }
     
     function closeCustomPaymentModal() {
+      // Clean up timer if it exists
+      if (window.customPaymentCountdown) {
+        clearInterval(window.customPaymentCountdown);
+        window.customPaymentCountdown = null;
+      }
+      
       if (window.customPaymentModal) {
         window.customPaymentModal.remove();
         document.body.classList.remove('popup-active');
+        window.customPaymentModal = null;
       }
     }
     
@@ -3446,36 +3609,36 @@
       }
     }
 
-    // PayHero payment modal for custom bot
+    // PayHero payment modal for custom bot - Enhanced design
     function showCustomBotPayHeroModal(order, kesAmount) {
       const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.className = 'payhero-modal';
+      modal.style.display = 'flex';
       modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 w-full max-w-sm">
-          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay with M-PESA</h3>
-          <p class="text-gray-600 mb-4">Custom Bot Order: ${order.refCode}</p>
-          <p class="text-green-600 font-bold mb-4">Amount: ${kesAmount} KES</p>
-          
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Your Name:</label>
-              <input type="text" id="custom-customer-name" class="w-full p-2 border rounded-md" placeholder="John Doe" required>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number:</label>
-              <input type="tel" id="custom-phone-number" class="w-full p-2 border rounded-md" placeholder="254712345678" required>
-            </div>
+        <div class="payhero-modal-content">
+          <div class="payhero-modal-header">
+            <h3 class="payhero-modal-title">Pay with M-PESA (Custom Bot)</h3>
+            <button class="payhero-close-button" onclick="closeCustomPayHeroModal()" aria-label="Close payment form">×</button>
           </div>
-          
-          <div class="mt-6 space-y-3">
-            <button onclick="processCustomBotPayHero('${order.refCode}', ${kesAmount})" 
-                    class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">
-              Pay ${kesAmount} KES
-            </button>
-            <button onclick="closeCustomPayHeroModal()" 
-                    class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">
-              Cancel
-            </button>
+          <div class="payhero-form-container">
+            <p class="amount-display">Amount: KES ${kesAmount}</p>
+            <p class="text-sm text-gray-600 mb-3">Order: ${order.refCode}</p>
+            
+            <div>
+              <label for="custom-customer-name">Name (Optional):</label>
+              <input type="text" id="custom-customer-name" placeholder="Enter your name">
+            </div>
+            <div>
+              <label for="custom-phone-number">Mpesa Number:</label>
+              <input type="tel" id="custom-phone-number" placeholder="e.g., 0712345678 or 254712345678">
+            </div>
+            <div>
+              <button onclick="processCustomBotPayHero('${order.refCode}', ${kesAmount})" 
+                      class="w-full bg-green-600 text-white py-2.5 rounded-md hover:bg-green-700 transition-colors">
+                Proceed to Pay via Mpesa
+              </button>
+            </div>
+            <p id="custom-payhero-status-message" class="text-center text-sm mt-2"></p>
           </div>
         </div>
       `;
@@ -3486,13 +3649,27 @@
     }
 
     async function processCustomBotPayHero(refCode, kesAmount) {
-      const customerName = document.getElementById('custom-customer-name').value.trim();
+      const customerName = document.getElementById('custom-customer-name').value.trim() || "Valued Customer";
       const phoneNumber = document.getElementById('custom-phone-number').value.trim();
+      const statusMessage = document.getElementById('custom-payhero-status-message');
       
-      if (!customerName || !phoneNumber) {
-        alert('Please fill in all fields');
+      if (!phoneNumber) {
+        statusMessage.textContent = 'Please enter your Mpesa phone number.';
+        statusMessage.style.color = 'red';
         return;
       }
+      
+      if (!/^(01|07|2541|2547)\d{8}$/.test(phoneNumber.replace(/^\+/, ''))) {
+        statusMessage.textContent = 'Invalid Mpesa phone number. Use formats like 07xx..., 01xx..., 2547xx..., 2541xx...';
+        statusMessage.style.color = 'red';
+        return;
+      }
+      
+      // Disable button and show loading state
+      const proceedButton = window.customPayHeroModal.querySelector('button');
+      proceedButton.disabled = true;
+      statusMessage.textContent = 'Initiating payment... Please wait.';
+      statusMessage.style.color = 'inherit';
       
       try {
         const response = await fetch(`${BASE_URL}/api/custom-bot/payhero-payment`, {
@@ -3508,22 +3685,31 @@
         });
         
         const result = await response.json();
-        if (result.success) {
-          closeCustomPayHeroModal();
-          showCustomBotSuccess(result.trackingNumber, result.clientEmail, 'tracking');
+        if (response.ok && result.success) {
+          statusMessage.textContent = result.message || 'STK Push initiated. Check your phone to complete payment.';
+          statusMessage.style.color = 'green';
+          
+          setTimeout(() => {
+            closeCustomPayHeroModal();
+            showCustomBotSuccess(result.trackingNumber, result.clientEmail, 'tracking');
+          }, 2500);
         } else {
-          throw new Error(result.error || 'Payment failed');
+          throw new Error(result.error || `Failed to initiate payment: ${response.statusText || response.status}`);
         }
       } catch (error) {
         console.error('PayHero payment error:', error);
-        alert(`Payment failed: ${error.message}`);
+        statusMessage.textContent = `Error: ${error.message}. Please try again.`;
+        statusMessage.style.color = 'red';
+        proceedButton.disabled = false;
       }
     }
 
     function closeCustomPayHeroModal() {
       if (window.customPayHeroModal) {
+        window.customPayHeroModal.style.display = 'none';
         window.customPayHeroModal.remove();
         document.body.classList.remove('popup-active');
+        window.customPayHeroModal = null;
       }
     }
 
@@ -3824,14 +4010,14 @@
         }
         
         try {
-          const response = await fetch(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`);
+          const response = await fetch(`${BASE_URL}/api/custom-bot/nowpayments-status/${orderId}`);
           const result = await response.json();
           
           if (result.success) {
-            statusElement.textContent = `Payment Status: ${result.paymentStatus}`;
+            statusElement.textContent = result.message || `Payment Status: ${result.payment_status}`;
             statusElement.className = 'text-center mt-2 text-sm text-blue-600';
             
-            if (['finished', 'confirmed'].includes(result.paymentStatus)) {
+            if (result.payment_status === 'finished' || result.status === 'confirmed_nowpayments') {
               // Payment successful
               if (window.customNowPaymentsTimerIntervalId) {
                 clearInterval(window.customNowPaymentsTimerIntervalId);
@@ -3853,7 +4039,7 @@
                 fetchCustomBotOrderForSuccess(orderId);
               }, 2000);
               
-            } else if (['failed', 'refunded', 'expired'].includes(result.paymentStatus)) {
+            } else if (['failed', 'refunded', 'expired'].includes(result.payment_status)) {
               // Payment failed
               if (window.customNowPaymentsTimerIntervalId) {
                 clearInterval(window.customNowPaymentsTimerIntervalId);
@@ -3863,9 +4049,9 @@
               clearInterval(window.customNowPaymentsPollIntervalId);
               window.customNowPaymentsPollIntervalId = null;
               
-              document.getElementById('custom-crypto-timer').textContent = `Payment ${result.paymentStatus}`;
+              document.getElementById('custom-crypto-timer').textContent = `Payment ${result.payment_status}`;
               document.getElementById('custom-crypto-timer').className = 'text-center font-semibold text-lg text-red-600';
-              statusElement.textContent = `Payment ${result.paymentStatus}. Please close and try again or contact support.`;
+              statusElement.textContent = `Payment ${result.payment_status}. Please close and try again or contact support.`;
               statusElement.className = 'text-center mt-2 text-sm text-red-600';
             }
           }
