@@ -721,6 +721,7 @@
           </div>
           <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
             <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
+            <a href="#" id="custom-bot-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Custom Bot</a>
           </div>
         </div>
         <div class="flex items-center space-x-4">
@@ -842,6 +843,146 @@
       <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
       <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
     </div>
+  </div>
+
+  <!-- Custom Bot Request Page -->
+  <div id="custom-bot-page" class="hidden">
+    <nav class="bg-white shadow-md sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <div id="logo-container">
+              <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Deriv Bot Store</h1>
+            </div>
+            <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <a href="#" id="home-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Home</a>
+              <a href="#" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Custom Bot</a>
+            </div>
+          </div>
+          <div class="flex items-center space-x-4">
+            <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
+            <button id="mobile-menu-button-custom" class="sm:hidden text-gray-500 p-2">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="bg-white rounded-lg shadow-lg p-8">
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-900 mb-4">Request a Custom Bot</h1>
+          <p class="text-lg text-gray-600">Get a personalized trading bot built specifically for your needs. Our team will create and deliver your custom bot within 24 hours.</p>
+        </div>
+
+        <form id="custom-bot-form" class="space-y-6">
+          <!-- Email -->
+          <div>
+            <label for="custom-email" class="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+            <input type="email" id="custom-email" name="email" required 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                   placeholder="your@email.com">
+            <p class="text-xs text-gray-500 mt-1">We'll send your custom bot and all communications to this email</p>
+          </div>
+
+          <!-- Bot Description -->
+          <div>
+            <label for="bot-description" class="block text-sm font-medium text-gray-700 mb-2">Bot Description *</label>
+            <textarea id="bot-description" name="description" required rows="4" 
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                      placeholder="Describe what you want your bot to do..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Be as detailed as possible about your bot's functionality</p>
+          </div>
+
+          <!-- Bot Logic/Features -->
+          <div>
+            <label for="bot-features" class="block text-sm font-medium text-gray-700 mb-2">Technical Requirements & Features *</label>
+            <textarea id="bot-features" name="features" required rows="6" 
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                      placeholder="Example: RSI levels, moving averages, risk management, specific trade conditions, etc."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Include specific indicators, strategies, and any technical details</p>
+          </div>
+
+          <!-- Budget -->
+          <div>
+            <label for="budget-amount" class="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
+            <input type="number" id="budget-amount" name="budget" required min="50" step="1" 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                   placeholder="50">
+            <p class="text-xs text-gray-500 mt-1" id="budget-hint">Minimum budget is $50. Higher budgets allow for more complex features.</p>
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+            <div class="space-y-2" id="payment-methods-container">
+              <!-- Payment methods will be loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- Refund Channel -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Refund Method *</label>
+            <p class="text-xs text-gray-500 mb-3">In case of refund (if your bot is technically impossible to create)</p>
+            <div class="space-y-4">
+              <div>
+                <label class="flex items-center">
+                  <input type="radio" name="refund-method" value="crypto" class="mr-2" required>
+                  <span>Cryptocurrency Wallet</span>
+                </label>
+                <div id="crypto-refund-details" class="ml-6 mt-2 space-y-2 hidden">
+                  <input type="text" id="crypto-wallet" name="crypto-wallet" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="Your wallet address">
+                  <select id="crypto-network" name="crypto-network" 
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                    <option value="">Select Network</option>
+                    <option value="bitcoin">Bitcoin</option>
+                    <option value="ethereum">Ethereum</option>
+                    <option value="bsc">Binance Smart Chain</option>
+                    <option value="polygon">Polygon</option>
+                    <option value="tron">Tron</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="flex items-center">
+                  <input type="radio" name="refund-method" value="mpesa" class="mr-2" required>
+                  <span>M-PESA</span>
+                </label>
+                <div id="mpesa-refund-details" class="ml-6 mt-2 space-y-2 hidden">
+                  <input type="tel" id="mpesa-number" name="mpesa-number" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="254XXXXXXXXX">
+                  <input type="text" id="mpesa-name" name="mpesa-name" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="Account holder name">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terms and Submit -->
+          <div class="border-t pt-6">
+            <div class="mb-4">
+              <label class="flex items-start">
+                <input type="checkbox" id="agree-terms" required class="mr-2 mt-1">
+                <span class="text-sm text-gray-600">I agree that the bot will be created and sent within 24 hours. If the requested logic is technically impossible or for other valid reasons, a full refund will be processed to my chosen refund method. *</span>
+              </label>
+            </div>
+
+            <button type="submit" id="submit-custom-bot" 
+                    class="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors font-medium">
+              <span id="submit-text">Submit Request & Proceed to Payment</span>
+              <span id="submit-loading" class="hidden">Processing...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
   </div>
 
   <script>
