@@ -894,28 +894,28 @@
           <!-- Bot Description -->
           <div>
             <label for="bot-description" class="block text-sm font-medium text-gray-700 mb-2">Bot Description *</label>
-            <textarea id="bot-description" name="description" required rows="4" 
+            <textarea id="bot-description" name="description" required rows="4" maxlength="300"
                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                       placeholder="Describe what you want your bot to do..."></textarea>
-            <p class="text-xs text-gray-500 mt-1">Be as detailed as possible about your bot's functionality</p>
+            <p class="text-xs text-gray-500 mt-1" id="description-hint">Be as detailed as possible about your bot's functionality. <span id="description-count">0/300</span> characters</p>
           </div>
 
           <!-- Bot Logic/Features -->
           <div>
             <label for="bot-features" class="block text-sm font-medium text-gray-700 mb-2">Technical Requirements & Features *</label>
-            <textarea id="bot-features" name="features" required rows="6" 
+            <textarea id="bot-features" name="features" required rows="6" maxlength="300"
                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                       placeholder="Example: RSI levels, moving averages, risk management, specific trade conditions, etc."></textarea>
-            <p class="text-xs text-gray-500 mt-1">Include specific indicators, strategies, and any technical details</p>
+            <p class="text-xs text-gray-500 mt-1" id="features-hint">Include specific indicators, strategies, and any technical details. <span id="features-count">0/300</span> characters</p>
           </div>
 
           <!-- Budget -->
           <div>
             <label for="budget-amount" class="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
-            <input type="number" id="budget-amount" name="budget" required min="50" step="1" 
+            <input type="number" id="budget-amount" name="budget" required min="30" step="1" 
                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                   placeholder="50">
-            <p class="text-xs text-gray-500 mt-1" id="budget-hint">Minimum budget is $50. Higher budgets allow for more complex features.</p>
+                   placeholder="30">
+            <p class="text-xs text-gray-500 mt-1" id="budget-hint">Minimum budget is $30. Higher budgets allow for more complex features.</p>
           </div>
 
           <!-- Payment Method -->
@@ -3228,8 +3228,8 @@
       budgetInput.addEventListener('input', (e) => {
         const value = parseFloat(e.target.value);
         const hint = document.getElementById('budget-hint');
-        if (value < 50) {
-          hint.textContent = 'Minimum budget is $50. Please increase the amount for custom bot development.';
+                  if (value < 30) {
+            hint.textContent = 'Minimum budget is $30. Please increase the amount for custom bot development.';
           hint.className = 'text-xs text-red-500 mt-1';
         } else {
           hint.textContent = 'Higher budgets allow for more complex features and faster delivery.';
