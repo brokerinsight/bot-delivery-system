@@ -2655,6 +2655,65 @@ app.post('/api/custom-bot/payhero-callback', async (req, res) => {
   }
 });
 
+// Custom Bot PayHero Status Check
+app.get('/api/custom-bot/payhero-status/:refCode', async (req, res) => {
+  try {
+    const { refCode } = req.params;
+
+    // Check Redis first for a pending order
+    let order = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (order) {
+        // Order is still pending in cache, not yet confirmed by callback
+        return res.json({ success: true, status: 'pending_stk_push' });
+    }
+
+    // If not in Redis, check the database for a confirmed or failed order
+    const { data: dbOrder, error: dbError } = await supabase
+        .from('custom_bot_orders')
+        .select('payment_status, tracking_number')
+        .eq('ref_code', refCode)
+        .single();
+
+    if (dbError && dbError.code !== 'PGRST116') {
+        console.error(`[${new Date().toISOString()}] DB error fetching payhero status for ${refCode}:`, dbError);
+        return res.status(500).json({ success: false, error: 'Database error.' });
+    }
+
+    if (!dbOrder) {
+        return res.status(404).json({ success: false, error: 'Order not found or has timed out and been removed.' });
+    }
+
+    // Order found in DB, return its status and tracking number
+    res.json({
+        success: true,
+        status: dbOrder.payment_status,
+        trackingNumber: dbOrder.tracking_number
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in payhero-status check:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Endpoint to delete a pending order from Redis if it times out
+app.delete('/api/custom-bot/order/:refCode', async (req, res) => {
+    try {
+        const { refCode } = req.params;
+        const result = await redisClient.del(`custom_bot_order:${refCode}`);
+        if (result > 0) {
+            console.log(`[${new Date().toISOString()}] Deleted pending custom bot order from Redis due to timeout: ${refCode}`);
+            res.json({ success: true, message: 'Pending order cancelled.' });
+        } else {
+            console.log(`[${new Date().toISOString()}] Attempted to delete timed-out order, but it was not found in Redis (already processed or expired): ${refCode}`);
+            res.status(404).json({ success: false, error: 'Pending order not found, it may have already been processed.' });
+        }
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error deleting pending order from Redis:`, error.message);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
 // Custom Bot NOWPayments Integration
 app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
   try {
@@ -2886,7 +2945,7 @@ app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
     
     // Update our database if payment is confirmed
     if (statusData.payment_status === 'finished' && order.payment_status !== 'paid') {
-      await supabase
+      const { data: updatedOrder, error: updateError } = await supabase
         .from('custom_bot_orders')
         .update({ 
           payment_status: 'paid',
@@ -2894,16 +2953,33 @@ app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
           currency_paid: statusData.pay_currency,
           updated_at: new Date().toISOString()
         })
-        .eq('ref_code', orderId);
+        .eq('ref_code', orderId)
+        .select()
+        .single();
 
-      // Send confirmation email
-      try {
-        await sendCustomBotPaymentConfirmation(order);
-      } catch (emailError) {
-        console.error(`[${new Date().toISOString()}] Failed to send custom bot payment confirmation email:`, emailError.message);
+      if (updateError) {
+        console.error(`[${new Date().toISOString()}] Error updating NOWPayments status in DB:`, updateError);
+        // Don't block the response, but log the error. The client will poll again.
+      } else {
+        // Send confirmation email
+        try {
+          await sendCustomBotPaymentConfirmation(updatedOrder || order);
+        } catch (emailError) {
+          console.error(`[${new Date().toISOString()}] Failed to send custom bot payment confirmation email:`, emailError.message);
+        }
+
+        // If the update was successful, we can return the final success response with the order details
+        return res.json({
+            success: true,
+            payment_status: 'finished',
+            status: 'confirmed_nowpayments',
+            message: 'Payment successful! Your custom bot order is being processed.',
+            order: updatedOrder // Return the full order object with the tracking number
+        });
       }
     }
 
+    // If we reach here, the payment is still pending or has failed.
     let message = 'Waiting for payment confirmation...';
     if (statusData.payment_status === 'finished') {
       message = 'Payment successful! Your custom bot order is being processed.';
@@ -2915,7 +2991,8 @@ app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
       success: true,
       payment_status: statusData.payment_status,
       status: statusData.payment_status === 'finished' ? 'confirmed_nowpayments' : 'pending_nowpayments',
-      message: message
+      message: message,
+      order: order // Also include the order object in pending responses
     });
 
   } catch (error) {
