@@ -3499,49 +3499,64 @@
       const modal = document.createElement('div');
       modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
       modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 w-full max-w-md">
-          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay with Cryptocurrency</h3>
-          <p class="text-gray-600 mb-2">Custom Bot Order: ${order.trackingNumber}</p>
+        <div class="bg-white rounded-lg p-6 w-full max-w-md" style="max-height: 90vh; overflow-y: auto;">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Pay with Cryptocurrency</h3>
+            <button onclick="closeCustomNowPaymentsModal()" class="text-gray-500 hover:text-gray-700">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <p class="text-gray-600 mb-2">Custom Bot Order: ${order.refCode}</p>
           <p class="text-green-600 font-bold mb-4">Amount: $${usdAmount}</p>
           
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Your Email:</label>
-              <input type="email" id="custom-crypto-email" class="w-full p-2 border rounded-md" placeholder="you@example.com" required>
+              <input type="email" id="custom-crypto-email" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="you@example.com" required>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Select Cryptocurrency:</label>
-              <select id="custom-crypto-currency" class="w-full p-2 border rounded-md" required>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Search & Select Cryptocurrency:</label>
+              <input type="text" id="custom-crypto-search" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-2" placeholder="Search currencies (e.g., Bitcoin, BTC)">
+              <select id="custom-crypto-currency" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" size="6" required>
                 <option value="">Loading currencies...</option>
               </select>
             </div>
           </div>
           
+          <div id="custom-crypto-status" class="mt-4 text-sm text-center"></div>
+          
           <div class="mt-6 space-y-3">
-            <button onclick="processCustomBotNowPayments('${order.refCode}', ${usdAmount})" 
-                    class="w-full bg-yellow-500 text-white py-2 rounded-md hover:bg-yellow-600">
+            <button id="custom-crypto-proceed" onclick="processCustomBotNowPayments('${order.refCode}', ${usdAmount})" 
+                    class="w-full bg-yellow-500 text-white py-3 rounded-md hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
               Proceed to Payment
             </button>
-            <button onclick="closeCustomNowPaymentsModal()" 
+            <button id="custom-crypto-cancel" onclick="closeCustomNowPaymentsModal()" 
                     class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">
               Cancel
             </button>
           </div>
           
           <div id="custom-crypto-payment-info" class="mt-6 hidden">
-            <div class="bg-gray-50 p-4 rounded-lg">
-              <p class="text-sm text-gray-700 mb-2">Send exactly:</p>
-              <div class="bg-white p-2 border rounded mb-2">
-                <span id="custom-crypto-amount" class="font-mono text-sm"></span>
+            <div class="bg-gray-50 p-4 rounded-lg border">
+              <h4 class="font-semibold text-gray-800 mb-3">Payment Instructions</h4>
+              <p class="text-sm text-gray-700 mb-2">Send exactly this amount:</p>
+              <div class="bg-white p-3 border rounded mb-3 flex justify-between items-center">
+                <span id="custom-crypto-amount" class="font-mono text-sm font-semibold"></span>
+                <button onclick="copyToClipboard('custom-crypto-amount')" class="text-blue-500 hover:text-blue-700 ml-2">📋</button>
               </div>
-              <p class="text-sm text-gray-700 mb-2">To address:</p>
-              <div class="bg-white p-2 border rounded mb-2">
-                <span id="custom-crypto-address" class="font-mono text-xs break-all"></span>
+              <p class="text-sm text-gray-700 mb-2">To this address:</p>
+              <div class="bg-white p-3 border rounded mb-3 flex justify-between items-center">
+                <span id="custom-crypto-address" class="font-mono text-xs break-all flex-1"></span>
+                <button onclick="copyToClipboard('custom-crypto-address')" class="text-blue-500 hover:text-blue-700 ml-2 flex-shrink-0">📋</button>
               </div>
-              <button onclick="copyCustomCryptoAddress()" class="w-full bg-blue-500 text-white py-1 rounded text-sm">
-                Copy Address
-              </button>
-              <div id="custom-crypto-timer" class="text-center mt-3 font-semibold text-blue-600"></div>
+              <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3">
+                <p class="text-sm text-yellow-800">⚠️ Send only the exact amount shown above. Sending more or less may delay your order.</p>
+              </div>
+              <div id="custom-crypto-timer" class="text-center font-semibold text-lg text-blue-600"></div>
+              <div id="custom-crypto-payment-status" class="text-center mt-2 text-sm"></div>
             </div>
           </div>
         </div>
@@ -3550,6 +3565,16 @@
       document.body.appendChild(modal);
       document.body.classList.add('popup-active');
       window.customNowPaymentsModal = modal;
+      
+      // Reset any existing intervals
+      if (window.customNowPaymentsTimerIntervalId) {
+        clearInterval(window.customNowPaymentsTimerIntervalId);
+        window.customNowPaymentsTimerIntervalId = null;
+      }
+      if (window.customNowPaymentsPollIntervalId) {
+        clearInterval(window.customNowPaymentsPollIntervalId);
+        window.customNowPaymentsPollIntervalId = null;
+      }
       
       // Load crypto currencies
       loadCustomCryptoCurrencies();
