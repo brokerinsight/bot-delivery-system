@@ -2048,10 +2048,8 @@
     const paymentSection = document.getElementById('payment-confirmation-section');
     if (order.payment_method === 'mpesa_manual' && order.payment_status === 'pending') {
       paymentSection.classList.remove('hidden');
-      document.getElementById('mpesa-receipt-input').value = order.customer_mpesa_code || '';
     } else {
       paymentSection.classList.add('hidden');
-      document.getElementById('mpesa-receipt-input').value = ''; // Clear the input when not applicable
     }
     
     // Show modal

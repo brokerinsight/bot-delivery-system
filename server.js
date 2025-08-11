@@ -2490,20 +2490,18 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    const apiKey = process.env.NOWPAYMENTS_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ success: false, error: 'NOWPayments configuration missing' });
+    // Get the custom bot order from Redis
+    const order = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!order) {
+      console.error(`[${new Date().toISOString()}] Custom Bot PayHero: Order not found in Redis for refCode: ${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
 
-    // Get the custom bot order
-    const { data: order, error: orderError } = await supabase
-      .from('custom_bot_orders')
-      .select('*')
-      .eq('ref_code', refCode)
-      .single();
-
-    if (orderError || !order) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
+    // Verify amount
+    const exchangeRate = cachedData.settings?.fallbackRate || 130;
+    const expectedKesAmount = Math.round(order.budget_amount * exchangeRate);
+    if (Math.round(amount) !== expectedKesAmount) {
+        console.warn(`[${new Date().toISOString()}] Custom Bot PayHero: Amount mismatch for ref ${refCode}. Expected ~${expectedKesAmount}, got ${amount}. Proceeding anyway.`);
     }
 
     // Normalize phone number
@@ -2517,15 +2515,18 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
     const callbackUrl = `${getBaseUrl(req)}/api/custom-bot/payhero-callback`;
 
     if (!payheroAuthToken || !payheroChannelId) {
-      return res.status(500).json({ success: false, error: 'PayHero configuration missing' });
+      console.error(`[${new Date().toISOString()}] Custom Bot PayHero: PayHero configuration missing.`);
+      return res.status(500).json({ success: false, error: 'Payment gateway configuration error.' });
     }
 
     const payheroPayload = {
       amount: Math.round(amount),
       phone_number: normalizedPhone,
-      channel_id: payheroChannelId,
-      provider: 'mpesa',
+      channel_id: parseInt(payheroChannelId),
+      provider: "sasapay",
+      network_code: "63902",
       external_reference: refCode,
+      customer_name: customerName,
       callback_url: callbackUrl
     };
 
@@ -2540,26 +2541,17 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
 
     const payheroData = await payheroResponse.json();
 
-    if (payheroResponse.ok && payheroData.status === 'success') {
-      // Update order with PayHero payment ID
-      await supabase
-        .from('custom_bot_orders')
-        .update({ 
-          payment_id: payheroData.data.id,
-          payment_status: 'pending',
-          updated_at: new Date().toISOString()
-        })
-        .eq('ref_code', refCode);
-
-      console.log(`[${new Date().toISOString()}] PayHero payment initiated for custom bot ${refCode}`);
+    if (payheroResponse.ok && (payheroData.status === 'success' || payheroData.status === 'QUEUED')) {
+      console.log(`[${new Date().toISOString()}] PayHero STK push initiated for custom bot ${refCode}`);
       
       res.json({
         success: true,
-        trackingNumber: order.tracking_number,
+        message: 'STK Push initiated. Please check your phone.',
         clientEmail: order.client_email,
-        paymentId: payheroData.data.id
+        paymentId: payheroData.data?.id || null
       });
     } else {
+      console.error(`[${new Date().toISOString()}] Custom Bot PayHero: payment initiation failed.`, payheroData);
       throw new Error(payheroData.message || 'PayHero payment failed');
     }
 
@@ -2673,12 +2665,11 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
     }
 
     // Get the custom bot order from Redis
-    const orderJson = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!orderJson) {
+    const order = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!order) {
       console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: Order not found in Redis for refCode: ${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
-    const order = JSON.parse(orderJson);
 
     // Verify amount (USD budget)
     if (parseFloat(amount) !== order.budget_amount) {
@@ -2774,7 +2765,7 @@ app.post('/api/custom-bot/submit-ref-code', rateLimit, async (req, res) => {
       .from('custom_bot_orders')
       .update({ 
         customer_mpesa_code: mpesaRefCode,
-        payment_status: 'pending_verification',
+        payment_status: 'pending',
         amount_paid_kes: parseFloat(amount),
         updated_at: new Date().toISOString()
       })
