@@ -1029,7 +1029,7 @@ async function sendOrderNotification(item, refCode, amount) {
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
+      to: cachedData.settings.supportEmail || process.env.EMAIL_USER,
       subject: `New Order - KES ${parseFloat(amount).toFixed(2)}`,
       text: `M-PESA Ref/Order Ref: ${refCode}\nItem Number: ${item}\nAmount: KES ${parseFloat(amount).toFixed(2)}`
     });
@@ -2387,7 +2387,7 @@ Please review and process this order in the admin panel.
 
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
-    to: process.env.EMAIL_USER,
+    to: cachedData.settings.supportEmail || process.env.EMAIL_USER,
     subject,
     text
   });
@@ -2491,12 +2491,11 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
     }
 
     // Get the custom bot order from Redis
-    const orderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!orderJSON) {
+    const order = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!order) {
       console.error(`[${new Date().toISOString()}] Custom Bot PayHero: Order not found in Redis for refCode: ${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
-    const order = JSON.parse(orderJSON);
 
     // Verify amount
     const exchangeRate = cachedData.settings?.fallbackRate || 130;
@@ -2666,12 +2665,11 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
     }
 
     // Get the custom bot order from Redis
-    const orderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!orderJSON) {
+    const order = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!order) {
       console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: Order not found in Redis for refCode: ${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
-    const order = JSON.parse(orderJSON);
 
     // Verify amount (USD budget)
     if (parseFloat(amount) !== order.budget_amount) {
@@ -2827,8 +2825,7 @@ app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
     const { orderId } = req.params; // This is the refCode for the custom bot order
     
     // Check Redis first for a pending order, then check the database for a confirmed one.
-    const orderJSON = await redisClient.get(`custom_bot_order:${orderId}`);
-    let order = orderJSON ? JSON.parse(orderJSON) : null;
+    let order = await redisClient.get(`custom_bot_order:${orderId}`);
     const isFromCache = !!order;
 
     if (!order) {
@@ -3075,13 +3072,12 @@ app.listen(PORT, async () => {
 // Helper function to move cached order from Redis to database with tracking number
 async function moveCustomBotOrderFromCache(refCode) {
   try {
-    // Get cached order from Redis
-    const cachedOrderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!cachedOrderJSON) {
+    // Get cached order from Redis - it will be an object if it's a JSON string
+    const cachedOrder = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!cachedOrder) {
       console.error(`[${new Date().toISOString()}] No cached order found in Redis for ref code: ${refCode}`);
       return null;
     }
-    const cachedOrder = JSON.parse(cachedOrderJSON);
     
     // Generate tracking number
     const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
