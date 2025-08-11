@@ -2020,6 +2020,688 @@ app.get('/:slug', async (req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
+// Custom Bot Order API Endpoints
+app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
+  try {
+    const { 
+      email, 
+      botDescription, 
+      botFeatures, 
+      budget, 
+      paymentMethod, 
+      refundMethod,
+      refundCryptoWallet,
+      refundCryptoNetwork,
+      refundMpesaNumber,
+      refundMpesaName
+    } = req.body;
+
+    // Validate required fields
+    if (!email || !botDescription || !botFeatures || !budget || !paymentMethod || !refundMethod) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Validate budget minimum
+    if (budget < 50) {
+      return res.status(400).json({ success: false, error: 'Minimum budget is $50' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' });
+    }
+
+    // Validate refund details based on method
+    if (refundMethod === 'crypto') {
+      if (!refundCryptoWallet || !refundCryptoNetwork) {
+        return res.status(400).json({ success: false, error: 'Crypto wallet address and network are required for crypto refund method' });
+      }
+    } else if (refundMethod === 'mpesa') {
+      if (!refundMpesaNumber || !refundMpesaName) {
+        return res.status(400).json({ success: false, error: 'MPESA number and name are required for MPESA refund method' });
+      }
+      // Validate MPESA number format
+      const mpesaRegex = /^(\+254|254|07|01)\d{8,9}$/;
+      if (!mpesaRegex.test(refundMpesaNumber.trim())) {
+        return res.status(400).json({ success: false, error: 'Invalid MPESA number format' });
+      }
+    }
+
+    // Generate tracking number and reference code
+    const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const refCode = `CB-${uuidv4()}`;
+
+    // Calculate KES amount for payment
+    const exchangeRate = cachedData.settings?.fallbackRate || 130;
+    const kesAmount = Math.round(budget * exchangeRate);
+
+    // Determine payment ID based on method
+    let paymentId = null;
+    if (paymentMethod === 'nowpayments') {
+      paymentId = `np-${refCode}`;
+    }
+
+    // Create custom bot order
+    const orderData = {
+      tracking_number: trackingNumber,
+      client_email: email,
+      bot_description: botDescription,
+      bot_features: botFeatures,
+      budget_amount: budget,
+      payment_method: paymentMethod,
+      refund_method: refundMethod,
+      refund_crypto_wallet: refundMethod === 'crypto' ? refundCryptoWallet : null,
+      refund_crypto_network: refundMethod === 'crypto' ? refundCryptoNetwork : null,
+      refund_mpesa_number: refundMethod === 'mpesa' ? refundMpesaNumber.trim() : null,
+      refund_mpesa_name: refundMethod === 'mpesa' ? refundMpesaName.trim() : null,
+      ref_code: refCode,
+      payment_id: paymentId,
+      status: 'pending',
+      payment_status: paymentMethod === 'mpesa_manual' ? 'pending' : 'pending',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: insertedOrder, error: insertError } = await supabase
+      .from('custom_bot_orders')
+      .insert([orderData])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error(`[${new Date().toISOString()}] Error creating custom bot order:`, insertError);
+      return res.status(500).json({ success: false, error: 'Failed to create custom bot order' });
+    }
+
+    console.log(`[${new Date().toISOString()}] Custom bot order created: ${trackingNumber} for ${email}`);
+
+    // Send confirmation email to customer
+    try {
+      await sendCustomBotOrderConfirmation(email, trackingNumber, botDescription, budget, paymentMethod);
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send customer confirmation email:`, emailError.message);
+    }
+
+    // Send notification email to admin
+    try {
+      await sendCustomBotAdminNotification(insertedOrder);
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send admin notification email:`, emailError.message);
+    }
+
+    res.json({
+      success: true,
+      order: {
+        trackingNumber,
+        clientEmail: email,
+        refCode,
+        paymentMethod
+      },
+      kesAmount,
+      exchangeRate
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in custom bot creation:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get custom bot orders (for admin)
+app.get('/api/custom-bot/orders', isAuthenticated, async (req, res) => {
+  try {
+    const { data: orders, error } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(`[${new Date().toISOString()}] Error fetching custom bot orders:`, error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+    }
+
+    res.json({ success: true, orders });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in custom bot orders fetch:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Update custom bot order status (for admin)
+app.post('/api/custom-bot/update-status', isAuthenticated, async (req, res) => {
+  try {
+    const { orderId, status, refundReason, customRefundMessage } = req.body;
+
+    if (!orderId || !status) {
+      return res.status(400).json({ success: false, error: 'Order ID and status are required' });
+    }
+
+    const updateData = {
+      status,
+      updated_at: new Date().toISOString()
+    };
+
+    if (status === 'completed') {
+      updateData.completed_at = new Date().toISOString();
+    } else if (status === 'refunded') {
+      updateData.refunded_at = new Date().toISOString();
+      if (refundReason) {
+        updateData.refund_reason = refundReason;
+      }
+      if (customRefundMessage) {
+        updateData.custom_refund_message = customRefundMessage;
+      }
+    }
+
+    const { data: updatedOrder, error } = await supabase
+      .from('custom_bot_orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`[${new Date().toISOString()}] Error updating custom bot order:`, error);
+      return res.status(500).json({ success: false, error: 'Failed to update order' });
+    }
+
+    // Send appropriate email based on status
+    try {
+      if (status === 'completed') {
+        await sendCustomBotCompletionEmail(updatedOrder);
+      } else if (status === 'refunded') {
+        await sendCustomBotRefundEmail(updatedOrder);
+      }
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send status update email:`, emailError.message);
+    }
+
+    console.log(`[${new Date().toISOString()}] Custom bot order ${updatedOrder.tracking_number} updated to ${status}`);
+    res.json({ success: true, order: updatedOrder });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating custom bot order:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Confirm payment for custom bot order (for admin)
+app.post('/api/custom-bot/confirm-payment', isAuthenticated, async (req, res) => {
+  try {
+    const { orderId, mpesaReceiptNumber } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'Order ID is required' });
+    }
+
+    const updateData = {
+      payment_status: 'paid',
+      updated_at: new Date().toISOString()
+    };
+
+    if (mpesaReceiptNumber) {
+      updateData.mpesa_receipt_number = mpesaReceiptNumber;
+    }
+
+    const { data: updatedOrder, error } = await supabase
+      .from('custom_bot_orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`[${new Date().toISOString()}] Error confirming payment:`, error);
+      return res.status(500).json({ success: false, error: 'Failed to confirm payment' });
+    }
+
+    // Send payment confirmation email
+    try {
+      await sendCustomBotPaymentConfirmation(updatedOrder);
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send payment confirmation email:`, emailError.message);
+    }
+
+    console.log(`[${new Date().toISOString()}] Payment confirmed for custom bot order ${updatedOrder.tracking_number}`);
+    res.json({ success: true, order: updatedOrder });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error confirming payment:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Custom Bot Email Functions
+async function sendCustomBotOrderConfirmation(email, trackingNumber, description, budget, paymentMethod) {
+  const subject = `Custom Bot Order Confirmation - ${trackingNumber}`;
+  const text = `
+Dear Customer,
+
+Thank you for your custom bot order! Here are the details:
+
+Tracking Number: ${trackingNumber}
+Description: ${description}
+Budget: $${budget}
+Payment Method: ${paymentMethod}
+
+Your custom bot will be created and delivered to this email address within 24 hours.
+
+If you have any questions, please contact us with your tracking number.
+
+Best regards,
+Deriv Bot Store Team
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject,
+    text
+  });
+}
+
+async function sendCustomBotAdminNotification(order) {
+  const subject = `New Custom Bot Order - ${order.tracking_number}`;
+  const text = `
+New custom bot order received:
+
+Tracking Number: ${order.tracking_number}
+Client Email: ${order.client_email}
+Budget: $${order.budget_amount}
+Payment Method: ${order.payment_method}
+
+Description:
+${order.bot_description}
+
+Features:
+${order.bot_features}
+
+Refund Method: ${order.refund_method}
+${order.refund_method === 'crypto' ? `Crypto Wallet: ${order.refund_crypto_wallet}\nNetwork: ${order.refund_crypto_network}` : ''}
+${order.refund_method === 'mpesa' ? `MPESA Number: ${order.refund_mpesa_number}\nMPESA Name: ${order.refund_mpesa_name}` : ''}
+
+Please review and process this order in the admin panel.
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: process.env.EMAIL_USER,
+    subject,
+    text
+  });
+}
+
+async function sendCustomBotCompletionEmail(order) {
+  const subject = `Your Custom Bot is Ready! - ${order.tracking_number}`;
+  const text = `
+Dear Customer,
+
+Great news! Your custom bot has been completed and sent to your email.
+
+Tracking Number: ${order.tracking_number}
+Description: ${order.bot_description}
+
+Please check your email inbox (including spam folder) for your custom bot files.
+
+If you don't receive the bot files within the next few minutes, please contact us with your tracking number.
+
+Thank you for choosing Deriv Bot Store!
+
+Best regards,
+Deriv Bot Store Team
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: order.client_email,
+    subject,
+    text
+  });
+}
+
+async function sendCustomBotRefundEmail(order) {
+  const subject = `Refund Processed - ${order.tracking_number}`;
+  const refundMethod = order.refund_method === 'crypto' 
+    ? `Cryptocurrency (${order.refund_crypto_network} - ${order.refund_crypto_wallet})`
+    : `MPESA (${order.refund_mpesa_number} - ${order.refund_mpesa_name})`;
+  
+  const text = `
+Dear Customer,
+
+We regret to inform you that your custom bot order has been refunded.
+
+Tracking Number: ${order.tracking_number}
+Refund Reason: ${order.refund_reason || 'Technical impossibility'}
+${order.custom_refund_message ? `Additional Message: ${order.custom_refund_message}` : ''}
+
+Your refund of $${order.budget_amount} will be processed to your chosen refund method:
+${refundMethod}
+
+Refunds typically process within 1-3 business days depending on the payment method.
+
+If you have any questions about your refund, please contact us with your tracking number.
+
+Best regards,
+Deriv Bot Store Team
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: order.client_email,
+    subject,
+    text
+  });
+}
+
+async function sendCustomBotPaymentConfirmation(order) {
+  const subject = `Payment Confirmed - ${order.tracking_number}`;
+  const text = `
+Dear Customer,
+
+Your payment has been confirmed and your custom bot order is now being processed.
+
+Tracking Number: ${order.tracking_number}
+Amount: $${order.budget_amount}
+
+Your custom bot will be created and sent to your email within 24 hours.
+
+Thank you for your payment!
+
+Best regards,
+Deriv Bot Store Team
+  `;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: order.client_email,
+    subject,
+    text
+  });
+}
+
+// Custom Bot PayHero Payment Integration
+app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
+  try {
+    const { refCode, amount, customerName, phoneNumber } = req.body;
+
+    if (!refCode || !amount || !customerName || !phoneNumber) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Get the custom bot order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', refCode)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : 
+                           (phoneNumber.startsWith('0') ? `254${phoneNumber.substring(1)}` : phoneNumber);
+
+    // Create PayHero payment request
+    const payheroApiUrl = 'https://backend.payhero.co.ke/api/v2/payments';
+    const payheroChannelId = cachedData.settings.payheroChannelId;
+    const payheroAuthToken = cachedData.settings.payheroAuthToken;
+    const callbackUrl = `${getBaseUrl(req)}/api/custom-bot/payhero-callback`;
+
+    if (!payheroAuthToken || !payheroChannelId) {
+      return res.status(500).json({ success: false, error: 'PayHero configuration missing' });
+    }
+
+    const payheroPayload = {
+      amount: Math.round(amount),
+      phone_number: normalizedPhone,
+      channel_id: payheroChannelId,
+      provider: 'mpesa',
+      external_reference: refCode,
+      callback_url: callbackUrl
+    };
+
+    const payheroResponse = await fetch(payheroApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': payheroAuthToken
+      },
+      body: JSON.stringify(payheroPayload)
+    });
+
+    const payheroData = await payheroResponse.json();
+
+    if (payheroResponse.ok && payheroData.status === 'success') {
+      // Update order with PayHero payment ID
+      await supabase
+        .from('custom_bot_orders')
+        .update({ 
+          payment_id: payheroData.data.id,
+          payment_status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('ref_code', refCode);
+
+      console.log(`[${new Date().toISOString()}] PayHero payment initiated for custom bot ${refCode}`);
+      
+      res.json({
+        success: true,
+        trackingNumber: order.tracking_number,
+        clientEmail: order.client_email,
+        paymentId: payheroData.data.id
+      });
+    } else {
+      throw new Error(payheroData.message || 'PayHero payment failed');
+    }
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Custom bot PayHero payment error:`, error.message);
+    res.status(500).json({ success: false, error: error.message || 'Payment processing failed' });
+  }
+});
+
+// Custom Bot PayHero Callback
+app.post('/api/custom-bot/payhero-callback', async (req, res) => {
+  try {
+    console.log(`[${new Date().toISOString()}] Custom bot PayHero callback received:`, JSON.stringify(req.body, null, 2));
+
+    const { external_reference, status, receipt_number } = req.body;
+
+    if (!external_reference) {
+      return res.status(400).json({ success: false, error: 'Missing external reference' });
+    }
+
+    // Get the custom bot order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', external_reference)
+      .single();
+
+    if (orderError || !order) {
+      console.error(`[${new Date().toISOString()}] Custom bot order not found for PayHero callback: ${external_reference}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Update order based on payment status
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (status === 'success') {
+      updateData.payment_status = 'paid';
+      if (receipt_number) {
+        updateData.mpesa_receipt_number = receipt_number;
+      }
+
+      // Send payment confirmation email
+      try {
+        await sendCustomBotPaymentConfirmation(order);
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send payment confirmation:`, emailError.message);
+      }
+    } else {
+      updateData.payment_status = 'failed';
+    }
+
+    await supabase
+      .from('custom_bot_orders')
+      .update(updateData)
+      .eq('ref_code', external_reference);
+
+    console.log(`[${new Date().toISOString()}] Custom bot PayHero payment ${status} for ${external_reference}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Custom bot PayHero callback error:`, error.message);
+    res.status(500).json({ success: false, error: 'Callback processing failed' });
+  }
+});
+
+// Custom Bot NOWPayments Integration
+app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
+  try {
+    const { refCode, amount, email, currency } = req.body;
+
+    if (!refCode || !amount || !email || !currency) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Get the custom bot order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', refCode)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    const ipnCallbackUrl = `${getBaseUrl(req)}/api/custom-bot/nowpayments-callback`;
+
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'NOWPayments configuration missing' });
+    }
+
+    const nowPaymentsPayload = {
+      price_amount: amount,
+      price_currency: 'usd',
+      pay_currency: currency.toLowerCase(),
+      ipn_callback_url: ipnCallbackUrl,
+      order_id: refCode,
+      order_description: `Custom Bot Order ${order.tracking_number}`,
+      is_fee_paid_by_user: false,
+      is_fixed_rate: true,
+      customer_email: email
+    };
+
+    const nowPaymentsResponse = await fetch('https://api.nowpayments.io/v1/payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify(nowPaymentsPayload)
+    });
+
+    const nowPaymentsData = await nowPaymentsResponse.json();
+
+    if (nowPaymentsResponse.ok) {
+      // Update order with NOWPayments payment ID
+      await supabase
+        .from('custom_bot_orders')
+        .update({ 
+          payment_id: nowPaymentsData.payment_id,
+          payment_status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('ref_code', refCode);
+
+      console.log(`[${new Date().toISOString()}] NOWPayments payment created for custom bot ${refCode}: ${nowPaymentsData.payment_id}`);
+
+      res.json({
+        success: true,
+        orderId: refCode,
+        paymentId: nowPaymentsData.payment_id,
+        payAmount: nowPaymentsData.pay_amount,
+        payCurrency: nowPaymentsData.pay_currency,
+        payAddress: nowPaymentsData.pay_address,
+        trackingNumber: order.tracking_number,
+        clientEmail: order.client_email
+      });
+    } else {
+      throw new Error(nowPaymentsData.message || 'NOWPayments payment creation failed');
+    }
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Custom bot NOWPayments error:`, error.message);
+    res.status(500).json({ success: false, error: error.message || 'Payment processing failed' });
+  }
+});
+
+// Custom Bot NOWPayments Callback
+app.post('/api/custom-bot/nowpayments-callback', async (req, res) => {
+  try {
+    console.log(`[${new Date().toISOString()}] Custom bot NOWPayments callback received:`, JSON.stringify(req.body, null, 2));
+
+    const { order_id, payment_status, outcome_amount, outcome_currency } = req.body;
+
+    if (!order_id) {
+      return res.status(400).json({ success: false, error: 'Missing order ID' });
+    }
+
+    // Get the custom bot order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', order_id)
+      .single();
+
+    if (orderError || !order) {
+      console.error(`[${new Date().toISOString()}] Custom bot order not found for NOWPayments callback: ${order_id}`);
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Update order based on payment status
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (['finished', 'confirmed'].includes(payment_status)) {
+      updateData.payment_status = 'paid';
+      if (outcome_amount && outcome_currency) {
+        updateData.amount_paid_crypto = parseFloat(outcome_amount);
+        updateData.currency_paid = outcome_currency;
+      }
+
+      // Send payment confirmation email
+      try {
+        await sendCustomBotPaymentConfirmation(order);
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send payment confirmation:`, emailError.message);
+      }
+    } else if (['failed', 'refunded', 'expired'].includes(payment_status)) {
+      updateData.payment_status = 'failed';
+    }
+
+    await supabase
+      .from('custom_bot_orders')
+      .update(updateData)
+      .eq('ref_code', order_id);
+
+    console.log(`[${new Date().toISOString()}] Custom bot NOWPayments payment ${payment_status} for ${order_id}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Custom bot NOWPayments callback error:`, error.message);
+    res.status(500).json({ success: false, error: 'Callback processing failed' });
+  }
+});
 
 async function initialize() {
   console.log(`[${new Date().toISOString()}] Starting server initialization...`);

@@ -712,6 +712,8 @@
     <button id="urgent-close" class="mt-2 block mx-auto bg-gray-600 text-white px-4 py-1 rounded-full">Okay</button>
   </div>
 
+  <!-- Main Page Content -->
+  <div id="main-page">
   <nav class="bg-white shadow-md sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between h-16">
@@ -721,6 +723,7 @@
           </div>
           <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
             <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
+            <a href="#" id="custom-bot-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Custom Bot</a>
           </div>
         </div>
         <div class="flex items-center space-x-4">
@@ -836,12 +839,148 @@
       <div id="static-links" class="mt-4 flex justify-center space-x-4 flex-wrap"></div>
     </div>
   </footer>
+  </div>
+  <!-- End Main Page Content -->
 
   <div id="cookie-popup-container" class="hidden">
     <div id="cookie-popup" class="popup-content">
       <p>We use cookies to enhance your experience. By continuing, you agree to our <a href="/cookie-policy" class="underline text-green-600">Cookie Policy</a>.</p>
       <button id="cookie-accept" class="browser-popup-button cancel">Accept Cookies</button>
     </div>
+  </div>
+
+  <!-- Custom Bot Request Page -->
+  <div id="custom-bot-page" class="hidden">
+    <nav class="bg-white shadow-md sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+            <div id="logo-container">
+              <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Deriv Bot Store</h1>
+            </div>
+            <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <a href="#" id="home-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Home</a>
+              <a href="#" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Custom Bot</a>
+            </div>
+          </div>
+          <div class="flex items-center space-x-4">
+            <a href="https://track.deriv.com/_5b97G5QPtjsKqFKZ7JdnQ2Nd7ZgqdRLk/1/" class="create-account-btn bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">Create Account</a>
+            <button id="mobile-menu-button-custom" class="sm:hidden text-gray-500 p-2">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div class="bg-white rounded-lg shadow-lg p-8">
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-900 mb-4">Request a Custom Bot</h1>
+          <p class="text-lg text-gray-600">Get a personalized trading bot built specifically for your needs. Our team will create and deliver your custom bot within 24 hours.</p>
+        </div>
+
+        <form id="custom-bot-form" class="space-y-6">
+          <!-- Email -->
+          <div>
+            <label for="custom-email" class="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
+            <input type="email" id="custom-email" name="email" required 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                   placeholder="your@email.com">
+            <p class="text-xs text-gray-500 mt-1">We'll send your custom bot and all communications to this email</p>
+          </div>
+
+          <!-- Bot Description -->
+          <div>
+            <label for="bot-description" class="block text-sm font-medium text-gray-700 mb-2">Bot Description *</label>
+            <textarea id="bot-description" name="description" required rows="4" 
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                      placeholder="Describe what you want your bot to do..."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Be as detailed as possible about your bot's functionality</p>
+          </div>
+
+          <!-- Bot Logic/Features -->
+          <div>
+            <label for="bot-features" class="block text-sm font-medium text-gray-700 mb-2">Technical Requirements & Features *</label>
+            <textarea id="bot-features" name="features" required rows="6" 
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                      placeholder="Example: RSI levels, moving averages, risk management, specific trade conditions, etc."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Include specific indicators, strategies, and any technical details</p>
+          </div>
+
+          <!-- Budget -->
+          <div>
+            <label for="budget-amount" class="block text-sm font-medium text-gray-700 mb-2">Budget (USD) *</label>
+            <input type="number" id="budget-amount" name="budget" required min="50" step="1" 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                   placeholder="50">
+            <p class="text-xs text-gray-500 mt-1" id="budget-hint">Minimum budget is $50. Higher budgets allow for more complex features.</p>
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+            <div class="space-y-2" id="payment-methods-container">
+              <!-- Payment methods will be loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- Refund Channel -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Refund Method *</label>
+            <p class="text-xs text-gray-500 mb-3">In case of refund (if your bot is technically impossible to create)</p>
+            <div class="space-y-4">
+              <div>
+                <label class="flex items-center">
+                  <input type="radio" name="refund-method" value="crypto" class="mr-2" required>
+                  <span>Cryptocurrency Wallet</span>
+                </label>
+                <div id="crypto-refund-details" class="ml-6 mt-2 space-y-2 hidden">
+                  <input type="text" id="crypto-wallet" name="crypto-wallet" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="Your wallet address">
+                  <input type="text" id="crypto-network" name="crypto-network" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="Network (e.g., Bitcoin, Ethereum, BSC, Polygon, Tron, etc.)">
+                </div>
+              </div>
+              <div>
+                <label class="flex items-center">
+                  <input type="radio" name="refund-method" value="mpesa" class="mr-2" required>
+                  <span>M-PESA</span>
+                </label>
+                <div id="mpesa-refund-details" class="ml-6 mt-2 space-y-2 hidden">
+                  <input type="tel" id="mpesa-number" name="mpesa-number" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="07XXXXXXXX, 01XXXXXXXX, +254XXXXXXXXX, or 254XXXXXXXXX">
+                  <input type="text" id="mpesa-name" name="mpesa-name" 
+                         class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                         placeholder="Account holder name">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terms and Submit -->
+          <div class="border-t pt-6">
+            <div class="mb-4">
+              <label class="flex items-start">
+                <input type="checkbox" id="agree-terms" required class="mr-2 mt-1">
+                <span class="text-sm text-gray-600">I agree that the bot will be created and sent within 24 hours. If the requested logic is technically impossible or for other valid reasons, a full refund will be processed to my chosen refund method. *</span>
+              </label>
+            </div>
+
+            <button type="submit" id="submit-custom-bot" 
+                    class="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors font-medium">
+              <span id="submit-text">Submit Request & Proceed to Payment</span>
+              <span id="submit-loading" class="hidden">Processing...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
   </div>
 
   <script>
@@ -2983,6 +3122,15 @@
         document.getElementById('mobile-menu').classList.remove('open');
       };
 
+      // Setup custom bot navigation
+      const customBotNavLink = document.getElementById('custom-bot-nav-link');
+      if (customBotNavLink) {
+        customBotNavLink.onclick = (e) => {
+          e.preventDefault();
+          showCustomBotPage();
+        };
+      }
+
       const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
       searchBars.forEach(searchBar => {
         searchBar.addEventListener('input', debounce(() => {
@@ -2991,6 +3139,529 @@
           renderProducts(category, search);
         }, 300));
       });
+    }
+
+    // Custom Bot Page Functions
+    function showCustomBotPage() {
+      document.getElementById('main-page').classList.add('hidden');
+      document.getElementById('custom-bot-page').classList.remove('hidden');
+      
+      // Setup navigation event handlers for custom bot page
+      document.getElementById('home-nav-link').onclick = () => {
+        document.getElementById('custom-bot-page').classList.add('hidden');
+        document.getElementById('main-page').classList.remove('hidden');
+      };
+      
+      // Load payment methods dynamically
+      loadPaymentMethods();
+      
+      // Setup form event handlers
+      setupCustomBotFormHandlers();
+    }
+    
+    function loadPaymentMethods() {
+      const container = document.getElementById('payment-methods-container');
+      const activeOptions = (settings && typeof settings.activePaymentOptions === 'object')
+                            ? settings.activePaymentOptions
+                            : { mpesa_manual: true, mpesa_payhero: true, crypto_nowpayments: true };
+      
+      container.innerHTML = '';
+      
+      if (activeOptions.mpesa_manual) {
+        container.appendChild(createPaymentMethodOption('mpesa_manual', 'Pay to MPESA Till'));
+      }
+      
+      if (activeOptions.mpesa_payhero) {
+        container.appendChild(createPaymentMethodOption('mpesa_payhero', 'Pay with MPESA (Instant)'));
+      }
+      
+      if (activeOptions.crypto_nowpayments) {
+        container.appendChild(createPaymentMethodOption('crypto_nowpayments', 'Pay with Cryptocurrency'));
+      }
+    }
+    
+    function createPaymentMethodOption(value, label) {
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <label class="flex items-center">
+          <input type="radio" name="payment-method" value="${value}" class="mr-2" required>
+          <span>${label}</span>
+        </label>
+      `;
+      return div;
+    }
+    
+    function setupCustomBotFormHandlers() {
+      // Refund method toggle handlers
+      const refundRadios = document.querySelectorAll('input[name="refund-method"]');
+      refundRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          document.getElementById('crypto-refund-details').classList.toggle('hidden', e.target.value !== 'crypto');
+          document.getElementById('mpesa-refund-details').classList.toggle('hidden', e.target.value !== 'mpesa');
+        });
+      });
+      
+      // Budget validation
+      const budgetInput = document.getElementById('budget-amount');
+      budgetInput.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        const hint = document.getElementById('budget-hint');
+        if (value < 50) {
+          hint.textContent = 'Minimum budget is $50. Please increase the amount for custom bot development.';
+          hint.className = 'text-xs text-red-500 mt-1';
+        } else {
+          hint.textContent = 'Higher budgets allow for more complex features and faster delivery.';
+          hint.className = 'text-xs text-gray-500 mt-1';
+        }
+      });
+      
+      // MPESA number validation
+      const mpesaNumberInput = document.getElementById('mpesa-number');
+      if (mpesaNumberInput) {
+        mpesaNumberInput.addEventListener('input', (e) => {
+          const value = e.target.value.trim();
+          const isValid = /^(\+254|254|07|01)\d{8,9}$/.test(value);
+          if (value && !isValid) {
+            e.target.setCustomValidity('Please enter a valid MPESA number (07XXXXXXXX, 01XXXXXXXX, +254XXXXXXXXX, or 254XXXXXXXXX)');
+          } else {
+            e.target.setCustomValidity('');
+          }
+        });
+      }
+      
+      // Form submission
+      const form = document.getElementById('custom-bot-form');
+      form.addEventListener('submit', handleCustomBotSubmission);
+    }
+    
+    async function handleCustomBotSubmission(e) {
+      e.preventDefault();
+      
+      const submitButton = document.getElementById('submit-custom-bot');
+      const submitText = document.getElementById('submit-text');
+      const submitLoading = document.getElementById('submit-loading');
+      
+      // Show loading state
+      submitButton.disabled = true;
+      submitText.classList.add('hidden');
+      submitLoading.classList.remove('hidden');
+      
+      try {
+        // Collect form data
+        const formData = new FormData(e.target);
+        const data = {
+          email: formData.get('email'),
+          botDescription: formData.get('description'),
+          botFeatures: formData.get('features'),
+          budget: parseFloat(formData.get('budget')),
+          paymentMethod: formData.get('payment-method'),
+          refundMethod: formData.get('refund-method')
+        };
+        
+        // Add refund details based on method
+        if (data.refundMethod === 'crypto') {
+          data.refundCryptoWallet = formData.get('crypto-wallet');
+          data.refundCryptoNetwork = formData.get('crypto-network');
+        } else if (data.refundMethod === 'mpesa') {
+          data.refundMpesaNumber = formData.get('mpesa-number');
+          data.refundMpesaName = formData.get('mpesa-name');
+        }
+        
+        // Submit to backend
+        const response = await fetch(`${BASE_URL}/api/custom-bot/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          // Redirect to payment based on selected method
+          if (data.paymentMethod === 'mpesa_manual') {
+            showCustomBotPaymentModal(result.order, result.kesAmount);
+          } else if (data.paymentMethod === 'mpesa_payhero') {
+            showCustomBotPayHeroModal(result.order, result.kesAmount);
+          } else if (data.paymentMethod === 'crypto_nowpayments') {
+            showCustomBotNowPaymentsModal(result.order, data.budget);
+          }
+        } else {
+          throw new Error(result.error || 'Failed to create custom bot order');
+        }
+      } catch (error) {
+        console.error('Error submitting custom bot request:', error);
+        alert(`Error: ${error.message}. Please try again or contact support.`);
+      } finally {
+        // Reset loading state
+        submitButton.disabled = false;
+        submitText.classList.remove('hidden');
+        submitLoading.classList.add('hidden');
+      }
+    }
+    
+    function showCustomBotPaymentModal(order, kesAmount) {
+      // Similar to regular payment modal but for custom bot
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay for Custom Bot</h3>
+          <p class="text-gray-600 mb-4">Please send payment via MPESA to:</p>
+          <p class="font-semibold text-gray-900">Till Number: <span id="custom-till-number">${settings.mpesaTill || '4933614'}</span></p>
+          <p class="text-green-600 font-bold mt-2">Amount: ${kesAmount} KES</p>
+          <p class="text-sm text-gray-500 mt-2">Reference: ${order.trackingNumber}</p>
+          <div class="mt-6 space-y-3">
+            <button class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" onclick="copyCustomTillNumber()">Copy Till Number</button>
+            <button class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700" onclick="showCustomBotSuccess('${order.trackingNumber}', '${order.clientEmail}')">I Have Paid</button>
+            <button class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700" onclick="closeCustomPaymentModal()">Cancel</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      document.body.classList.add('popup-active');
+      window.customPaymentModal = modal;
+    }
+    
+    function copyCustomTillNumber() {
+      const tillNumber = document.getElementById('custom-till-number').textContent;
+      navigator.clipboard.writeText(tillNumber).then(() => {
+        alert('Till number copied to clipboard!');
+      }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = tillNumber;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Till number copied to clipboard!');
+      });
+    }
+    
+    function showCustomBotSuccess(trackingNumber, email) {
+      closeCustomPaymentModal();
+      
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+          <div class="text-center">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Custom Bot Request Submitted!</h3>
+            <p class="text-gray-600 mb-4">Your custom bot order has been received and is being processed.</p>
+            <div class="bg-gray-50 p-4 rounded-lg mb-4">
+              <p class="text-sm text-gray-700"><strong>Tracking Number:</strong> ${trackingNumber}</p>
+              <p class="text-sm text-gray-700"><strong>Email:</strong> ${email}</p>
+            </div>
+            <p class="text-sm text-gray-600 mb-6">
+              You will receive an email confirmation shortly. Your custom bot will be created and sent to your email within 24 hours.
+              If payment confirmation is needed, we'll contact you separately.
+            </p>
+            <button class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700" onclick="closeCustomSuccessModal()">Close</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      window.customSuccessModal = modal;
+    }
+    
+    function closeCustomPaymentModal() {
+      if (window.customPaymentModal) {
+        window.customPaymentModal.remove();
+        document.body.classList.remove('popup-active');
+      }
+    }
+    
+    function closeCustomSuccessModal() {
+      if (window.customSuccessModal) {
+        window.customSuccessModal.remove();
+        document.body.classList.remove('popup-active');
+        // Go back to home page
+        document.getElementById('custom-bot-page').classList.add('hidden');
+        document.getElementById('main-page').classList.remove('hidden');
+      }
+    }
+
+    // PayHero payment modal for custom bot
+    function showCustomBotPayHeroModal(order, kesAmount) {
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay with M-PESA</h3>
+          <p class="text-gray-600 mb-4">Custom Bot Order: ${order.trackingNumber}</p>
+          <p class="text-green-600 font-bold mb-4">Amount: ${kesAmount} KES</p>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Your Name:</label>
+              <input type="text" id="custom-customer-name" class="w-full p-2 border rounded-md" placeholder="John Doe" required>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number:</label>
+              <input type="tel" id="custom-phone-number" class="w-full p-2 border rounded-md" placeholder="254712345678" required>
+            </div>
+          </div>
+          
+          <div class="mt-6 space-y-3">
+            <button onclick="processCustomBotPayHero('${order.refCode}', ${kesAmount})" 
+                    class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">
+              Pay ${kesAmount} KES
+            </button>
+            <button onclick="closeCustomPayHeroModal()" 
+                    class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">
+              Cancel
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      document.body.classList.add('popup-active');
+      window.customPayHeroModal = modal;
+    }
+
+    async function processCustomBotPayHero(refCode, kesAmount) {
+      const customerName = document.getElementById('custom-customer-name').value.trim();
+      const phoneNumber = document.getElementById('custom-phone-number').value.trim();
+      
+      if (!customerName || !phoneNumber) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${BASE_URL}/api/custom-bot/payhero-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            refCode,
+            amount: kesAmount,
+            customerName,
+            phoneNumber
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          closeCustomPayHeroModal();
+          showCustomBotSuccess(result.trackingNumber, result.clientEmail);
+        } else {
+          throw new Error(result.error || 'Payment failed');
+        }
+      } catch (error) {
+        console.error('PayHero payment error:', error);
+        alert(`Payment failed: ${error.message}`);
+      }
+    }
+
+    function closeCustomPayHeroModal() {
+      if (window.customPayHeroModal) {
+        window.customPayHeroModal.remove();
+        document.body.classList.remove('popup-active');
+      }
+    }
+
+    // NOWPayments modal for custom bot
+    function showCustomBotNowPaymentsModal(order, usdAmount) {
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+          <h3 class="text-xl font-bold text-gray-900 mb-4">Pay with Cryptocurrency</h3>
+          <p class="text-gray-600 mb-2">Custom Bot Order: ${order.trackingNumber}</p>
+          <p class="text-green-600 font-bold mb-4">Amount: $${usdAmount}</p>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Your Email:</label>
+              <input type="email" id="custom-crypto-email" class="w-full p-2 border rounded-md" placeholder="you@example.com" required>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Select Cryptocurrency:</label>
+              <select id="custom-crypto-currency" class="w-full p-2 border rounded-md" required>
+                <option value="">Loading currencies...</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="mt-6 space-y-3">
+            <button onclick="processCustomBotNowPayments('${order.refCode}', ${usdAmount})" 
+                    class="w-full bg-yellow-500 text-white py-2 rounded-md hover:bg-yellow-600">
+              Proceed to Payment
+            </button>
+            <button onclick="closeCustomNowPaymentsModal()" 
+                    class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">
+              Cancel
+            </button>
+          </div>
+          
+          <div id="custom-crypto-payment-info" class="mt-6 hidden">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-700 mb-2">Send exactly:</p>
+              <div class="bg-white p-2 border rounded mb-2">
+                <span id="custom-crypto-amount" class="font-mono text-sm"></span>
+              </div>
+              <p class="text-sm text-gray-700 mb-2">To address:</p>
+              <div class="bg-white p-2 border rounded mb-2">
+                <span id="custom-crypto-address" class="font-mono text-xs break-all"></span>
+              </div>
+              <button onclick="copyCustomCryptoAddress()" class="w-full bg-blue-500 text-white py-1 rounded text-sm">
+                Copy Address
+              </button>
+              <div id="custom-crypto-timer" class="text-center mt-3 font-semibold text-blue-600"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      document.body.classList.add('popup-active');
+      window.customNowPaymentsModal = modal;
+      
+      // Load crypto currencies
+      loadCustomCryptoCurrencies();
+    }
+
+    async function loadCustomCryptoCurrencies() {
+      try {
+        const response = await fetch(`${BASE_URL}/api/nowpayments/currencies`);
+        const result = await response.json();
+        
+        if (result.success) {
+          const select = document.getElementById('custom-crypto-currency');
+          select.innerHTML = '<option value="">Select a cryptocurrency</option>';
+          
+          result.currencies.forEach(currency => {
+            const option = document.createElement('option');
+            option.value = currency.ticker;
+            option.textContent = `${currency.name} (${currency.ticker.toUpperCase()})`;
+            select.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading crypto currencies:', error);
+      }
+    }
+
+    async function processCustomBotNowPayments(refCode, usdAmount) {
+      const email = document.getElementById('custom-crypto-email').value.trim();
+      const currency = document.getElementById('custom-crypto-currency').value;
+      
+      if (!email || !currency) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${BASE_URL}/api/custom-bot/nowpayments-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            refCode,
+            amount: usdAmount,
+            email,
+            currency
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          // Show payment details
+          document.getElementById('custom-crypto-amount').textContent = `${result.payAmount} ${result.payCurrency.toUpperCase()}`;
+          document.getElementById('custom-crypto-address').textContent = result.payAddress;
+          document.getElementById('custom-crypto-payment-info').classList.remove('hidden');
+          
+          // Start timer
+          startCustomCryptoTimer(result.orderId);
+        } else {
+          throw new Error(result.error || 'Payment creation failed');
+        }
+      } catch (error) {
+        console.error('NOWPayments error:', error);
+        alert(`Payment failed: ${error.message}`);
+      }
+    }
+
+    function startCustomCryptoTimer(orderId) {
+      let timeLeft = 20 * 60; // 20 minutes
+      const timerElement = document.getElementById('custom-crypto-timer');
+      
+      const timer = setInterval(() => {
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          timerElement.textContent = 'Payment expired';
+          return;
+        }
+        
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerElement.textContent = `Time left: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timeLeft--;
+      }, 1000);
+      
+      // Poll for payment status
+      pollCustomCryptoPayment(orderId, timer);
+    }
+
+    async function pollCustomCryptoPayment(orderId, timer) {
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`${BASE_URL}/api/nowpayments/payment-status/${orderId}`);
+          const result = await response.json();
+          
+          if (result.success && ['finished', 'confirmed'].includes(result.paymentStatus)) {
+            clearInterval(pollInterval);
+            clearInterval(timer);
+            closeCustomNowPaymentsModal();
+            
+            // Get order details for success message
+            const orderResponse = await fetch(`${BASE_URL}/api/custom-bot/orders`, { credentials: 'include' });
+            const orderResult = await orderResponse.json();
+            const order = orderResult.orders?.find(o => o.ref_code === orderId);
+            
+            if (order) {
+              showCustomBotSuccess(order.tracking_number, order.client_email);
+            }
+          }
+        } catch (error) {
+          console.error('Error polling payment status:', error);
+        }
+      }, 5000); // Poll every 5 seconds
+    }
+
+    function copyCustomCryptoAddress() {
+      const address = document.getElementById('custom-crypto-address').textContent;
+      navigator.clipboard.writeText(address).then(() => {
+        alert('Address copied to clipboard!');
+      }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = address;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Address copied to clipboard!');
+      });
+    }
+
+    function closeCustomNowPaymentsModal() {
+      if (window.customNowPaymentsModal) {
+        window.customNowPaymentsModal.remove();
+        document.body.classList.remove('popup-active');
+      }
     }
 
     async function init() {
