@@ -741,23 +741,6 @@
         </div>
       </div>
     </div>
-    <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30">
-      <div class="flex justify-between items-center p-4 border-b">
-        <h2 class="text-lg font-bold text-gray-800">Menu</h2>
-        <button id="mobile-menu-close" class="text-gray-500">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
-      <div id="mobile-footer" class="mt-auto p-4">
-        <p id="mobile-copyright-text" class="text-gray-600 text-sm"></p>
-        <p class="text-gray-500 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline"></a></p>
-        <div id="mobile-social-links" class="mt-4 flex flex-col space-y-2"></div>
-        <div id="mobile-static-links" class="mt-4 flex flex-col space-y-2"></div>
-      </div>
-    </div>
   </nav>
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:hidden">
@@ -840,6 +823,25 @@
   </footer>
   </div>
   <!-- End Main Page Content -->
+
+  <!-- Mobile Menu (Moved here to be independent of page content) -->
+  <div id="mobile-menu" class="sm:hidden fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-30">
+    <div class="flex justify-between items-center p-4 border-b">
+      <h2 class="text-lg font-bold text-gray-800">Menu</h2>
+      <button id="mobile-menu-close" class="text-gray-500">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div id="mobile-nav-links" class="flex flex-col p-4 space-y-4"></div>
+    <div id="mobile-footer" class="mt-auto p-4">
+      <p id="mobile-copyright-text" class="text-gray-600 text-sm"></p>
+      <p class="text-gray-500 mt-2 text-sm">Support: <a id="mobile-support-email" class="underline"></a></p>
+      <div id="mobile-social-links" class="mt-4 flex flex-col space-y-2"></div>
+      <div id="mobile-static-links" class="mt-4 flex flex-col space-y-2"></div>
+    </div>
+  </div>
 
   <div id="cookie-popup-container" class="hidden">
     <div id="cookie-popup" class="popup-content">
@@ -2043,6 +2045,153 @@
         // Start polling for payment status
         handleNowPaymentsStatus(data.orderId, product);
     }
+
+async function initiateCustomBotNowPaymentsPayment(order, budget, email, currency) {
+    const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+    const statusMessageEl = document.getElementById('nowpayments-status-message');
+    const proceedBtn = document.getElementById('nowpayments-proceed');
+    const timerDisplay = document.getElementById('nowpayments-timer');
+
+    const response = await fetchWithTimeout(`${BASE_URL}/api/custom-bot/nowpayments-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            refCode: order.refCode,
+            amount: budget,
+            email: email,
+            currency: currency,
+        })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create payment.');
+    }
+
+    // Update UI with payment details
+    document.getElementById('nowpayments-pay-amount').textContent = data.payAmount;
+    document.getElementById('nowpayments-pay-currency').textContent = data.payCurrency.toUpperCase();
+    document.getElementById('nowpayments-pay-address').textContent = data.payAddress;
+
+    const copyAddressBtn = document.getElementById('nowpayments-copy-address');
+    copyAddressBtn.onclick = () => {
+        const addressToCopy = data.payAddress;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(addressToCopy).then(() => {
+                copyAddressBtn.innerHTML = '<svg class="w-4 h-4 mr-1 inline-block" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"></path></svg>Copied!';
+                setTimeout(() => copyAddressBtn.innerHTML = 'Copy Address', 2000);
+            }).catch(err => fallbackCopyTextToClipboard(addressToCopy, copyAddressBtn));
+        } else {
+            fallbackCopyTextToClipboard(addressToCopy, copyAddressBtn);
+        }
+    };
+
+    paymentInfoSection.classList.remove('hidden');
+    statusMessageEl.textContent = 'Waiting for payment. Please send the funds to the address shown.';
+    proceedBtn.innerHTML = 'Payment Initiated';
+
+    // Start 20-minute countdown timer
+    let timeLeft = 20 * 60;
+    if (window.nowPaymentsTimerIntervalId) clearInterval(window.nowPaymentsTimerIntervalId);
+    window.nowPaymentsTimerIntervalId = setInterval(() => {
+        if (timeLeft <= 0) {
+            clearInterval(window.nowPaymentsTimerIntervalId);
+            timerDisplay.textContent = 'Expired';
+            statusMessageEl.textContent = 'The payment window has expired. Please create a new payment.';
+            statusMessageEl.style.color = 'orange';
+            proceedBtn.disabled = false;
+            proceedBtn.innerHTML = 'Proceed to Payment';
+            document.getElementById('nowpayments-email').disabled = false;
+            document.getElementById('nowpayments-currency').disabled = false;
+            document.getElementById('nowpayments-currency-search').disabled = false;
+            paymentInfoSection.classList.add('hidden');
+            if (window.nowPaymentsPollIntervalId) clearInterval(window.nowPaymentsPollIntervalId);
+            return;
+        }
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `Time left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        timeLeft--;
+    }, 1000);
+
+    // Start polling for payment status
+    handleCustomBotNowPaymentsStatus(data.orderId);
+}
+
+function handleCustomBotNowPaymentsStatus(orderId) {
+    const statusMessageEl = document.getElementById('nowpayments-status-message');
+    const modal = document.getElementById('nowpayments-modal');
+    const proceedBtn = document.getElementById('nowpayments-proceed');
+    const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+
+    if (window.nowPaymentsPollIntervalId) {
+        clearInterval(window.nowPaymentsPollIntervalId);
+    }
+
+    let pollCount = 0;
+    const maxPolls = (20 * 60) / 5; // Poll for 20 minutes, every 5 seconds
+
+    window.nowPaymentsPollIntervalId = setInterval(async () => {
+        pollCount++;
+        if (pollCount > maxPolls || !window.nowPaymentsTimerIntervalId) { // Stop if timer expired
+            clearInterval(window.nowPaymentsPollIntervalId);
+            window.nowPaymentsPollIntervalId = null;
+            return;
+        }
+
+        try {
+            const response = await fetchWithTimeout(`${BASE_URL}/api/custom-bot/nowpayments-status/${orderId}`, { credentials: 'include' });
+            const data = await response.json();
+
+            if (!response.ok) {
+                statusMessageEl.textContent = `Error checking status: ${data.error || 'Unknown error'}`;
+                return;
+            }
+
+            statusMessageEl.textContent = `Status: ${data.payment_status}. ${data.message || ''}`;
+
+            if (data.payment_status === 'finished' || data.status === 'confirmed_nowpayments') {
+                if (window.nowPaymentsTimerIntervalId) clearInterval(window.nowPaymentsTimerIntervalId);
+                window.nowPaymentsTimerIntervalId = null;
+                document.getElementById('nowpayments-timer').textContent = 'Payment Complete!';
+
+                clearInterval(window.nowPaymentsPollIntervalId);
+                window.nowPaymentsPollIntervalId = null;
+                statusMessageEl.textContent = 'Payment successful! Your order is being processed.';
+                statusMessageEl.style.color = 'green';
+
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    showCustomBotSuccess(data.order.tracking_number, data.order.client_email, 'tracking');
+                }, 2000);
+
+            } else if (['failed', 'refunded', 'expired'].includes(data.payment_status)) {
+                if (window.nowPaymentsTimerIntervalId) clearInterval(window.nowPaymentsTimerIntervalId);
+                window.nowPaymentsTimerIntervalId = null;
+                document.getElementById('nowpayments-timer').textContent = `Status: ${data.payment_status}`;
+
+                clearInterval(window.nowPaymentsPollIntervalId);
+                window.nowPaymentsPollIntervalId = null;
+                statusMessageEl.textContent = `Payment ${data.payment_status}. Please try again.`;
+                statusMessageEl.style.color = 'red';
+
+                // Re-enable inputs for another attempt
+                proceedBtn.disabled = false;
+                proceedBtn.innerHTML = 'Proceed to Payment';
+                document.getElementById('nowpayments-email').disabled = false;
+                document.getElementById('nowpayments-currency').disabled = false;
+                document.getElementById('nowpayments-currency-search').disabled = false;
+                paymentInfoSection.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Error polling custom bot NOWPayments status:', error);
+            statusMessageEl.textContent = 'Error checking payment status.';
+        }
+    }, 5000); // Poll every 5 seconds
+}
 
     function fallbackCopyTextToClipboard(text, buttonElement) {
         const textArea = document.createElement("textarea");
@@ -3349,8 +3498,142 @@
           } else if (data.paymentMethod === 'mpesa_payhero') {
             showCustomBotPayHeroModal(result.order, result.kesAmount);
           } else if (data.paymentMethod === 'crypto_nowpayments') {
-            showCustomBotNowPaymentsModal(result.order, data.budget);
-          }
+    const order = result.order;
+    const usdAmount = data.budget;
+    const modal = document.getElementById('nowpayments-modal');
+
+    // Populate modal with custom bot data
+    document.getElementById('nowpayments-title').textContent = `Pay for Custom Bot`;
+    document.getElementById('nowpayments-product-name').textContent = `Order Ref: ${order.refCode}`;
+    document.getElementById('nowpayments-amount-usd').textContent = `Amount: ${usdAmount.toFixed(2)} USD`;
+
+    // Reset fields from any previous use
+    const emailInput = document.getElementById('nowpayments-email');
+    const currencySelect = document.getElementById('nowpayments-currency');
+    const proceedBtn = document.getElementById('nowpayments-proceed');
+    const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+    const statusMessageEl = document.getElementById('nowpayments-status-message');
+    const currencySearchInput = document.getElementById('nowpayments-currency-search');
+    const timerDisplay = document.getElementById('nowpayments-timer');
+
+    emailInput.value = order.clientEmail || ''; // Pre-fill email from the form
+    paymentInfoSection.classList.add('hidden');
+    statusMessageEl.textContent = '';
+    proceedBtn.disabled = false;
+    proceedBtn.innerHTML = 'Proceed to Payment';
+    currencySearchInput.value = '';
+    timerDisplay.textContent = '';
+    if (window.nowPaymentsTimerIntervalId) {
+        clearInterval(window.nowPaymentsTimerIntervalId);
+        window.nowPaymentsTimerIntervalId = null;
+    }
+    emailInput.disabled = false;
+    currencySelect.disabled = false;
+    currencySearchInput.disabled = false;
+
+    // Show modal and load currencies
+    modal.classList.remove('hidden');
+    document.body.classList.add('popup-active');
+
+    currencySelect.innerHTML = '<option value="">Loading currencies...</option>';
+    proceedBtn.disabled = true;
+    const nowPaymentsProceedBtnSpinner = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>';
+    proceedBtn.innerHTML = `${nowPaymentsProceedBtnSpinner}Loading Currencies...`;
+
+    fetchWithTimeout(`${BASE_URL}/api/nowpayments/currencies`, {}, 20000)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Failed to load currencies') });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.currencies) {
+                populateCurrencyDropdown(data.currencies);
+                proceedBtn.disabled = false;
+                proceedBtn.innerHTML = 'Proceed to Payment';
+            } else {
+                currencySelect.innerHTML = '<option value="">Error: Could not load currencies.</option>';
+                statusMessageEl.textContent = data.error || 'Error loading currencies.';
+                statusMessageEl.style.color = 'red';
+                proceedBtn.innerHTML = 'Unavailable';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching NOWPayments currencies:', error);
+            currencySelect.innerHTML = '<option value="">Error loading currencies. Please try again.</option>';
+            statusMessageEl.textContent = `Error: ${error.message}. Please close and try again.`;
+            statusMessageEl.style.color = 'red';
+            proceedBtn.disabled = true;
+            proceedBtn.innerHTML = 'Unavailable';
+        });
+
+    // Set the onclick for the proceed button to handle custom bot payment
+    proceedBtn.onclick = async () => {
+        const email = emailInput.value.trim();
+        const selectedCurrency = currencySelect.value;
+
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+            statusMessageEl.textContent = 'A valid email is required.';
+            statusMessageEl.style.color = 'red';
+            emailInput.focus();
+            return;
+        }
+        if (!selectedCurrency) {
+            statusMessageEl.textContent = 'Please select a cryptocurrency.';
+            statusMessageEl.style.color = 'red';
+            currencySelect.focus();
+            return;
+        }
+
+        proceedBtn.disabled = true;
+        proceedBtn.innerHTML = `${nowPaymentsProceedBtnSpinner}Creating Payment...`;
+        statusMessageEl.textContent = 'Creating payment, please wait...';
+        statusMessageEl.style.color = 'inherit';
+        emailInput.disabled = true;
+        currencySelect.disabled = true;
+        currencySearchInput.disabled = true;
+
+        try {
+            // This function is the equivalent of `initiateNowPaymentsPayment` but for custom bots.
+            // It will call the backend and handle the response.
+            await initiateCustomBotNowPaymentsPayment(order, usdAmount, email, selectedCurrency);
+        } catch (error) {
+            console.error('Error initiating Custom Bot NOWPayments payment:', error);
+            statusMessageEl.textContent = `Error: ${error.message || 'Could not create payment.'}`;
+            statusMessageEl.style.color = 'red';
+            // Re-enable inputs on failure
+            proceedBtn.disabled = false;
+            proceedBtn.innerHTML = 'Proceed to Payment';
+            emailInput.disabled = false;
+            currencySelect.disabled = false;
+            currencySearchInput.disabled = false;
+        }
+    };
+
+    // Set the cancel button logic, reusing the same logic as the product flow
+    document.getElementById('nowpayments-cancel').onclick = () => {
+        const paymentInfoSection = document.getElementById('nowpayments-payment-info');
+        let shouldClose = true;
+        if (!paymentInfoSection.classList.contains('hidden')) {
+            if (!confirm('You have a pending payment. Are you sure you want to cancel?')) {
+                shouldClose = false;
+            }
+        }
+        if (shouldClose) {
+            modal.classList.add('hidden');
+            document.body.classList.remove('popup-active');
+            if (window.nowPaymentsPollIntervalId) {
+                clearInterval(window.nowPaymentsPollIntervalId);
+                window.nowPaymentsPollIntervalId = null;
+            }
+            if (window.nowPaymentsTimerIntervalId) {
+                clearInterval(window.nowPaymentsTimerIntervalId);
+                window.nowPaymentsTimerIntervalId = null;
+            }
+        }
+    };
+}
         } else {
           throw new Error(result.error || 'Failed to create custom bot order');
         }
@@ -3713,412 +3996,6 @@
       }
     }
 
-    // NOWPayments modal for custom bot
-    function showCustomBotNowPaymentsModal(order, usdAmount) {
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-      modal.innerHTML = `
-        <div class="bg-white rounded-lg p-6 w-full max-w-md" style="max-height: 90vh; overflow-y: auto;">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold text-gray-900">Pay with Cryptocurrency</h3>
-            <button onclick="closeCustomNowPaymentsModal()" class="text-gray-500 hover:text-gray-700">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
-          
-          <p class="text-gray-600 mb-2">Custom Bot Order: ${order.refCode}</p>
-          <p class="text-green-600 font-bold mb-4">Amount: $${usdAmount}</p>
-          
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Your Email:</label>
-              <input type="email" id="custom-crypto-email" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" placeholder="you@example.com" required>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Search & Select Cryptocurrency:</label>
-              <input type="text" id="custom-crypto-search" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-2" placeholder="Search currencies (e.g., Bitcoin, BTC)">
-              <select id="custom-crypto-currency" class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500" size="6" required>
-                <option value="">Loading currencies...</option>
-              </select>
-            </div>
-          </div>
-          
-          <div id="custom-crypto-status" class="mt-4 text-sm text-center"></div>
-          
-          <div class="mt-6 space-y-3">
-            <button id="custom-crypto-proceed" onclick="processCustomBotNowPayments('${order.refCode}', ${usdAmount})" 
-                    class="w-full bg-yellow-500 text-white py-3 rounded-md hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
-              Proceed to Payment
-            </button>
-            <button id="custom-crypto-cancel" onclick="closeCustomNowPaymentsModal()" 
-                    class="w-full bg-gray-600 text-white py-2 rounded-md hover:bg-gray-700">
-              Cancel
-            </button>
-          </div>
-          
-          <div id="custom-crypto-payment-info" class="mt-6 hidden">
-            <div class="bg-gray-50 p-4 rounded-lg border">
-              <h4 class="font-semibold text-gray-800 mb-3">Payment Instructions</h4>
-              <p class="text-sm text-gray-700 mb-2">Send exactly this amount:</p>
-              <div class="bg-white p-3 border rounded mb-3 flex justify-between items-center">
-                <span id="custom-crypto-amount" class="font-mono text-sm font-semibold"></span>
-                <button onclick="copyToClipboard('custom-crypto-amount')" class="text-blue-500 hover:text-blue-700 ml-2">📋</button>
-              </div>
-              <p class="text-sm text-gray-700 mb-2">To this address:</p>
-              <div class="bg-white p-3 border rounded mb-3 flex justify-between items-center">
-                <span id="custom-crypto-address" class="font-mono text-xs break-all flex-1"></span>
-                <button onclick="copyToClipboard('custom-crypto-address')" class="text-blue-500 hover:text-blue-700 ml-2 flex-shrink-0">📋</button>
-              </div>
-              <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3">
-                <p class="text-sm text-yellow-800">⚠️ Send only the exact amount shown above. Sending more or less may delay your order.</p>
-              </div>
-              <div id="custom-crypto-timer" class="text-center font-semibold text-lg text-blue-600"></div>
-              <div id="custom-crypto-payment-status" class="text-center mt-2 text-sm"></div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      document.body.classList.add('popup-active');
-      window.customNowPaymentsModal = modal;
-      
-      // Reset any existing intervals
-      if (window.customNowPaymentsTimerIntervalId) {
-        clearInterval(window.customNowPaymentsTimerIntervalId);
-        window.customNowPaymentsTimerIntervalId = null;
-      }
-      if (window.customNowPaymentsPollIntervalId) {
-        clearInterval(window.customNowPaymentsPollIntervalId);
-        window.customNowPaymentsPollIntervalId = null;
-      }
-      
-      // Load crypto currencies
-      loadCustomCryptoCurrencies();
-    }
-
-    async function loadCustomCryptoCurrencies() {
-      const proceedBtn = document.getElementById('custom-crypto-proceed');
-      const statusEl = document.getElementById('custom-crypto-status');
-      const select = document.getElementById('custom-crypto-currency');
-      const searchInput = document.getElementById('custom-crypto-search');
-      
-      try {
-        proceedBtn.disabled = true;
-        proceedBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Loading Currencies...';
-        statusEl.textContent = 'Loading cryptocurrency options...';
-        statusEl.className = 'mt-4 text-sm text-center text-gray-600';
-        
-        const response = await fetch(`${BASE_URL}/api/nowpayments/currencies`);
-        const result = await response.json();
-        
-        if (result.success && result.currencies) {
-          select.innerHTML = '';
-          window.customCryptoCurrencies = result.currencies;
-          
-          // Initially display all currencies
-          displayCustomCryptoCurrencies(result.currencies);
-          
-          // Setup search functionality
-          searchInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const filtered = result.currencies.filter(currency => 
-              currency.name.toLowerCase().includes(searchTerm) || 
-              currency.ticker.toLowerCase().includes(searchTerm)
-            );
-            displayCustomCryptoCurrencies(filtered);
-          });
-          
-          proceedBtn.disabled = false;
-          proceedBtn.innerHTML = 'Proceed to Payment';
-          statusEl.textContent = `${result.currencies.length} cryptocurrencies available. Search or scroll to select.`;
-          statusEl.className = 'mt-4 text-sm text-center text-green-600';
-        } else {
-          throw new Error(result.error || 'Failed to load currencies');
-        }
-      } catch (error) {
-        console.error('Error loading crypto currencies:', error);
-        select.innerHTML = '<option value="">Error loading currencies</option>';
-        statusEl.textContent = 'Failed to load cryptocurrencies. Please try again.';
-        statusEl.className = 'mt-4 text-sm text-center text-red-600';
-        proceedBtn.disabled = true;
-        proceedBtn.innerHTML = 'Currencies Unavailable';
-      }
-    }
-
-    function displayCustomCryptoCurrencies(currencies) {
-      const select = document.getElementById('custom-crypto-currency');
-      select.innerHTML = '';
-      
-      if (currencies.length === 0) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = 'No cryptocurrencies found';
-        select.appendChild(option);
-        return;
-      }
-      
-      currencies.forEach(currency => {
-        const option = document.createElement('option');
-        option.value = currency.ticker;
-        option.textContent = `${currency.name} (${currency.ticker.toUpperCase()})`;
-        select.appendChild(option);
-      });
-    }
-
-    async function processCustomBotNowPayments(refCode, usdAmount) {
-      const email = document.getElementById('custom-crypto-email').value.trim();
-      const currency = document.getElementById('custom-crypto-currency').value;
-      const proceedBtn = document.getElementById('custom-crypto-proceed');
-      const cancelBtn = document.getElementById('custom-crypto-cancel');
-      const statusEl = document.getElementById('custom-crypto-status');
-      const emailInput = document.getElementById('custom-crypto-email');
-      const currencySelect = document.getElementById('custom-crypto-currency');
-      const searchInput = document.getElementById('custom-crypto-search');
-      
-      if (!email || !currency) {
-        statusEl.textContent = 'Please fill in all fields';
-        statusEl.className = 'mt-4 text-sm text-center text-red-600';
-        return;
-      }
-      
-      // Disable all inputs and buttons during payment creation
-      proceedBtn.disabled = true;
-      cancelBtn.disabled = true;
-      emailInput.disabled = true;
-      currencySelect.disabled = true;
-      searchInput.disabled = true;
-      
-      proceedBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Creating Payment...';
-      statusEl.textContent = 'Creating payment, please wait...';
-      statusEl.className = 'mt-4 text-sm text-center text-blue-600';
-      
-      try {
-        const response = await fetch(`${BASE_URL}/api/custom-bot/nowpayments-payment`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            refCode,
-            amount: usdAmount,
-            email,
-            currency
-          })
-        });
-        
-        const result = await response.json();
-        if (result.success) {
-          // Show payment details
-          document.getElementById('custom-crypto-amount').textContent = `${result.payAmount} ${result.payCurrency.toUpperCase()}`;
-          document.getElementById('custom-crypto-address').textContent = result.payAddress;
-          document.getElementById('custom-crypto-payment-info').classList.remove('hidden');
-          
-          // Update status
-          statusEl.textContent = 'Payment created! Send the exact amount to the address shown below.';
-          statusEl.className = 'mt-4 text-sm text-center text-green-600';
-          
-          // Hide the form section and show only the payment info
-          proceedBtn.style.display = 'none';
-          
-          // Re-enable cancel button only
-          cancelBtn.disabled = false;
-          
-          // Start timer and polling
-          startCustomCryptoTimer(result.orderId);
-        } else {
-          throw new Error(result.error || 'Payment creation failed');
-        }
-      } catch (error) {
-        console.error('NOWPayments error:', error);
-        statusEl.textContent = `Payment failed: ${error.message}`;
-        statusEl.className = 'mt-4 text-sm text-center text-red-600';
-        
-        // Re-enable inputs and buttons on error
-        proceedBtn.disabled = false;
-        cancelBtn.disabled = false;
-        emailInput.disabled = false;
-        currencySelect.disabled = false;
-        searchInput.disabled = false;
-        proceedBtn.innerHTML = 'Proceed to Payment';
-      }
-    }
-
-    function startCustomCryptoTimer(orderId) {
-      let timeLeft = 20 * 60; // 20 minutes
-      const timerElement = document.getElementById('custom-crypto-timer');
-      const statusElement = document.getElementById('custom-crypto-payment-status');
-      
-      // Clear any existing intervals
-      if (window.customNowPaymentsTimerIntervalId) {
-        clearInterval(window.customNowPaymentsTimerIntervalId);
-      }
-      
-      window.customNowPaymentsTimerIntervalId = setInterval(() => {
-        if (timeLeft <= 0) {
-          clearInterval(window.customNowPaymentsTimerIntervalId);
-          window.customNowPaymentsTimerIntervalId = null;
-          timerElement.textContent = 'Payment Window Expired';
-          timerElement.className = 'text-center font-semibold text-lg text-red-600';
-          statusElement.textContent = 'The payment window has expired. Please close and create a new payment.';
-          statusElement.className = 'text-center mt-2 text-sm text-red-600';
-          
-          // Stop polling on expiration
-          if (window.customNowPaymentsPollIntervalId) {
-            clearInterval(window.customNowPaymentsPollIntervalId);
-            window.customNowPaymentsPollIntervalId = null;
-          }
-          return;
-        }
-        
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        timerElement.textContent = `Payment Window: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-        timeLeft--;
-      }, 1000);
-      
-      // Start polling for payment status
-      pollCustomCryptoPayment(orderId);
-    }
-
-    async function pollCustomCryptoPayment(orderId) {
-      const statusElement = document.getElementById('custom-crypto-payment-status');
-      
-      // Clear any existing polling
-      if (window.customNowPaymentsPollIntervalId) {
-        clearInterval(window.customNowPaymentsPollIntervalId);
-      }
-      
-      let pollCount = 0;
-      const maxPolls = (20 * 60) / 5; // Poll for 20 minutes, every 5 seconds
-      
-      window.customNowPaymentsPollIntervalId = setInterval(async () => {
-        pollCount++;
-        
-        // Stop polling if timer has expired or max polls reached
-        if (pollCount > maxPolls && window.customNowPaymentsTimerIntervalId) {
-          console.warn("Polling maxed out before timer expired or payment completed.");
-          return;
-        }
-        
-        if (!window.customNowPaymentsTimerIntervalId) {
-          // Timer expired, stop polling
-          clearInterval(window.customNowPaymentsPollIntervalId);
-          window.customNowPaymentsPollIntervalId = null;
-          return;
-        }
-        
-        try {
-          const response = await fetch(`${BASE_URL}/api/custom-bot/nowpayments-status/${orderId}`);
-          const result = await response.json();
-          
-          if (result.success) {
-            statusElement.textContent = result.message || `Payment Status: ${result.payment_status}`;
-            statusElement.className = 'text-center mt-2 text-sm text-blue-600';
-            
-            if (result.payment_status === 'finished' || result.status === 'confirmed_nowpayments') {
-              // Payment successful
-              if (window.customNowPaymentsTimerIntervalId) {
-                clearInterval(window.customNowPaymentsTimerIntervalId);
-                window.customNowPaymentsTimerIntervalId = null;
-              }
-              
-              clearInterval(window.customNowPaymentsPollIntervalId);
-              window.customNowPaymentsPollIntervalId = null;
-              
-              document.getElementById('custom-crypto-timer').textContent = 'Payment Complete!';
-              document.getElementById('custom-crypto-timer').className = 'text-center font-semibold text-lg text-green-600';
-              statusElement.textContent = 'Payment successful! Processing your order...';
-              statusElement.className = 'text-center mt-2 text-sm text-green-600';
-              
-              // Close modal after a short delay and show success
-              setTimeout(() => {
-                closeCustomNowPaymentsModal();
-                // Try to get the created order for success message
-                fetchCustomBotOrderForSuccess(orderId);
-              }, 2000);
-              
-            } else if (['failed', 'refunded', 'expired'].includes(result.payment_status)) {
-              // Payment failed
-              if (window.customNowPaymentsTimerIntervalId) {
-                clearInterval(window.customNowPaymentsTimerIntervalId);
-                window.customNowPaymentsTimerIntervalId = null;
-              }
-              
-              clearInterval(window.customNowPaymentsPollIntervalId);
-              window.customNowPaymentsPollIntervalId = null;
-              
-              document.getElementById('custom-crypto-timer').textContent = `Payment ${result.payment_status}`;
-              document.getElementById('custom-crypto-timer').className = 'text-center font-semibold text-lg text-red-600';
-              statusElement.textContent = `Payment ${result.payment_status}. Please close and try again or contact support.`;
-              statusElement.className = 'text-center mt-2 text-sm text-red-600';
-            }
-          }
-        } catch (error) {
-          console.error('Error polling payment status:', error);
-          statusElement.textContent = 'Error checking payment status. Please check manually.';
-          statusElement.className = 'text-center mt-2 text-sm text-orange-600';
-        }
-      }, 5000); // Poll every 5 seconds
-    }
-
-    async function fetchCustomBotOrderForSuccess(orderId) {
-      try {
-        // Try to get the order details for success message
-        const orderResponse = await fetch(`${BASE_URL}/api/custom-bot/orders`, { credentials: 'include' });
-        if (orderResponse.ok) {
-          const orderResult = await orderResponse.json();
-          const order = orderResult.orders?.find(o => o.ref_code === orderId);
-          
-          if (order && order.tracking_number) {
-            showCustomBotSuccess(order.tracking_number, order.client_email, 'tracking');
-          } else {
-            // Fallback - order might not be immediately available
-            showCustomBotSuccess(orderId, 'your email', 'reference');
-          }
-        } else {
-          showCustomBotSuccess(orderId, 'your email', 'reference');
-        }
-      } catch (error) {
-        console.error('Error fetching order for success:', error);
-        showCustomBotSuccess(orderId, 'your email', 'reference');
-      }
-    }
-
-    function copyCustomCryptoAddress() {
-      const address = document.getElementById('custom-crypto-address').textContent;
-      navigator.clipboard.writeText(address).then(() => {
-        alert('Address copied to clipboard!');
-      }).catch(() => {
-        // Fallback
-        const textarea = document.createElement('textarea');
-        textarea.value = address;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('Address copied to clipboard!');
-      });
-    }
-
-    function closeCustomNowPaymentsModal() {
-      // Clean up intervals
-      if (window.customNowPaymentsTimerIntervalId) {
-        clearInterval(window.customNowPaymentsTimerIntervalId);
-        window.customNowPaymentsTimerIntervalId = null;
-      }
-      if (window.customNowPaymentsPollIntervalId) {
-        clearInterval(window.customNowPaymentsPollIntervalId);
-        window.customNowPaymentsPollIntervalId = null;
-      }
-      
-      if (window.customNowPaymentsModal) {
-        window.customNowPaymentsModal.remove();
-        document.body.classList.remove('popup-active');
-        window.customNowPaymentsModal = null;
-      }
-    }
 
     async function init() {
       handleInAppBrowser();

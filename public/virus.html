@@ -608,6 +608,10 @@
                 <span class="font-medium">Payment Method:</span>
                 <span id="detail-payment-method"></span>
               </div>
+              <div id="detail-mpesa-code-container" class="flex justify-between hidden">
+                <span class="font-medium">Customer MPESA Code:</span>
+                <span id="detail-customer-mpesa-code" class="font-mono text-sm"></span>
+              </div>
               <div class="flex justify-between">
                 <span class="font-medium">Payment Status:</span>
                 <span id="detail-payment-status" class="px-2 py-1 rounded text-sm"></span>
@@ -2002,6 +2006,16 @@
     document.getElementById('detail-client-email').textContent = order.client_email;
     document.getElementById('detail-budget').textContent = `$${order.budget_amount}`;
     document.getElementById('detail-payment-method').textContent = order.payment_method;
+
+    // Show customer's MPESA code if available
+    const mpesaCodeContainer = document.getElementById('detail-mpesa-code-container');
+    const mpesaCodeEl = document.getElementById('detail-customer-mpesa-code');
+    if (order.customer_mpesa_code) {
+      mpesaCodeEl.textContent = order.customer_mpesa_code;
+      mpesaCodeContainer.classList.remove('hidden');
+    } else {
+      mpesaCodeContainer.classList.add('hidden');
+    }
     
     const paymentStatus = document.getElementById('detail-payment-status');
     paymentStatus.textContent = order.payment_status;

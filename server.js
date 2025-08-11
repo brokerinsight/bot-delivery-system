@@ -2490,6 +2490,11 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'NOWPayments configuration missing' });
+    }
+
     // Get the custom bot order
     const { data: order, error: orderError } = await supabase
       .from('custom_bot_orders')
@@ -2641,6 +2646,7 @@ app.post('/api/custom-bot/payhero-callback', async (req, res) => {
           .from('custom_bot_orders')
           .update({
             payment_status: 'failed',
+            status: 'failed', // Also update the main order status
             updated_at: new Date().toISOString()
           })
           .eq('ref_code', external_reference);
@@ -2677,12 +2683,7 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
-    const apiKey = process.env.NOWPAYMENTS_API_KEY;
     const ipnCallbackUrl = `${getBaseUrl(req)}/api/custom-bot/nowpayments-callback`;
-
-    if (!apiKey) {
-      return res.status(500).json({ success: false, error: 'NOWPayments configuration missing' });
-    }
 
     const nowPaymentsPayload = {
       price_amount: amount,
@@ -2707,7 +2708,7 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
 
     const nowPaymentsData = await nowPaymentsResponse.json();
 
-    if (nowPaymentsResponse.ok) {
+    if (nowPaymentsResponse.ok && nowPaymentsData.payment_id) {
       // Update order with NOWPayments payment ID
       await supabase
         .from('custom_bot_orders')
@@ -2991,6 +2992,7 @@ app.post('/api/custom-bot/nowpayments-callback', async (req, res) => {
           .from('custom_bot_orders')
           .update({
             payment_status: 'failed',
+            status: 'failed', // Also update the main order status
             updated_at: new Date().toISOString()
           })
           .eq('ref_code', order_id);
