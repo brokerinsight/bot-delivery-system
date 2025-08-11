@@ -723,7 +723,6 @@
           </div>
           <div id="nav-links" class="hidden sm:ml-6 sm:flex sm:space-x-8">
             <a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>
-            <a href="#" id="custom-bot-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Custom Bot</a>
           </div>
         </div>
         <div class="flex items-center space-x-4">
@@ -1327,6 +1326,11 @@
       const mobileNavLinks = document.getElementById('mobile-nav-links');
       navLinks.innerHTML = `<a href="#" data-category="all" class="nav-link border-b-2 border-green-500 text-gray-900 px-1 pt-1 text-sm font-medium">Home</a>`;
       mobileNavLinks.innerHTML = `<a href="#" data-category="all" class="nav-link text-gray-900 text-sm font-medium">Home</a>`;
+      
+      // Add Custom Bot link to both desktop and mobile navigation
+      navLinks.innerHTML += `<a href="#" id="custom-bot-nav-link" class="nav-link text-gray-500 hover:text-gray-700 px-1 pt-1 text-sm font-medium">Custom Bot</a>`;
+      mobileNavLinks.innerHTML += `<a href="#" id="mobile-custom-bot-nav-link" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">Custom Bot</a>`;
+      
       categories.forEach(cat => {
         navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
         mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
@@ -3124,9 +3128,19 @@
 
       // Setup custom bot navigation
       const customBotNavLink = document.getElementById('custom-bot-nav-link');
+      const mobileCustomBotNavLink = document.getElementById('mobile-custom-bot-nav-link');
+      
       if (customBotNavLink) {
         customBotNavLink.onclick = (e) => {
           e.preventDefault();
+          showCustomBotPage();
+        };
+      }
+      
+      if (mobileCustomBotNavLink) {
+        mobileCustomBotNavLink.onclick = (e) => {
+          e.preventDefault();
+          document.getElementById('mobile-menu').classList.remove('open'); // Close mobile menu
           showCustomBotPage();
         };
       }
@@ -3151,6 +3165,14 @@
         document.getElementById('custom-bot-page').classList.add('hidden');
         document.getElementById('main-page').classList.remove('hidden');
       };
+      
+      // Setup mobile menu button for custom bot page
+      const mobileMenuButtonCustom = document.getElementById('mobile-menu-button-custom');
+      if (mobileMenuButtonCustom) {
+        mobileMenuButtonCustom.onclick = () => {
+          document.getElementById('mobile-menu').classList.add('open');
+        };
+      }
       
       // Load payment methods dynamically
       loadPaymentMethods();
