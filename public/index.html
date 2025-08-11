@@ -4016,8 +4016,9 @@ function handleCustomBotNowPaymentsStatus(orderId) {
           
           setTimeout(() => {
             closeCustomPayHeroModal();
-            showCustomBotSuccess(result.trackingNumber, result.clientEmail, 'tracking');
-          }, 2500);
+            // Instead of showing success immediately, show the waiting modal
+            showPayHeroWaitingModal(refCode);
+          }, 1000); // Shorter timeout before showing waiting modal
         } else {
           throw new Error(result.error || `Failed to initiate payment: ${response.statusText || response.status}`);
         }
@@ -4027,6 +4028,88 @@ function handleCustomBotNowPaymentsStatus(orderId) {
         statusMessage.style.color = 'red';
         proceedButton.disabled = false;
       }
+    }
+
+    function showPayHeroWaitingModal(refCode) {
+        const modal = document.getElementById('status-modal');
+        const statusMessage = document.getElementById('status-message');
+        const statusTimerText = document.getElementById('status-timer-text');
+        const statusTimerBar = document.getElementById('status-timer-bar');
+        const retryBtn = document.getElementById('status-retry');
+
+        statusMessage.innerHTML = 'STK Push sent. Please check your phone and enter your M-PESA PIN to complete the payment.';
+        retryBtn.classList.add('hidden');
+        modal.classList.remove('hidden');
+        document.body.classList.add('popup-active');
+
+        let timeLeft = 90; // 90 seconds timeout for STK push
+        let pollIntervalId = null;
+
+        const countdownTimerId = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(countdownTimerId);
+                if(pollIntervalId) clearInterval(pollIntervalId);
+                statusMessage.innerHTML = 'Payment timed out. Please try again.';
+                fetch(`/api/custom-bot/order/${refCode}`, { method: 'DELETE' });
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                }, 3000);
+                return;
+            }
+
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            statusTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            const percentage = (timeLeft / 90) * 100;
+            statusTimerBar.style.width = `${percentage}%`;
+            timeLeft--;
+        }, 1000);
+
+        pollIntervalId = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/custom-bot/payhero-status/${refCode}`);
+                if (!res.ok) {
+                    if (res.status === 404) {
+                         // Order not found, maybe it timed out and was deleted by another process.
+                         clearInterval(countdownTimerId);
+                         clearInterval(pollIntervalId);
+                         statusMessage.innerHTML = 'Order timed out or was cancelled.';
+                         setTimeout(() => {
+                            modal.classList.add('hidden');
+                            document.body.classList.remove('popup-active');
+                         }, 3000);
+                    }
+                    // For other errors, just log and continue polling
+                    console.warn(`PayHero status poll failed with status: ${res.status}`);
+                    return;
+                }
+                const data = await res.json();
+
+                if (data.success) {
+                    if (data.status === 'paid') {
+                        clearInterval(countdownTimerId);
+                        clearInterval(pollIntervalId);
+                        modal.classList.add('hidden');
+                        document.body.classList.remove('popup-active');
+                        // We don't have the email here, but the tracking number is most important for the success message
+                        showCustomBotSuccess(data.trackingNumber, '', 'tracking');
+                    } else if (data.status && data.status.startsWith('failed')) {
+                        clearInterval(countdownTimerId);
+                        clearInterval(pollIntervalId);
+                        statusMessage.innerHTML = `Payment failed. Please try again or contact support. (Reason: ${data.status})`;
+                        setTimeout(() => {
+                            modal.classList.add('hidden');
+                            document.body.classList.remove('popup-active');
+                        }, 4000);
+                    }
+                    // If status is 'pending_stk_push', do nothing and let it continue polling.
+                }
+            } catch (error) {
+                console.error('Error polling PayHero status:', error);
+                // Don't stop polling on a single network error, it might be transient
+            }
+        }, 5000); // Poll every 5 seconds
     }
 
     function closeCustomPayHeroModal() {
