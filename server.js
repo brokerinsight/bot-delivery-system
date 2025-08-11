@@ -2041,9 +2041,18 @@ app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    // Validate budget minimum
-    if (budget < 50) {
-      return res.status(400).json({ success: false, error: 'Minimum budget is $50' });
+    // Validate budget minimum (changed from $50 to $30)
+    if (budget < 30) {
+      return res.status(400).json({ success: false, error: 'Minimum budget is $30' });
+    }
+
+    // Validate text limits (300 characters each)
+    if (botDescription.length > 300) {
+      return res.status(400).json({ success: false, error: 'Bot description must be 300 characters or less' });
+    }
+    
+    if (botFeatures.length > 300) {
+      return res.status(400).json({ success: false, error: 'Technical requirements must be 300 characters or less' });
     }
 
     // Validate email format
@@ -2068,8 +2077,7 @@ app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
       }
     }
 
-    // Generate tracking number and reference code
-    const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    // Generate reference code for caching
     const refCode = `CB-${uuidv4()}`;
 
     // Calculate KES amount for payment
@@ -2082,9 +2090,8 @@ app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
       paymentId = `np-${refCode}`;
     }
 
-    // Create custom bot order
+    // Create order data for Redis caching (12-hour TTL)
     const orderData = {
-      tracking_number: trackingNumber,
       client_email: email,
       bot_description: botDescription,
       bot_features: botFeatures,
@@ -2097,50 +2104,77 @@ app.post('/api/custom-bot/create', rateLimit, async (req, res) => {
       refund_mpesa_name: refundMethod === 'mpesa' ? refundMpesaName.trim() : null,
       ref_code: refCode,
       payment_id: paymentId,
-      status: 'pending',
-      payment_status: paymentMethod === 'mpesa_manual' ? 'pending' : 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      status: 'pending_payment',
+      payment_status: 'pending',
+      created_at: new Date().toISOString()
     };
 
-    const { data: insertedOrder, error: insertError } = await supabase
-      .from('custom_bot_orders')
-      .insert([orderData])
-      .select()
-      .single();
+    // Cache order in Redis with 12-hour TTL (43200 seconds)
+    // Exception: For manual till, create order immediately in database for admin dashboard
+    if (paymentMethod === 'mpesa_manual') {
+      // Generate tracking number for manual till orders
+      const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      
+      const dbOrderData = {
+        ...orderData,
+        tracking_number: trackingNumber,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
 
-    if (insertError) {
-      console.error(`[${new Date().toISOString()}] Error creating custom bot order:`, insertError);
-      return res.status(500).json({ success: false, error: 'Failed to create custom bot order' });
+      const { data: insertedOrder, error: insertError } = await supabase
+        .from('custom_bot_orders')
+        .insert([dbOrderData])
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error(`[${new Date().toISOString()}] Error creating custom bot order:`, insertError);
+        return res.status(500).json({ success: false, error: 'Failed to create custom bot order' });
+      }
+
+      console.log(`[${new Date().toISOString()}] Manual till custom bot order created: ${trackingNumber} for ${email}`);
+
+      // Send notification email to admin (without tracking number for client yet)
+      try {
+        await sendCustomBotAdminNotification(insertedOrder);
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send admin notification email:`, emailError.message);
+      }
+
+      return res.json({
+        success: true,
+        order: {
+          trackingNumber,
+          clientEmail: email,
+          refCode,
+          paymentMethod
+        },
+        kesAmount,
+        exchangeRate
+      });
+    } else {
+      // For other payment methods, cache in Redis
+      try {
+        await redisClient.setex(`custom_bot_order:${refCode}`, 43200, JSON.stringify(orderData));
+        console.log(`[${new Date().toISOString()}] Custom bot order cached in Redis: ${refCode} for ${email}`);
+      } catch (redisError) {
+        console.error(`[${new Date().toISOString()}] Error caching custom bot order in Redis:`, redisError);
+        return res.status(500).json({ success: false, error: 'Failed to cache custom bot order' });
+      }
+
+      return res.json({
+        success: true,
+        order: {
+          clientEmail: email,
+          refCode,
+          paymentMethod
+        },
+        kesAmount,
+        exchangeRate
+      });
     }
-
-    console.log(`[${new Date().toISOString()}] Custom bot order created: ${trackingNumber} for ${email}`);
-
-    // Send confirmation email to customer
-    try {
-      await sendCustomBotOrderConfirmation(email, trackingNumber, botDescription, budget, paymentMethod);
-    } catch (emailError) {
-      console.error(`[${new Date().toISOString()}] Failed to send customer confirmation email:`, emailError.message);
-    }
-
-    // Send notification email to admin
-    try {
-      await sendCustomBotAdminNotification(insertedOrder);
-    } catch (emailError) {
-      console.error(`[${new Date().toISOString()}] Failed to send admin notification email:`, emailError.message);
-    }
-
-    res.json({
-      success: true,
-      order: {
-        trackingNumber,
-        clientEmail: email,
-        refCode,
-        paymentMethod
-      },
-      kesAmount,
-      exchangeRate
-    });
 
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error in custom bot creation:`, error.message);
@@ -2235,6 +2269,17 @@ app.post('/api/custom-bot/confirm-payment', isAuthenticated, async (req, res) =>
       return res.status(400).json({ success: false, error: 'Order ID is required' });
     }
 
+    // Get the order first to check current status
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
     const updateData = {
       payment_status: 'paid',
       updated_at: new Date().toISOString()
@@ -2254,6 +2299,21 @@ app.post('/api/custom-bot/confirm-payment', isAuthenticated, async (req, res) =>
     if (error) {
       console.error(`[${new Date().toISOString()}] Error confirming payment:`, error);
       return res.status(500).json({ success: false, error: 'Failed to confirm payment' });
+    }
+
+    // For manual till payments, now send the confirmation email with tracking number to client
+    if (order.payment_method === 'mpesa_manual' && order.payment_status !== 'paid') {
+      try {
+        await sendCustomBotOrderConfirmation(
+          updatedOrder.client_email, 
+          updatedOrder.tracking_number, 
+          updatedOrder.bot_description, 
+          updatedOrder.budget_amount, 
+          updatedOrder.payment_method
+        );
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send customer confirmation email:`, emailError.message);
+      }
     }
 
     // Send payment confirmation email
@@ -2514,28 +2574,52 @@ app.post('/api/custom-bot/payhero-callback', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing external reference' });
     }
 
-    // Get the custom bot order
-    const { data: order, error: orderError } = await supabase
-      .from('custom_bot_orders')
-      .select('*')
-      .eq('ref_code', external_reference)
-      .single();
-
-    if (orderError || !order) {
-      console.error(`[${new Date().toISOString()}] Custom bot order not found for PayHero callback: ${external_reference}`);
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-
-    // Update order based on payment status
-    const updateData = {
-      updated_at: new Date().toISOString()
-    };
-
     if (status === 'success') {
-      updateData.payment_status = 'paid';
+      // Try to move cached order to database first
+      const movedOrder = await moveCustomBotOrderFromCache(external_reference);
+      
+      if (movedOrder) {
+        // Update with receipt number if provided
+        if (receipt_number) {
+          await supabase
+            .from('custom_bot_orders')
+            .update({ 
+              mpesa_receipt_number: receipt_number,
+              updated_at: new Date().toISOString()
+            })
+            .eq('ref_code', external_reference);
+        }
+        
+        console.log(`[${new Date().toISOString()}] Custom bot PayHero payment success for cached order: ${external_reference}`);
+        return res.json({ success: true });
+      }
+
+      // If not cached, check if order exists in database
+      const { data: order, error: orderError } = await supabase
+        .from('custom_bot_orders')
+        .select('*')
+        .eq('ref_code', external_reference)
+        .single();
+
+      if (orderError || !order) {
+        console.error(`[${new Date().toISOString()}] Custom bot order not found for PayHero callback: ${external_reference}`);
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
+
+      // Update existing database order
+      const updateData = {
+        payment_status: 'paid',
+        updated_at: new Date().toISOString()
+      };
+
       if (receipt_number) {
         updateData.mpesa_receipt_number = receipt_number;
       }
+
+      await supabase
+        .from('custom_bot_orders')
+        .update(updateData)
+        .eq('ref_code', external_reference);
 
       // Send payment confirmation email
       try {
@@ -2544,13 +2628,24 @@ app.post('/api/custom-bot/payhero-callback', async (req, res) => {
         console.error(`[${new Date().toISOString()}] Failed to send payment confirmation:`, emailError.message);
       }
     } else {
-      updateData.payment_status = 'failed';
-    }
+      // Handle failed payment for database orders only
+      const { data: order } = await supabase
+        .from('custom_bot_orders')
+        .select('*')
+        .eq('ref_code', external_reference)
+        .single();
 
-    await supabase
-      .from('custom_bot_orders')
-      .update(updateData)
-      .eq('ref_code', external_reference);
+      if (order) {
+        await supabase
+          .from('custom_bot_orders')
+          .update({
+            payment_status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('ref_code', external_reference);
+      }
+      // For cached orders, we just let them expire from Redis
+    }
 
     console.log(`[${new Date().toISOString()}] Custom bot PayHero payment ${status} for ${external_reference}`);
     res.json({ success: true });
@@ -2655,29 +2750,54 @@ app.post('/api/custom-bot/nowpayments-callback', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing order ID' });
     }
 
-    // Get the custom bot order
-    const { data: order, error: orderError } = await supabase
-      .from('custom_bot_orders')
-      .select('*')
-      .eq('ref_code', order_id)
-      .single();
-
-    if (orderError || !order) {
-      console.error(`[${new Date().toISOString()}] Custom bot order not found for NOWPayments callback: ${order_id}`);
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-
-    // Update order based on payment status
-    const updateData = {
-      updated_at: new Date().toISOString()
-    };
-
     if (['finished', 'confirmed'].includes(payment_status)) {
-      updateData.payment_status = 'paid';
+      // Try to move cached order to database first
+      const movedOrder = await moveCustomBotOrderFromCache(order_id);
+      
+      if (movedOrder) {
+        // Update with crypto payment details if provided
+        if (outcome_amount && outcome_currency) {
+          await supabase
+            .from('custom_bot_orders')
+            .update({ 
+              amount_paid_crypto: parseFloat(outcome_amount),
+              currency_paid: outcome_currency,
+              updated_at: new Date().toISOString()
+            })
+            .eq('ref_code', order_id);
+        }
+        
+        console.log(`[${new Date().toISOString()}] Custom bot NOWPayments payment success for cached order: ${order_id}`);
+        return res.json({ success: true });
+      }
+
+      // If not cached, check if order exists in database
+      const { data: order, error: orderError } = await supabase
+        .from('custom_bot_orders')
+        .select('*')
+        .eq('ref_code', order_id)
+        .single();
+
+      if (orderError || !order) {
+        console.error(`[${new Date().toISOString()}] Custom bot order not found for NOWPayments callback: ${order_id}`);
+        return res.status(404).json({ success: false, error: 'Order not found' });
+      }
+
+      // Update existing database order
+      const updateData = {
+        payment_status: 'paid',
+        updated_at: new Date().toISOString()
+      };
+
       if (outcome_amount && outcome_currency) {
         updateData.amount_paid_crypto = parseFloat(outcome_amount);
         updateData.currency_paid = outcome_currency;
       }
+
+      await supabase
+        .from('custom_bot_orders')
+        .update(updateData)
+        .eq('ref_code', order_id);
 
       // Send payment confirmation email
       try {
@@ -2686,13 +2806,24 @@ app.post('/api/custom-bot/nowpayments-callback', async (req, res) => {
         console.error(`[${new Date().toISOString()}] Failed to send payment confirmation:`, emailError.message);
       }
     } else if (['failed', 'refunded', 'expired'].includes(payment_status)) {
-      updateData.payment_status = 'failed';
-    }
+      // Handle failed payment for database orders only
+      const { data: order } = await supabase
+        .from('custom_bot_orders')
+        .select('*')
+        .eq('ref_code', order_id)
+        .single();
 
-    await supabase
-      .from('custom_bot_orders')
-      .update(updateData)
-      .eq('ref_code', order_id);
+      if (order) {
+        await supabase
+          .from('custom_bot_orders')
+          .update({
+            payment_status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('ref_code', order_id);
+      }
+      // For cached orders, we just let them expire from Redis
+    }
 
     console.log(`[${new Date().toISOString()}] Custom bot NOWPayments payment ${payment_status} for ${order_id}`);
     res.json({ success: true });
@@ -2751,3 +2882,69 @@ app.listen(PORT, async () => {
     }
   }, 100);
 });
+
+// Helper function to move cached order from Redis to database with tracking number
+async function moveCustomBotOrderFromCache(refCode) {
+  try {
+    // Get cached order from Redis
+    const cachedOrderJson = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!cachedOrderJson) {
+      console.error(`[${new Date().toISOString()}] No cached order found for ref code: ${refCode}`);
+      return null;
+    }
+
+    const cachedOrder = JSON.parse(cachedOrderJson);
+    
+    // Generate tracking number
+    const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    
+    // Create database order with tracking number
+    const dbOrderData = {
+      ...cachedOrder,
+      tracking_number: trackingNumber,
+      status: 'pending',
+      payment_status: 'paid',
+      created_at: cachedOrder.created_at,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: insertedOrder, error: insertError } = await supabase
+      .from('custom_bot_orders')
+      .insert([dbOrderData])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error(`[${new Date().toISOString()}] Error moving cached order to database:`, insertError);
+      return null;
+    }
+
+    // Remove from Redis cache
+    await redisClient.del(`custom_bot_order:${refCode}`);
+    
+    // Send confirmation emails with tracking number
+    try {
+      await sendCustomBotOrderConfirmation(
+        insertedOrder.client_email, 
+        insertedOrder.tracking_number, 
+        insertedOrder.bot_description, 
+        insertedOrder.budget_amount, 
+        insertedOrder.payment_method
+      );
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send customer confirmation email:`, emailError.message);
+    }
+
+    try {
+      await sendCustomBotPaymentConfirmation(insertedOrder);
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send payment confirmation email:`, emailError.message);
+    }
+
+    console.log(`[${new Date().toISOString()}] Moved cached order to database with tracking number: ${trackingNumber}`);
+    return insertedOrder;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error moving cached order to database:`, error);
+    return null;
+  }
+}
