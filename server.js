@@ -2740,6 +2740,178 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
   }
 });
 
+// Custom Bot Manual Payment Reference Code Submission
+app.post('/api/custom-bot/submit-ref-code', rateLimit, async (req, res) => {
+  try {
+    const { refCode, mpesaRefCode, amount, timestamp } = req.body;
+    
+    if (!refCode || !mpesaRefCode || !amount) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Validate Mpesa reference code format
+    if (!mpesaRefCode.match(/^[A-Z0-9]{8,12}$/)) {
+      return res.status(400).json({ success: false, error: 'Invalid MPESA reference code format' });
+    }
+
+    // Get the custom bot order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', refCode)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Update order with reference code and set status to pending verification
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('custom_bot_orders')
+      .update({ 
+        mpesa_ref_code: mpesaRefCode,
+        payment_status: 'pending_verification',
+        amount_paid_kes: parseFloat(amount),
+        updated_at: new Date().toISOString()
+      })
+      .eq('ref_code', refCode)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error(`[${new Date().toISOString()}] Error updating custom bot order with ref code:`, updateError);
+      return res.status(500).json({ success: false, error: 'Failed to submit reference code' });
+    }
+
+    // Send notification to admin about the reference code submission
+    try {
+      const subject = `Custom Bot Reference Code Submitted - ${order.tracking_number}`;
+      const text = `
+Custom bot order reference code submitted:
+
+Tracking Number: ${order.tracking_number}
+Client Email: ${order.client_email}
+Budget: $${order.budget_amount}
+MPESA Reference Code: ${mpesaRefCode}
+Amount: ${amount} KES
+
+Please verify this payment in your MPESA account and confirm the order.
+
+Admin Panel: ${getBaseUrl(req)}/virus.html
+`;
+
+      await sendEmail(cachedData.settings.supportEmail, subject, text);
+    } catch (emailError) {
+      console.error(`[${new Date().toISOString()}] Failed to send custom bot ref code notification:`, emailError.message);
+    }
+
+    console.log(`[${new Date().toISOString()}] Custom bot reference code submitted: ${refCode} - ${mpesaRefCode}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Reference code submitted successfully. Your order is being verified.',
+      order: updatedOrder
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error in custom bot ref code submission:`, error.message);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Custom Bot NOWPayments Status Check
+app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    // First check our database for the order
+    const { data: order, error: orderError } = await supabase
+      .from('custom_bot_orders')
+      .select('*')
+      .eq('ref_code', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // If order is already completed, return success
+    if (order.payment_status === 'paid') {
+      return res.json({ 
+        success: true, 
+        payment_status: 'finished',
+        status: 'confirmed_nowpayments',
+        message: 'Payment successful! Your custom bot order is being processed.',
+        order: order
+      });
+    }
+
+    // If order doesn't have a NOWPayments payment ID, return current status
+    if (!order.payment_id) {
+      return res.json({
+        success: true,
+        payment_status: 'waiting',
+        status: 'pending_nowpayments',
+        message: 'Waiting for payment...'
+      });
+    }
+
+    // Check with NOWPayments API
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'NOWPayments configuration missing' });
+    }
+
+    const statusResponse = await fetch(`https://api.nowpayments.io/v1/payment/${order.payment_id}`, {
+      headers: { 'x-api-key': apiKey }
+    });
+
+    if (!statusResponse.ok) {
+      return res.status(500).json({ success: false, error: 'Failed to check payment status' });
+    }
+
+    const statusData = await statusResponse.json();
+    
+    // Update our database if payment is confirmed
+    if (statusData.payment_status === 'finished' && order.payment_status !== 'paid') {
+      await supabase
+        .from('custom_bot_orders')
+        .update({ 
+          payment_status: 'paid',
+          amount_paid_crypto: statusData.actually_paid,
+          currency_paid: statusData.pay_currency,
+          updated_at: new Date().toISOString()
+        })
+        .eq('ref_code', orderId);
+
+      // Send confirmation email
+      try {
+        await sendCustomBotPaymentConfirmation(order);
+      } catch (emailError) {
+        console.error(`[${new Date().toISOString()}] Failed to send custom bot payment confirmation email:`, emailError.message);
+      }
+    }
+
+    let message = 'Waiting for payment confirmation...';
+    if (statusData.payment_status === 'finished') {
+      message = 'Payment successful! Your custom bot order is being processed.';
+    } else if (['failed', 'refunded', 'expired'].includes(statusData.payment_status)) {
+      message = `Payment ${statusData.payment_status}. Please contact support if needed.`;
+    }
+
+    res.json({
+      success: true,
+      payment_status: statusData.payment_status,
+      status: statusData.payment_status === 'finished' ? 'confirmed_nowpayments' : 'pending_nowpayments',
+      message: message
+    });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error checking custom bot NOWPayments status:`, error.message);
+    res.status(500).json({ success: false, error: 'Failed to check payment status' });
+  }
+});
+
 // Custom Bot NOWPayments Callback
 app.post('/api/custom-bot/nowpayments-callback', async (req, res) => {
   try {
