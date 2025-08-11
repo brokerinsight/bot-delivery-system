@@ -3250,8 +3250,8 @@ function handleCustomBotNowPaymentsStatus(orderId) {
     }
 
     function setupNavigationListeners() {
-        // All category links (desktop and mobile)
-        document.querySelectorAll('.nav-link[data-category]').forEach(link => {
+        // --- Category & Home links (Main Page flow) ---
+        document.querySelectorAll('a.nav-link[data-category]').forEach(link => {
             link.addEventListener('click', e => {
                 e.preventDefault();
                 showMainPage();
@@ -3259,6 +3259,7 @@ function handleCustomBotNowPaymentsStatus(orderId) {
                 const category = link.dataset.category;
                 filterProducts(category);
 
+                // Update active link styling
                 document.querySelectorAll('.nav-link').forEach(l => {
                     l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900');
                     l.classList.add('text-gray-500', 'hover:text-gray-900');
@@ -3268,29 +3269,41 @@ function handleCustomBotNowPaymentsStatus(orderId) {
                     l.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
                 });
 
-                closeMobileMenu();
+                closeMobileMenu(); // Close menu after action
             });
         });
 
-        // "Custom Bot" links
-        document.getElementById('custom-bot-nav-link').addEventListener('click', e => { e.preventDefault(); showCustomBotPage(); });
-        document.getElementById('mobile-custom-bot-nav-link').addEventListener('click', e => { e.preventDefault(); showCustomBotPage(); });
+        // --- "Custom Bot" link (Desktop) ---
+        document.getElementById('custom-bot-nav-link').addEventListener('click', e => {
+            e.preventDefault();
+            showCustomBotPage();
+        });
 
-        // "Home" link on the custom bot page's own nav bar
-        document.getElementById('home-nav-link').addEventListener('click', e => { e.preventDefault(); showMainPage(); });
+        // --- "Custom Bot" link (Mobile) ---
+        document.getElementById('mobile-custom-bot-nav-link').addEventListener('click', e => {
+            e.preventDefault();
+            showCustomBotPage();
+            closeMobileMenu(); // Close menu after action
+        });
+
+        // --- "Home" link on the custom bot page's nav bar ---
+        document.getElementById('home-nav-link').addEventListener('click', e => {
+            e.preventDefault();
+            showMainPage();
+        });
     }
 
     function showMainPage() {
         document.getElementById('custom-bot-page').classList.add('hidden');
         document.getElementById('main-page').classList.remove('hidden');
-        closeMobileMenu();
+        // The menu is closed by the event listener that calls this, so no need to call closeMobileMenu() here.
     }
 
     async function proceedWithInit() {
       const success = await fetchData();
       if (success) {
         renderNavLinks();
-        setupNavigationListeners();
+        setupNavigationListeners(); // This sets up all navigation listeners once.
         renderProducts();
         updateFooter();
         showUrgentMessage();
@@ -3299,20 +3312,21 @@ function handleCustomBotNowPaymentsStatus(orderId) {
         await fetchModalContent();
       }
 
-      // Mobile menu open/close logic
+      // --- Centralized Mobile Menu Open/Close Logic ---
       const mobileMenu = document.getElementById('mobile-menu');
       const openMenuButtons = [document.getElementById('mobile-menu-button'), document.getElementById('mobile-menu-button-custom')];
       const closeMenuButton = document.getElementById('mobile-menu-close');
 
       openMenuButtons.forEach(btn => {
-          if(btn) btn.onclick = () => {
+          if(btn) btn.addEventListener('click', () => { // Use addEventListener
               mobileMenu.classList.add('open');
               document.body.classList.add('popup-active');
-          };
+          });
       });
 
-      if(closeMenuButton) closeMenuButton.onclick = closeMobileMenu;
+      if(closeMenuButton) closeMenuButton.addEventListener('click', closeMobileMenu); // Use addEventListener
 
+      // --- Search Bar Logic ---
       const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
       searchBars.forEach(searchBar => {
         searchBar.addEventListener('input', debounce(() => {
@@ -3328,30 +3342,8 @@ function handleCustomBotNowPaymentsStatus(orderId) {
       document.getElementById('main-page').classList.add('hidden');
       document.getElementById('custom-bot-page').classList.remove('hidden');
       
-      // Setup navigation event handlers for custom bot page
-      document.getElementById('home-nav-link').onclick = () => {
-        document.getElementById('custom-bot-page').classList.add('hidden');
-        document.getElementById('main-page').classList.remove('hidden');
-      };
-      
-      // Setup mobile menu button for custom bot page
-      const mobileMenuButtonCustom = document.getElementById('mobile-menu-button-custom');
-      if (mobileMenuButtonCustom) {
-        mobileMenuButtonCustom.onclick = () => {
-          document.getElementById('mobile-menu').classList.add('open');
-        };
-      }
-      
-      // Ensure mobile menu close functionality works from custom bot page
-      const mobileMenuClose = document.getElementById('mobile-menu-close');
-      if (mobileMenuClose) {
-        // Remove any existing event listeners to avoid duplicates
-        mobileMenuClose.replaceWith(mobileMenuClose.cloneNode(true));
-        const newMobileMenuClose = document.getElementById('mobile-menu-close');
-        newMobileMenuClose.onclick = () => {
-          document.getElementById('mobile-menu').classList.remove('open');
-        };
-      }
+      // All navigation logic is now handled by setupNavigationListeners.
+      // We just need to load the content for this page.
       
       // Load payment methods dynamically
       loadPaymentMethods();
@@ -3571,6 +3563,19 @@ function handleCustomBotNowPaymentsStatus(orderId) {
                 populateCurrencyDropdown(data.currencies);
                 proceedBtn.disabled = false;
                 proceedBtn.innerHTML = 'Proceed to Payment';
+
+                // Set up search functionality for this instance of the modal
+                const currencySearchInput = document.getElementById('nowpayments-currency-search');
+                const currencySelect = document.getElementById('nowpayments-currency');
+                currencySearchInput.oninput = () => {
+                    const searchTerm = currencySearchInput.value.toLowerCase();
+                    const options = currencySelect.options;
+                    for (let i = 0; i < options.length; i++) {
+                        if (options[i].value === "") continue;
+                        const optionText = options[i].text.toLowerCase();
+                        options[i].style.display = optionText.includes(searchTerm) ? '' : 'none';
+                    }
+                };
             } else {
                 currencySelect.innerHTML = '<option value="">Error: Could not load currencies.</option>';
                 statusMessageEl.textContent = data.error || 'Error loading currencies.';
@@ -3852,6 +3857,24 @@ function handleCustomBotNowPaymentsStatus(orderId) {
     
 
     
+    function closeCustomNowPaymentsModal() {
+      const modal = document.getElementById('nowpayments-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        // This function is often called before another popup, so we might not want to remove popup-active yet.
+        // However, if it's the last action, it should be removed. Let's keep it for safety.
+        document.body.classList.remove('popup-active');
+        if (window.nowPaymentsPollIntervalId) {
+            clearInterval(window.nowPaymentsPollIntervalId);
+            window.nowPaymentsPollIntervalId = null;
+        }
+        if (window.nowPaymentsTimerIntervalId) {
+            clearInterval(window.nowPaymentsTimerIntervalId);
+            window.nowPaymentsTimerIntervalId = null;
+        }
+      }
+    }
+
     function showCustomBotSuccess(identifier, email, type = 'reference') {
       closeCustomPaymentModal();
       closeCustomNowPaymentsModal();

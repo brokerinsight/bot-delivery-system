@@ -2491,11 +2491,12 @@ app.post('/api/custom-bot/payhero-payment', rateLimit, async (req, res) => {
     }
 
     // Get the custom bot order from Redis
-    const order = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!order) {
+    const orderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!orderJSON) {
       console.error(`[${new Date().toISOString()}] Custom Bot PayHero: Order not found in Redis for refCode: ${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
+    const order = JSON.parse(orderJSON);
 
     // Verify amount
     const exchangeRate = cachedData.settings?.fallbackRate || 130;
@@ -2665,11 +2666,12 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
     }
 
     // Get the custom bot order from Redis
-    const order = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!order) {
+    const orderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!orderJSON) {
       console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: Order not found in Redis for refCode: ${refCode}`);
       return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
     }
+    const order = JSON.parse(orderJSON);
 
     // Verify amount (USD budget)
     if (parseFloat(amount) !== order.budget_amount) {
@@ -2795,7 +2797,12 @@ Please verify this payment in your MPESA account and confirm the order.
 Admin Panel: ${getBaseUrl(req)}/virus.html
 `;
 
-      await sendEmail(cachedData.settings.supportEmail, subject, text);
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: cachedData.settings.supportEmail,
+        subject: subject,
+        text: text
+      });
     } catch (emailError) {
       console.error(`[${new Date().toISOString()}] Failed to send custom bot ref code notification:`, emailError.message);
     }
@@ -2817,16 +2824,29 @@ Admin Panel: ${getBaseUrl(req)}/virus.html
 // Custom Bot NOWPayments Status Check
 app.get('/api/custom-bot/nowpayments-status/:orderId', async (req, res) => {
   try {
-    const { orderId } = req.params;
+    const { orderId } = req.params; // This is the refCode for the custom bot order
     
-    // First check our database for the order
-    const { data: order, error: orderError } = await supabase
-      .from('custom_bot_orders')
-      .select('*')
-      .eq('ref_code', orderId)
-      .single();
+    // Check Redis first for a pending order, then check the database for a confirmed one.
+    const orderJSON = await redisClient.get(`custom_bot_order:${orderId}`);
+    let order = orderJSON ? JSON.parse(orderJSON) : null;
+    const isFromCache = !!order;
 
-    if (orderError || !order) {
+    if (!order) {
+      const { data: dbOrder, error: dbError } = await supabase
+        .from('custom_bot_orders')
+        .select('*')
+        .eq('ref_code', orderId)
+        .single();
+
+      if (dbError && dbError.code !== 'PGRST116') {
+        console.error(`[${new Date().toISOString()}] DB error fetching status for custom bot order ${orderId}:`, dbError);
+        return res.status(500).json({ success: false, error: 'Database error while checking order status.' });
+      }
+      order = dbOrder;
+    }
+
+    if (!order) {
+      console.log(`[${new Date().toISOString()}] Custom bot order status check: Order not found in cache or DB for refCode ${orderId}`);
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
@@ -3056,13 +3076,12 @@ app.listen(PORT, async () => {
 async function moveCustomBotOrderFromCache(refCode) {
   try {
     // Get cached order from Redis
-    const cachedOrderJson = await redisClient.get(`custom_bot_order:${refCode}`);
-    if (!cachedOrderJson) {
-      console.error(`[${new Date().toISOString()}] No cached order found for ref code: ${refCode}`);
+    const cachedOrderJSON = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!cachedOrderJSON) {
+      console.error(`[${new Date().toISOString()}] No cached order found in Redis for ref code: ${refCode}`);
       return null;
     }
-
-    const cachedOrder = JSON.parse(cachedOrderJson);
+    const cachedOrder = JSON.parse(cachedOrderJSON);
     
     // Generate tracking number
     const trackingNumber = `CB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
