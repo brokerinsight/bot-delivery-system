@@ -2672,26 +2672,35 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    // Get the custom bot order
-    const { data: order, error: orderError } = await supabase
-      .from('custom_bot_orders')
-      .select('*')
-      .eq('ref_code', refCode)
-      .single();
+    // Get the custom bot order from Redis
+    const orderJson = await redisClient.get(`custom_bot_order:${refCode}`);
+    if (!orderJson) {
+      console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: Order not found in Redis for refCode: ${refCode}`);
+      return res.status(404).json({ success: false, error: 'Order not found or has expired. Please create the order again.' });
+    }
+    const order = JSON.parse(orderJson);
 
-    if (orderError || !order) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
+    // Verify amount (USD budget)
+    if (parseFloat(amount) !== order.budget_amount) {
+        console.warn(`[${new Date().toISOString()}] Custom Bot NOWPayments: Amount mismatch for ref ${refCode}. Expected ${order.budget_amount}, got ${amount}.`);
+        return res.status(400).json({ success: false, error: 'Price mismatch. Please create the order again.' });
+    }
+
+    const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) {
+      console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: API key is not set.`);
+      return res.status(500).json({ success: false, error: 'Payment gateway configuration error.' });
     }
 
     const ipnCallbackUrl = `${getBaseUrl(req)}/api/custom-bot/nowpayments-callback`;
 
     const nowPaymentsPayload = {
-      price_amount: amount,
+      price_amount: parseFloat(amount),
       price_currency: 'usd',
       pay_currency: currency.toLowerCase(),
       ipn_callback_url: ipnCallbackUrl,
       order_id: refCode,
-      order_description: `Custom Bot Order ${order.tracking_number}`,
+      order_description: `Custom Bot Order - ${refCode}`,
       is_fee_paid_by_user: false,
       is_fixed_rate: true,
       customer_email: email
@@ -2709,15 +2718,9 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
     const nowPaymentsData = await nowPaymentsResponse.json();
 
     if (nowPaymentsResponse.ok && nowPaymentsData.payment_id) {
-      // Update order with NOWPayments payment ID
-      await supabase
-        .from('custom_bot_orders')
-        .update({ 
-          payment_id: nowPaymentsData.payment_id,
-          payment_status: 'pending',
-          updated_at: new Date().toISOString()
-        })
-        .eq('ref_code', refCode);
+      // Update the order in Redis with the payment_id from NOWPayments
+      order.payment_id = nowPaymentsData.payment_id;
+      await redisClient.set(`custom_bot_order:${refCode}`, JSON.stringify(order), { EX: 43200 }); // Reset TTL
 
       console.log(`[${new Date().toISOString()}] NOWPayments payment created for custom bot ${refCode}: ${nowPaymentsData.payment_id}`);
 
@@ -2728,10 +2731,10 @@ app.post('/api/custom-bot/nowpayments-payment', rateLimit, async (req, res) => {
         payAmount: nowPaymentsData.pay_amount,
         payCurrency: nowPaymentsData.pay_currency,
         payAddress: nowPaymentsData.pay_address,
-        trackingNumber: order.tracking_number,
         clientEmail: order.client_email
       });
     } else {
+      console.error(`[${new Date().toISOString()}] Custom Bot NOWPayments: payment creation failed.`, nowPaymentsData);
       throw new Error(nowPaymentsData.message || 'NOWPayments payment creation failed');
     }
 
@@ -2770,7 +2773,7 @@ app.post('/api/custom-bot/submit-ref-code', rateLimit, async (req, res) => {
     const { data: updatedOrder, error: updateError } = await supabase
       .from('custom_bot_orders')
       .update({ 
-        mpesa_ref_code: mpesaRefCode,
+        customer_mpesa_code: mpesaRefCode,
         payment_status: 'pending_verification',
         amount_paid_kes: parseFloat(amount),
         updated_at: new Date().toISOString()

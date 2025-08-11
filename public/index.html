@@ -1337,17 +1337,6 @@
         navLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 px-1 pt-1 text-sm font-medium">${cat}</a>`;
         mobileNavLinks.innerHTML += `<a href="#" data-category="${cat}" class="nav-link text-gray-500 hover:text-gray-900 text-sm font-medium">${cat}</a>`;
       });
-
-      document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', e => {
-          e.preventDefault();
-          const category = link.dataset.category;
-          filterProducts(category);
-          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900'));
-          link.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
-          document.getElementById('mobile-menu').classList.remove('open');
-        });
-      });
     }
 
     function formatDescription(desc) {
@@ -3255,10 +3244,52 @@ function handleCustomBotNowPaymentsStatus(orderId) {
       }
     }
 
+    function setupNavigationListeners() {
+        // Mobile menu open/close logic is handled in proceedWithInit to avoid re-binding
+
+        // All category links (desktop and mobile)
+        document.querySelectorAll('.nav-link[data-category]').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                showMainPage(); // Always show main page when a category is clicked
+
+                const category = link.dataset.category;
+                filterProducts(category); // This will call renderProducts
+
+                // Style active link
+                document.querySelectorAll('.nav-link').forEach(l => {
+                    l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900');
+                    l.classList.add('text-gray-500', 'hover:text-gray-900');
+                });
+                document.querySelectorAll(`.nav-link[data-category="${category}"]`).forEach(l => {
+                    l.classList.remove('text-gray-500', 'hover:text-gray-900');
+                    l.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
+                });
+
+                // Close mobile menu after clicking a link
+                document.getElementById('mobile-menu').classList.remove('open');
+                document.body.classList.remove('popup-active');
+            });
+        });
+
+        // "Custom Bot" links
+        document.getElementById('custom-bot-nav-link').addEventListener('click', e => { e.preventDefault(); showCustomBotPage(); });
+        document.getElementById('mobile-custom-bot-nav-link').addEventListener('click', e => { e.preventDefault(); showCustomBotPage(); });
+
+        // "Home" link on the custom bot page's own nav bar
+        document.getElementById('home-nav-link').addEventListener('click', e => { e.preventDefault(); showMainPage(); });
+    }
+
+    function showMainPage() {
+        document.getElementById('custom-bot-page').classList.add('hidden');
+        document.getElementById('main-page').classList.remove('hidden');
+    }
+
     async function proceedWithInit() {
       const success = await fetchData();
       if (success) {
         renderNavLinks();
+        setupNavigationListeners();
         renderProducts();
         updateFooter();
         showUrgentMessage();
@@ -3267,32 +3298,21 @@ function handleCustomBotNowPaymentsStatus(orderId) {
         await fetchModalContent(); // Ensure fetchModalContent is called
       }
 
-      document.getElementById('mobile-menu-button').onclick = () => {
-        document.getElementById('mobile-menu').classList.add('open');
-      };
+      // Mobile menu open/close logic
+      const mobileMenu = document.getElementById('mobile-menu');
+      const openMenuButtons = [document.getElementById('mobile-menu-button'), document.getElementById('mobile-menu-button-custom')];
+      const closeMenuButton = document.getElementById('mobile-menu-close');
 
-      document.getElementById('mobile-menu-close').onclick = () => {
-        document.getElementById('mobile-menu').classList.remove('open');
+      openMenuButtons.forEach(btn => {
+          if(btn) btn.onclick = () => {
+              mobileMenu.classList.add('open');
+              document.body.classList.add('popup-active');
+          };
+      });
+      if(closeMenuButton) closeMenuButton.onclick = () => {
+          mobileMenu.classList.remove('open');
+          document.body.classList.remove('popup-active');
       };
-
-      // Setup custom bot navigation
-      const customBotNavLink = document.getElementById('custom-bot-nav-link');
-      const mobileCustomBotNavLink = document.getElementById('mobile-custom-bot-nav-link');
-      
-      if (customBotNavLink) {
-        customBotNavLink.onclick = (e) => {
-          e.preventDefault();
-          showCustomBotPage();
-        };
-      }
-      
-      if (mobileCustomBotNavLink) {
-        mobileCustomBotNavLink.onclick = (e) => {
-          e.preventDefault();
-          document.getElementById('mobile-menu').classList.remove('open'); // Close mobile menu
-          showCustomBotPage();
-        };
-      }
 
       const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
       searchBars.forEach(searchBar => {
@@ -3320,6 +3340,7 @@ function handleCustomBotNowPaymentsStatus(orderId) {
       if (mobileMenuButtonCustom) {
         mobileMenuButtonCustom.onclick = () => {
           document.getElementById('mobile-menu').classList.add('open');
+          document.body.classList.add('popup-active');
         };
       }
       
