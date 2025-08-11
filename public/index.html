@@ -3244,19 +3244,21 @@ function handleCustomBotNowPaymentsStatus(orderId) {
       }
     }
 
-    function setupNavigationListeners() {
-        // Mobile menu open/close logic is handled in proceedWithInit to avoid re-binding
+    function closeMobileMenu() {
+        document.getElementById('mobile-menu').classList.remove('open');
+        document.body.classList.remove('popup-active');
+    }
 
+    function setupNavigationListeners() {
         // All category links (desktop and mobile)
         document.querySelectorAll('.nav-link[data-category]').forEach(link => {
             link.addEventListener('click', e => {
                 e.preventDefault();
-                showMainPage(); // Always show main page when a category is clicked
+                showMainPage();
 
                 const category = link.dataset.category;
-                filterProducts(category); // This will call renderProducts
+                filterProducts(category);
 
-                // Style active link
                 document.querySelectorAll('.nav-link').forEach(l => {
                     l.classList.remove('border-b-2', 'border-green-500', 'text-gray-900');
                     l.classList.add('text-gray-500', 'hover:text-gray-900');
@@ -3266,9 +3268,7 @@ function handleCustomBotNowPaymentsStatus(orderId) {
                     l.classList.add('border-b-2', 'border-green-500', 'text-gray-900');
                 });
 
-                // Close mobile menu after clicking a link
-                document.getElementById('mobile-menu').classList.remove('open');
-                document.body.classList.remove('popup-active');
+                closeMobileMenu();
             });
         });
 
@@ -3283,6 +3283,7 @@ function handleCustomBotNowPaymentsStatus(orderId) {
     function showMainPage() {
         document.getElementById('custom-bot-page').classList.add('hidden');
         document.getElementById('main-page').classList.remove('hidden');
+        closeMobileMenu();
     }
 
     async function proceedWithInit() {
@@ -3295,7 +3296,7 @@ function handleCustomBotNowPaymentsStatus(orderId) {
         showUrgentMessage();
         checkPaymentCookie();
         startPolling();
-        await fetchModalContent(); // Ensure fetchModalContent is called
+        await fetchModalContent();
       }
 
       // Mobile menu open/close logic
@@ -3309,10 +3310,8 @@ function handleCustomBotNowPaymentsStatus(orderId) {
               document.body.classList.add('popup-active');
           };
       });
-      if(closeMenuButton) closeMenuButton.onclick = () => {
-          mobileMenu.classList.remove('open');
-          document.body.classList.remove('popup-active');
-      };
+
+      if(closeMenuButton) closeMenuButton.onclick = closeMobileMenu;
 
       const searchBars = [document.getElementById('search-bar'), document.getElementById('mobile-search-bar')];
       searchBars.forEach(searchBar => {
@@ -3340,7 +3339,6 @@ function handleCustomBotNowPaymentsStatus(orderId) {
       if (mobileMenuButtonCustom) {
         mobileMenuButtonCustom.onclick = () => {
           document.getElementById('mobile-menu').classList.add('open');
-          document.body.classList.add('popup-active');
         };
       }
       
