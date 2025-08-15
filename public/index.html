@@ -1745,32 +1745,36 @@
 
       if (activeOptions.crypto_nowpayments) {
         nowPaymentsChoiceBtn.classList.remove('hidden');
-        // Ensure original text is set before potential spinner
         nowPaymentsChoiceBtn.innerHTML = 'Pay with crypto';
-        nowPaymentsChoiceBtn.onclick = async () => {
-          // Storing original text here is fine, or define it statically if it never changes post-init
-          const originalButtonText = 'Pay with crypto';
-          nowPaymentsChoiceBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Loading...';
-          nowPaymentsChoiceBtn.disabled = true;
-          if(activeOptions.mpesa_manual) manualMpesaChoiceBtn.disabled = true;
-          if(activeOptions.mpesa_payhero) payheroChoiceBtn.disabled = true;
-          cancelBtn.disabled = true;
+        nowPaymentsChoiceBtn.onclick = () => {
+            const originalButtonText = 'Pay with crypto';
+            nowPaymentsChoiceBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="4" class="opacity-25"></circle><path d="M4 12a8 8 0 018-8" stroke-width="4" class="opacity-75"></path></svg>Fetching final price...';
+            nowPaymentsChoiceBtn.disabled = true;
+            manualMpesaChoiceBtn.disabled = true;
+            payheroChoiceBtn.disabled = true;
+            cancelBtn.disabled = true;
 
-          try {
-            await showNowPaymentsModal(product, product.price); // Pass USD price
-            choiceModal.classList.add('hidden'); // Hide choice modal if NOWPayments modal opened
-            // popup-active is handled by showNowPaymentsModal
-          } catch (error) {
-            console.error("Error preparing NOWPayments modal:", error);
-            alert("Could not load cryptocurrency payment option. Please try again or select another method.");
-            // Re-enable buttons if NOWPayments modal failed to open
-            nowPaymentsChoiceBtn.innerHTML = originalButtonText; // Restore original text
-            nowPaymentsChoiceBtn.disabled = false;
-            if(activeOptions.mpesa_manual) manualMpesaChoiceBtn.disabled = false;
-            if(activeOptions.mpesa_payhero) payheroChoiceBtn.disabled = false;
-            cancelBtn.disabled = false;
-          }
-          // No finally block needed here for re-enabling, as logic is handled in try/catch
+            fetch(`${BASE_URL}/api/get-final-price/${product.item}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        choiceModal.classList.add('hidden');
+                        showNowPaymentsModal(product, data.finalUsdPrice);
+                    } else {
+                        throw new Error(data.error || 'Could not fetch final price.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching final price for NOWPayments:', error);
+                    alert(`Error: ${error.message}`);
+                })
+                .finally(() => {
+                    nowPaymentsChoiceBtn.innerHTML = originalButtonText;
+                    nowPaymentsChoiceBtn.disabled = false;
+                    if (activeOptions.mpesa_manual) manualMpesaChoiceBtn.disabled = false;
+                    if (activeOptions.mpesa_payhero) payheroChoiceBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                });
         };
         visibleButtonCount++;
       } else {
