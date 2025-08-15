@@ -1121,19 +1121,23 @@ async function sendOrderNotification(item, refCode, amount) {
 
 app.post('/api/submit-ref', rateLimit, async (req, res) => {
   try {
-    const { item, refCode, amount, timestamp } = req.body;
+    const { item, refCode, amount, timestamp, used_exchange_rate } = req.body;
     const { product, finalPrice: finalUsdPrice } = await getProductWithDiscount(item);
     if (!product) {
         return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const exchangeRate = cachedData.settings.fallbackRate || 130;
+    const exchangeRate = (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)))
+        ? parseFloat(used_exchange_rate)
+        : (cachedData.settings.fallbackRate || 130);
+
     const expectedKesAmount = Math.round(finalUsdPrice * exchangeRate);
     const submittedKesAmount = Math.round(parseFloat(amount));
 
-    if (submittedKesAmount !== expectedKesAmount) {
-        console.warn(`[${new Date().toISOString()}] Manual Till: Amount mismatch for item ${item}. Submitted KES: ${submittedKesAmount}, Server Expected KES: ${expectedKesAmount}`);
-        return res.status(400).json({ success: false, error: `The amount paid (${submittedKesAmount} KES) does not match the expected amount (${expectedKesAmount} KES). Please contact support.` });
+    // Allow a 1 KES tolerance for rounding differences
+    if (Math.abs(submittedKesAmount - expectedKesAmount) > 1) {
+        console.warn(`[${new Date().toISOString()}] Manual Till: Amount mismatch for item ${item}. Submitted KES: ${submittedKesAmount}, Server Expected KES: ${expectedKesAmount} (using rate ${exchangeRate})`);
+        return res.status(400).json({ success: false, error: `The amount paid (${submittedKesAmount} KES) does not match the expected amount (${expectedKesAmount} KES). Please refresh and try again or contact support.` });
     }
 
     const { data: existingOrder, error: orderError } = await supabase
