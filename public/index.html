@@ -1369,6 +1369,39 @@
       return html;
     }
 
+    function initializeCountdownTimers() {
+      const timers = document.querySelectorAll('.countdown-timer');
+      timers.forEach(timer => {
+        const expiresAt = new Date(timer.dataset.expiresAt).getTime();
+
+        const updateTimer = () => {
+          const now = new Date().getTime();
+          const distance = expiresAt - now;
+
+          if (distance < 0) {
+            clearInterval(interval);
+            const productCard = timer.closest('.bg-white');
+            const product = products.find(p => p.item === productCard.querySelector('.view-details').dataset.item);
+            if(product) {
+                const priceElement = productCard.querySelector('.text-green-600.font-bold').parentElement.parentElement;
+                priceElement.innerHTML = `<p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>`;
+            }
+            timer.remove();
+            return;
+          }
+
+          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+          timer.innerHTML = `Ends in: ${hours}h ${minutes}m ${seconds}s`;
+        };
+
+        const interval = setInterval(updateTimer, 1000);
+        updateTimer();
+      });
+    }
+
     async function renderProducts(category = 'all', search = '') {
       const grid = document.getElementById('product-grid');
       const loadingMessage = document.getElementById('loading-message');
@@ -1398,6 +1431,30 @@
 
         const card = document.createElement('div');
         card.className = 'bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full flex flex-col';
+
+        const now = new Date();
+        const expiresAt = product.discount_expires_at ? new Date(product.discount_expires_at) : null;
+        const hasActiveDiscount = product.discount_percentage > 0 && expiresAt && expiresAt > now;
+
+        let priceHTML;
+        if (hasActiveDiscount) {
+          const discountedPrice = product.price * (1 - product.discount_percentage / 100);
+          priceHTML = `
+            <div class="flex items-center justify-between mt-2">
+                <div>
+                    <p class="text-red-500 text-sm line-through">${product.price.toFixed(2)} USD</p>
+                    <p class="text-green-600 font-bold text-lg">${discountedPrice.toFixed(2)} USD</p>
+                </div>
+                <div class="text-xs text-white bg-red-500 p-1 rounded">
+                    ${product.discount_percentage}% OFF
+                </div>
+            </div>
+            <div class="countdown-timer text-sm text-gray-500 mt-1" data-expires-at="${product.discount_expires_at}"></div>
+          `;
+        } else {
+          priceHTML = `<p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>`;
+        }
+
         card.innerHTML = `
           <div class="relative">
             <div class="product-image-container">
@@ -1408,13 +1465,15 @@
           <div class="p-6 flex-1">
             <h3 class="text-lg font-semibold text-gray-900 line-clamp-2">${product.name}</h3>
             <p class="mt-2 text-gray-600 text-sm line-clamp-3" style="color: inherit;">${excerpt.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: blue; text-decoration: underline;" target="_blank">$1</a>')}</p>
-            <p class="mt-2 text-green-600 font-bold">${product.price.toFixed(2)} USD</p>
+            ${priceHTML}
             <p class="mt-1 text-gray-500 text-sm item-hidden">Item: ${product.item}</p>
             <button class="view-details mt-4 w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors" data-item="${product.item}">View Details</button>
           </div>
         `;
         grid.appendChild(card);
       });
+
+      initializeCountdownTimers();
 
       document.querySelectorAll('.view-details').forEach(btn => {
         btn.addEventListener('click', async () => {

@@ -738,6 +738,14 @@
               <label for="edit-price" class="block text-sm font-medium text-gray-700">Price ($)</label>
               <input type="number" id="edit-price" step="0.01" required class="mt-1 w-full p-2 border rounded-md">
             </div>
+            <div>
+              <label for="edit-discount-percentage" class="block text-sm font-medium text-gray-700">Discount (%)</label>
+              <input type="number" id="edit-discount-percentage" step="0.01" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 10 for 10%">
+            </div>
+            <div>
+              <label for="edit-discount-duration" class="block text-sm font-medium text-gray-700">Discount Duration (hours)</label>
+              <input type="number" id="edit-discount-duration" class="mt-1 w-full p-2 border rounded-md" placeholder="e.g., 24 for 24 hours">
+            </div>
             <div class="sm:col-span-2">
               <label for="edit-desc" class="block text-sm font-medium text-gray-700">Description</label>
               <div class="ql-editor-container">
@@ -1102,6 +1110,22 @@
         document.getElementById('edit-img').value = product.img;
         document.getElementById('edit-isNew').checked = product.isNew;
         document.getElementById('edit-isArchived').checked = product.isArchived || false;
+
+        // Populate discount fields
+        document.getElementById('edit-discount-percentage').value = product.discount_percentage || '';
+        if (product.discount_expires_at) {
+          const now = new Date();
+          const expires = new Date(product.discount_expires_at);
+          if (expires > now) {
+            const hoursRemaining = Math.ceil((expires - now) / (1000 * 60 * 60));
+            document.getElementById('edit-discount-duration').value = hoursRemaining;
+          } else {
+            document.getElementById('edit-discount-duration').value = '';
+          }
+        } else {
+          document.getElementById('edit-discount-duration').value = '';
+        }
+
         const categorySelect = document.getElementById('edit-category');
         categorySelect.innerHTML = data.categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
         categorySelect.value = product.category;
@@ -1184,8 +1208,24 @@
       category: document.getElementById('edit-category').value,
       img: document.getElementById('edit-img').value.trim(),
       isNew: document.getElementById('edit-isNew').checked,
-      isArchived: document.getElementById('edit-isArchived').checked
+      isArchived: document.getElementById('edit-isArchived').checked,
+      discount_percentage: parseFloat(document.getElementById('edit-discount-percentage').value) || null,
     };
+
+    const discountDuration = parseInt(document.getElementById('edit-discount-duration').value, 10);
+    if (discountDuration && discountDuration > 0) {
+      const now = new Date();
+      productPayload.discount_expires_at = new Date(now.getTime() + discountDuration * 60 * 60 * 1000).toISOString();
+    } else if (productPayload.discount_percentage === null || productPayload.discount_percentage <= 0) {
+      // If the discount is removed or set to 0, clear the expiration
+      productPayload.discount_expires_at = null;
+    } else {
+      // Keep existing expiration if duration is not set but percentage is
+      const existingProduct = data.products.find(p => p.item === originalItem);
+      if (existingProduct) {
+        productPayload.discount_expires_at = existingProduct.discount_expires_at;
+      }
+    }
 
     if (newItem !== originalItem) {
       productPayload.originalItem = originalItem; // Add originalItem only if ID changed
