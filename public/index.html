@@ -2600,7 +2600,8 @@ function handleCustomBotNowPaymentsStatus(orderId) {
               item: product.item,
               refCode,
               amount: kesPrice,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              used_exchange_rate: exchangeRate
             }),
             credentials: 'include'
           }, 15000);
