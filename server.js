@@ -236,15 +236,48 @@ async function loadData() {
       fileId: row.file_id,
       originalFileName: row.original_file_name,
       price: parseFloat(row.price),
-      // price_kes removed as it's not in the products table schema
       name: row.name,
       desc: row.description || '', // Map DB 'description' to 'desc' for cache
       img: row.image || 'https://via.placeholder.com/300', // Map DB 'image' to 'img' for cache
       category: row.category || 'General',
       embed: row.embed || '',
       isNew: row.is_new || false, // Map DB 'is_new' to 'isNew' for cache
-      isArchived: row.is_archived || false // Map DB 'is_archived' to 'isArchived' for cache
+      isArchived: row.is_archived || false, // Map DB 'is_archived' to 'isArchived' for cache
+      discount_percentage: row.discount_percentage,
+      discount_expires_at: row.discount_expires_at
     })) || [];
+
+    // Clean up expired discounts
+    const now = new Date();
+    const expiredDiscountsToUpdate = [];
+    for (const product of products) {
+        if (product.discount_percentage && product.discount_expires_at) {
+            const expiresAt = new Date(product.discount_expires_at);
+            if (expiresAt <= now) {
+                expiredDiscountsToUpdate.push(product.item);
+                product.discount_percentage = null;
+                product.discount_expires_at = null;
+            }
+        }
+    }
+
+    if (expiredDiscountsToUpdate.length > 0) {
+        console.log(`[${new Date().toISOString()}] Found ${expiredDiscountsToUpdate.length} expired discounts. Updating database...`);
+        const { error: updateError } = await supabase
+            .from('products')
+            .update({ discount_percentage: null, discount_expires_at: null })
+            .in('item', expiredDiscountsToUpdate);
+
+        if (updateError) {
+            console.error(`[${new Date().toISOString()}] Error updating expired discounts:`, updateError.message);
+        } else {
+            console.log(`[${new Date().toISOString()}] Successfully updated expired discounts in the database.`);
+            // Also remove from Redis, just in case
+            for (const item of expiredDiscountsToUpdate) {
+                await redisClient.del(`discount:${item}`);
+            }
+        }
+    }
 
     const settingsRes = await supabase.from('settings').select('key, value');
     if (settingsRes.error) {
@@ -510,6 +543,8 @@ async function saveDataToDatabase(tasks = {}) {
           embed: productBeingProcessed.embed,
           is_new: typeof productBeingProcessed.isNew === 'boolean' ? productBeingProcessed.isNew : String(productBeingProcessed.isNew).toLowerCase() === 'true',
           is_archived: typeof productBeingProcessed.isArchived === 'boolean' ? productBeingProcessed.isArchived : String(productBeingProcessed.isArchived).toLowerCase() === 'true',
+          discount_percentage: productBeingProcessed.discount_percentage,
+          discount_expires_at: productBeingProcessed.discount_expires_at,
           originalItem: productBeingProcessed.originalItem // Carry over originalItem if present
         };
       });
@@ -533,6 +568,24 @@ async function saveDataToDatabase(tasks = {}) {
           if (upsertError) {
             console.error(`[${new Date().toISOString()}] Error upserting product ${dbProductPayload.item}:`, upsertError.message, upsertError.details);
             throw upsertError;
+          }
+
+          // After successful upsert, update Redis for discount
+          if (dbProductPayload.discount_percentage && dbProductPayload.discount_percentage > 0 && dbProductPayload.discount_expires_at) {
+            const now = new Date();
+            const expiresAt = new Date(dbProductPayload.discount_expires_at);
+            if (expiresAt > now) {
+              const ttl = Math.ceil((expiresAt.getTime() - now.getTime()) / 1000);
+              await redisClient.set(`discount:${dbProductPayload.item}`, dbProductPayload.discount_percentage, { EX: ttl });
+              console.log(`[${new Date().toISOString()}] Set discount for ${dbProductPayload.item} in Redis with TTL ${ttl}s`);
+            } else {
+              // Discount is already expired, ensure it's removed from Redis
+              await redisClient.del(`discount:${dbProductPayload.item}`);
+            }
+          } else {
+            // No discount or invalid discount, ensure it's removed from Redis
+            await redisClient.del(`discount:${dbProductPayload.item}`);
+            console.log(`[${new Date().toISOString()}] Removed discount for ${dbProductPayload.item} from Redis`);
           }
         }
         console.log(`[${new Date().toISOString()}] ${productsToUpsert.length} products processed (upserted/updated) in Supabase.`);
@@ -720,42 +773,35 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
     // If `req.body.products` is intended to be a complete replacement:
     if (req.body.hasOwnProperty('products') && Array.isArray(req.body.products)) {
         console.log(`[${new Date().toISOString()}] Processing products update...`);
-        // Create a map of existing products for efficient lookup and update
         const productCacheMap = new Map(cachedData.products.map(p => [p.item, p]));
         let productsChangedThisSave = false;
 
         req.body.products.forEach(incomingProduct => {
-            const existingProduct = productCacheMap.get(incomingProduct.item);
+            const existingProduct = productCacheMap.get(incomingProduct.originalItem || incomingProduct.item);
             const productDataForCache = {
+                ...existingProduct,
                 item: incomingProduct.item,
                 fileId: incomingProduct.fileId || existingProduct?.fileId,
                 originalFileName: incomingProduct.originalFileName || existingProduct?.originalFileName,
                 price: parseFloat(incomingProduct.price) || 0,
-                price_kes: incomingProduct.price_kes ? parseFloat(incomingProduct.price_kes) : null,
                 name: incomingProduct.name,
                 desc: incomingProduct.desc,
                 img: incomingProduct.img,
                 category: incomingProduct.category,
                 embed: incomingProduct.embed,
                 isNew: incomingProduct.isNew === true || String(incomingProduct.isNew).toLowerCase() === 'true',
-                isArchived: incomingProduct.isArchived === true || String(incomingProduct.isArchived).toLowerCase() === 'true'
+                isArchived: incomingProduct.isArchived === true || String(incomingProduct.isArchived).toLowerCase() === 'true',
+                discount_percentage: incomingProduct.discount_percentage,
+                discount_expires_at: incomingProduct.discount_expires_at
             };
 
-            if (existingProduct) {
-                // Update existing product in map
-                productCacheMap.set(incomingProduct.item, { ...existingProduct, ...productDataForCache });
-            } else {
-                // Add new product to map
-                productCacheMap.set(incomingProduct.item, productDataForCache);
+            if (incomingProduct.originalItem && incomingProduct.originalItem !== incomingProduct.item) {
+                productCacheMap.delete(incomingProduct.originalItem);
             }
-            productsChangedThisSave = true; // Assume change if products array is processed
+            productCacheMap.set(incomingProduct.item, productDataForCache);
+            productsChangedThisSave = true;
         });
 
-        // If the admin panel sends the *entire* list of products every time it saves one product,
-        // then simply replacing cachedData.products is fine.
-        // If it sends only *changed/new* products, we need a more careful merge or rely on item IDs.
-        // The current logic using productCacheMap aims to merge/update.
-        // Convert map back to array
         cachedData.products = Array.from(productCacheMap.values());
         if(productsChangedThisSave) overallDataChanged = true;
         console.log(`[${new Date().toISOString()}] Products data updated in cache. Total products: ${cachedData.products.length}`);
@@ -965,14 +1011,15 @@ app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res
         file_id: productData.fileId,
         original_file_name: productData.originalFileName,
         price: productData.price,
-        // price_kes removed as it's not in the DB schema for products
         name: productData.name,
         description: productData.desc,
         image: productData.img,
         category: productData.category,
         embed: productData.embed,
         is_new: productData.isNew,
-        is_archived: productData.isArchived
+        is_archived: productData.isArchived,
+        discount_percentage: null,
+        discount_expires_at: null
         // created_at will be set by DB default
     };
 
