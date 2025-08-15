@@ -1480,7 +1480,17 @@
           const item = btn.dataset.item;
           const product = products.find(p => p.item === item);
           const rate = await getExchangeRate();
-          const kesPrice = (product.price * rate).toFixed(2);
+
+          const now = new Date();
+          const expiresAt = product.discount_expires_at ? new Date(product.discount_expires_at) : null;
+          const hasActiveDiscount = product.discount_percentage > 0 && expiresAt && expiresAt > now;
+
+          let finalPriceUSD = product.price;
+          if (hasActiveDiscount) {
+            finalPriceUSD = product.price * (1 - product.discount_percentage / 100);
+          }
+
+          const kesPrice = (finalPriceUSD * rate).toFixed(2);
 
           document.getElementById('details-thumbnail').src = product.img;
           document.getElementById('details-name').textContent = product.name;
@@ -1616,7 +1626,7 @@
           const buyNowBtn = document.getElementById('details-buy-now');
           buyNowBtn.dataset.item = item;
           buyNowBtn.dataset.kesPrice = kesPrice; // KES price for Mpesa options
-          buyNowBtn.dataset.usdPrice = product.price.toFixed(2); // USD price for Crypto
+          buyNowBtn.dataset.usdPrice = finalPriceUSD.toFixed(2); // USD price for Crypto
 
           buyNowBtn.onclick = () => {
             // Determine active payment options
@@ -1630,7 +1640,7 @@
             if (activeOptions.crypto_nowpayments) availableMethods.push('crypto_nowpayments');
 
             if (availableMethods.length > 1) {
-              showPaymentChoiceModal(product, kesPrice);
+              showPaymentChoiceModal(product, kesPrice, finalPriceUSD.toFixed(2));
             } else if (availableMethods.length === 1) {
               document.getElementById('details-modal').classList.add('hidden'); // Close details modal first
               document.body.classList.remove('popup-active');
@@ -1640,7 +1650,7 @@
               } else if (singleMethod === 'mpesa_payhero') {
                 showPayHeroModal(product, kesPrice);
               } else if (singleMethod === 'crypto_nowpayments') {
-                showNowPaymentsModal(product, product.price); // Pass USD price
+                showNowPaymentsModal(product, finalPriceUSD); // Pass discounted USD price
               }
             } else {
               // No payment methods available (should be prevented by admin validation)
@@ -1685,10 +1695,10 @@
       debouncedFilterProducts(category);
     }
 
-    function showPaymentChoiceModal(product, kesPrice) {
+    function showPaymentChoiceModal(product, kesPrice, usdPrice) {
       const choiceModal = document.getElementById('payment-choice-modal');
       document.getElementById('payment-choice-product-name').textContent = `Product: ${product.name}`;
-      document.getElementById('payment-choice-amount').textContent = `Amount: ${kesPrice} KES (USD ${product.price.toFixed(2)})`;
+      document.getElementById('payment-choice-amount').textContent = `Amount: ${kesPrice} KES (USD ${usdPrice})`;
 
       const manualMpesaChoiceBtn = document.getElementById('manual-mpesa-choice');
       const payheroChoiceBtn = document.getElementById('payhero-choice');

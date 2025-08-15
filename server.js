@@ -672,6 +672,18 @@ async function selfCheck() {
 // in a simple way without using rpc. Let's define a helper if needed, or use rpc.
 // For CREATE TABLE IF NOT EXISTS, using an RPC function in Supabase is a common way.
 // Let's assume an RPC function `execute_sql` exists or can be created in Supabase dashboard:
+
+function getFinalPrice(product) {
+  if (!product) return 0;
+  const now = new Date();
+  const expiresAt = product.discount_expires_at ? new Date(product.discount_expires_at) : null;
+  const hasActiveDiscount = product.discount_percentage > 0 && expiresAt && expiresAt > now;
+
+  if (hasActiveDiscount) {
+    return product.price * (1 - product.discount_percentage / 100);
+  }
+  return product.price;
+}
 // CREATE OR REPLACE FUNCTION execute_sql(sql TEXT)
 // RETURNS VOID AS $$
 // BEGIN
@@ -1386,18 +1398,25 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
     let expectedServerKesPrice;
     let rateUsedForVerification = null;
 
+    const finalUsdPrice = getFinalPrice(product);
+
     if (product.price_kes) {
-        expectedServerKesPrice = Math.round(parseFloat(product.price_kes));
+        // This part of logic seems deprecated as price_kes is not in the schema.
+        // However, if it were to be used, it should also have a discounted KES price.
+        // For now, we will ignore this branch and assume price is in USD.
+        // To be safe, let's calculate KES price from final USD price.
         rateUsedForVerification = 'N/A (Direct KES price used)';
-    } else if (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)) && parseFloat(used_exchange_rate) > 0) {
+    }
+
+    if (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)) && parseFloat(used_exchange_rate) > 0) {
         rateUsedForVerification = parseFloat(used_exchange_rate);
-        expectedServerKesPrice = Math.round(parseFloat(product.price) * rateUsedForVerification);
         console.log(`[${new Date().toISOString()}] ServerSTK: Using client-provided exchange rate for verification: ${rateUsedForVerification}`);
     } else {
         rateUsedForVerification = cachedData.settings.fallbackRate || 130;
-        expectedServerKesPrice = Math.round(parseFloat(product.price) * rateUsedForVerification);
         console.warn(`[${new Date().toISOString()}] ServerSTK: Client did not provide a valid exchange rate. Falling back to server rate: ${rateUsedForVerification} for item ${item}.`);
     }
+
+    expectedServerKesPrice = Math.round(finalUsdPrice * rateUsedForVerification);
 
     if (clientReportedKesAmount !== expectedServerKesPrice) {
         console.error(`[${new Date().toISOString()}] ServerSTK: Amount mismatch for item ${item}. Client KES: ${clientReportedKesAmount}, Server Expected KES: ${expectedServerKesPrice}. Product USD Price: ${product.price}, Product KES Price: ${product.price_kes}, Rate Used for Verification: ${rateUsedForVerification}`);
@@ -1715,9 +1734,10 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
-    // Verify price_amount against product.price (which should be in USD)
-    if (parseFloat(price_amount) !== parseFloat(product.price)) {
-        console.warn(`[${new Date().toISOString()}] NOWPayments price mismatch for item ${item}. Client sent: ${price_amount}, Server expected: ${product.price}`);
+    // Verify price_amount against the final price (which could be discounted)
+    const finalUsdPrice = getFinalPrice(product);
+    if (Math.abs(parseFloat(price_amount) - finalUsdPrice) > 0.01) { // Use a small tolerance for float comparison
+        console.warn(`[${new Date().toISOString()}] NOWPayments price mismatch for item ${item}. Client sent: ${price_amount}, Server expected: ${finalUsdPrice.toFixed(2)}`);
         return res.status(400).json({ success: false, error: 'Price mismatch. Please refresh and try again.' });
     }
 
