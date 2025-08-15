@@ -684,14 +684,15 @@ function getFinalPrice(product) {
   }
   return product.price;
 }
-// CREATE OR REPLACE FUNCTION execute_sql(sql TEXT)
-// RETURNS VOID AS $$
-// BEGIN
-//   EXECUTE sql;
-// END;
-// $$ LANGUAGE plpgsql;
-// If direct execution is preferred and possible through a library feature, that can be used too.
-// For now, using rpc assuming the function exists.
+
+async function getProductWithDiscount(productId) {
+    const product = cachedData.products.find(p => p.item === productId);
+    if (!product) {
+        return { product: null, finalPrice: 0 };
+    }
+    const finalPrice = getFinalPrice(product);
+    return { product, finalPrice };
+}
 
 app.get('/api/check-session', (req, res) => {
   res.json({ success: true, isAuthenticated: !!req.session.isAuthenticated });
@@ -719,6 +720,26 @@ async function rateLimit(req, res, next) {
     next();
   }
 }
+
+app.get('/api/get-final-price/:item', async (req, res) => {
+    const { item } = req.params;
+    const { product, finalPrice } = await getProductWithDiscount(item);
+
+    if (!product) {
+        return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const exchangeRate = cachedData.settings.fallbackRate || 130;
+    const finalKesPrice = Math.round(finalPrice * exchangeRate);
+
+    res.json({
+        success: true,
+        item: product.item,
+        finalUsdPrice: finalPrice,
+        finalKesPrice: finalKesPrice,
+        exchangeRate: exchangeRate
+    });
+});
 
 app.get('/api/data', async (req, res) => {
   try {
@@ -1101,9 +1122,18 @@ async function sendOrderNotification(item, refCode, amount) {
 app.post('/api/submit-ref', rateLimit, async (req, res) => {
   try {
     const { item, refCode, amount, timestamp } = req.body;
-    const product = cachedData.products.find(p => p.item === item);
+    const { product, finalPrice: finalUsdPrice } = await getProductWithDiscount(item);
     if (!product) {
-      return res.status(404).json({ success: false, error: 'Product not found' });
+        return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const exchangeRate = cachedData.settings.fallbackRate || 130;
+    const expectedKesAmount = Math.round(finalUsdPrice * exchangeRate);
+    const submittedKesAmount = Math.round(parseFloat(amount));
+
+    if (submittedKesAmount !== expectedKesAmount) {
+        console.warn(`[${new Date().toISOString()}] Manual Till: Amount mismatch for item ${item}. Submitted KES: ${submittedKesAmount}, Server Expected KES: ${expectedKesAmount}`);
+        return res.status(400).json({ success: false, error: `The amount paid (${submittedKesAmount} KES) does not match the expected amount (${expectedKesAmount} KES). Please contact support.` });
     }
 
     const { data: existingOrder, error: orderError } = await supabase
@@ -1367,10 +1397,10 @@ app.post('/api/logout', (req, res) => {
 
 app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
   try {
-    const { item, amount_kes, phone, customerName, used_exchange_rate } = req.body;
+    const { item, phone, customerName, used_exchange_rate } = req.body;
 
-    if (!item || !amount_kes || !phone) {
-      return res.status(400).json({ success: false, error: 'Missing required fields: item, amount_kes, phone' });
+    if (!item || !phone) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: item, phone' });
     }
 
     const normalizedPhoneForRateLimit = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
@@ -1394,36 +1424,14 @@ app.post('/api/initiate-server-stk-push', rateLimit, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    const clientReportedKesAmount = Math.round(parseFloat(amount_kes));
-    let expectedServerKesPrice;
-    let rateUsedForVerification = null;
-
     const finalUsdPrice = getFinalPrice(product);
+    const exchangeRate = (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)) && parseFloat(used_exchange_rate) > 0)
+      ? parseFloat(used_exchange_rate)
+      : (cachedData.settings.fallbackRate || 130);
 
-    if (product.price_kes) {
-        // This part of logic seems deprecated as price_kes is not in the schema.
-        // However, if it were to be used, it should also have a discounted KES price.
-        // For now, we will ignore this branch and assume price is in USD.
-        // To be safe, let's calculate KES price from final USD price.
-        rateUsedForVerification = 'N/A (Direct KES price used)';
-    }
+    const amountToCharge = Math.round(finalUsdPrice * exchangeRate);
 
-    if (used_exchange_rate && !isNaN(parseFloat(used_exchange_rate)) && parseFloat(used_exchange_rate) > 0) {
-        rateUsedForVerification = parseFloat(used_exchange_rate);
-        console.log(`[${new Date().toISOString()}] ServerSTK: Using client-provided exchange rate for verification: ${rateUsedForVerification}`);
-    } else {
-        rateUsedForVerification = cachedData.settings.fallbackRate || 130;
-        console.warn(`[${new Date().toISOString()}] ServerSTK: Client did not provide a valid exchange rate. Falling back to server rate: ${rateUsedForVerification} for item ${item}.`);
-    }
-
-    expectedServerKesPrice = Math.round(finalUsdPrice * rateUsedForVerification);
-
-    if (clientReportedKesAmount !== expectedServerKesPrice) {
-        console.error(`[${new Date().toISOString()}] ServerSTK: Amount mismatch for item ${item}. Client KES: ${clientReportedKesAmount}, Server Expected KES: ${expectedServerKesPrice}. Product USD Price: ${product.price}, Product KES Price: ${product.price_kes}, Rate Used for Verification: ${rateUsedForVerification}`);
-        return res.status(400).json({ success: false, error: 'Price verification failed. Please try again or contact support.' });
-    }
-
-    const amountToCharge = clientReportedKesAmount;
+    console.log(`[${new Date().toISOString()}] ServerSTK: Initiating payment for item ${item}. Final USD Price: ${finalUsdPrice}, Exchange Rate: ${exchangeRate}, Amount to Charge (KES): ${amountToCharge}`);
 
     const serverSideReference = `SRV-PH-${item}-${uuidv4()}`;
     const normalizedPhone = phone.startsWith('+') ? phone.substring(1) : (phone.startsWith('0') ? `254${phone.substring(1)}` : phone);
@@ -1734,12 +1742,10 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
-    // Verify price_amount against the final price (which could be discounted)
+    // Always use the server-calculated final price
     const finalUsdPrice = getFinalPrice(product);
-    if (Math.abs(parseFloat(price_amount) - finalUsdPrice) > 0.01) { // Use a small tolerance for float comparison
-        console.warn(`[${new Date().toISOString()}] NOWPayments price mismatch for item ${item}. Client sent: ${price_amount}, Server expected: ${finalUsdPrice.toFixed(2)}`);
-        return res.status(400).json({ success: false, error: 'Price mismatch. Please refresh and try again.' });
-    }
+    console.log(`[${new Date().toISOString()}] NOWPayments: Creating payment for item ${item}. Client sent price: ${price_amount}, Server calculated final price: ${finalUsdPrice.toFixed(2)}`);
+
 
     // Step 1: Get minimum payment amount for the selected pay_currency
     // currency_to should be your store's default payout currency (e.g., 'usd' if prices are in USD)
@@ -1769,7 +1775,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
 
     // Step 2: Get estimated price in the selected crypto currency
     // This is the amount the user will actually need to send in the chosen crypto.
-    const estimateResponse = await fetch(`https://api.nowpayments.io/v1/estimate?amount=${parseFloat(price_amount)}&currency_from=${price_currency.toLowerCase()}&currency_to=${pay_currency.toLowerCase()}`, {
+    const estimateResponse = await fetch(`https://api.nowpayments.io/v1/estimate?amount=${finalUsdPrice}&currency_from=${price_currency.toLowerCase()}&currency_to=${pay_currency.toLowerCase()}`, {
         headers: { 'x-api-key': apiKey }
     });
 
@@ -1779,10 +1785,10 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
         try {
             estErrorJson = JSON.parse(estErrorText);
         } catch(e) {
-            console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}: ${estErrorText}`);
+            console.error(`[${new Date().toISOString()}] NOWPayments: Non-JSON error fetching estimate for ${finalUsdPrice} ${price_currency} to ${pay_currency}: ${estErrorText}`);
         }
         const errorMessage = estErrorJson.message || `Could not get payment estimate from NOWPayments (Status: ${estimateResponse.status}, Body: ${estErrorText})`;
-        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${price_amount} ${price_currency} to ${pay_currency}:`, estErrorJson.message || estErrorText);
+        console.error(`[${new Date().toISOString()}] NOWPayments: Error fetching estimate for ${finalUsdPrice} ${price_currency} to ${pay_currency}:`, estErrorJson.message || estErrorText);
         return res.status(500).json({ success: false, error: errorMessage });
     }
     const estimateData = await estimateResponse.json();
@@ -1798,7 +1804,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
         console.warn(`[${new Date().toISOString()}] NOWPayments: Estimated crypto amount ${estimatedCryptoAmount} ${pay_currency.toUpperCase()} is less than minimum ${minimumCryptoAmount} ${pay_currency.toUpperCase()}.`);
         return res.status(400).json({
             success: false,
-            error: `The amount for ${product.name} (${price_amount} ${price_currency.toUpperCase()}) is below the minimum required for ${pay_currency.toUpperCase()}. Minimum: ${minimumCryptoAmount} ${pay_currency.toUpperCase()}. Your order's equivalent: ~${estimatedCryptoAmount} ${pay_currency.toUpperCase()}. Please increase the quantity or contact support if prices seem incorrect.`,
+            error: `The amount for ${product.name} (${finalUsdPrice.toFixed(2)} ${price_currency.toUpperCase()}) is below the minimum required for ${pay_currency.toUpperCase()}. Minimum: ${minimumCryptoAmount} ${pay_currency.toUpperCase()}. Your order's equivalent: ~${estimatedCryptoAmount} ${pay_currency.toUpperCase()}. Please increase the quantity or contact support if prices seem incorrect.`,
             type: 'min_amount_error', // Add a type for easier frontend handling
             min_amount: minimumCryptoAmount,
             estimated_amount: estimatedCryptoAmount,
@@ -1810,7 +1816,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
     const ipnCallbackUrl = `${getBaseUrl(req)}/api/nowpayments/ipn`;
 
     const nowPaymentsRequestBody = {
-      price_amount: parseFloat(price_amount),
+      price_amount: finalUsdPrice,
       price_currency: price_currency, // e.g., 'usd'
       pay_currency: pay_currency,     // e.g., 'btc'
       ipn_callback_url: ipnCallbackUrl,
@@ -1840,7 +1846,7 @@ app.post('/api/nowpayments/create-payment', rateLimit, async (req, res) => {
       item: item,
       ref_code: orderId, // Using our generated orderId as ref_code
       nowpayments_payment_id: paymentData.payment_id, // Store NOWPayments' payment_id
-      amount: parseFloat(price_amount), // Store the original USD amount
+      amount: finalUsdPrice, // Store the final USD amount
       currency_paid: pay_currency.toLowerCase(), // Store the crypto currency used for payment
       email: email, // Store customer's email
       timestamp: new Date().toISOString(),
