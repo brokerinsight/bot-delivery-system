@@ -41,7 +41,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const supabase = createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const ALLOWED_ORIGINS = [
-  'https://bot-delivery-system-qlx4j.ondigitalocean.app/',
+  'https://bot-delivery-system-qlx4j.ondigitalocean.app',
   'https://botblitz.store',
   'https://www.botblitz.store'
 ];
