@@ -1193,7 +1193,7 @@
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
   <script>
     const WHATSAPP_REDIRECT = 'https://wa.link/j8hx47';
-  const BASE_URL = 'https://bot-delivery-system-qlx4j.ondigitalocean.app';
+  const BASE_URL = 'https://botblitz-dev.onrender.com';
     let products = [];
     let categories = [];
     let settings = {};
@@ -2718,28 +2718,17 @@ function handleCustomBotNowPaymentsStatus(orderId) {
               }
             } else if (data.status && data.status.startsWith('failed_')) {
                 clearInterval(countdown);
-                statusMessage.innerHTML = `${data.message || `Payment failed: ${data.status}`}. You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
+                // The `data.message` from the server now contains the descriptive error from PayHero.
+                // Display this reason clearly to the user.
+                statusMessage.innerHTML = `<strong>Payment Failed.</strong><br>${data.message || 'An unknown error occurred.'} You can <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a> if the issue persists.`;
 
-                // More specific retry logic for STK failures
-                const retryableStkFailures = ['failed_stk_timeout', 'failed_stk_initiation'];
-                // failed_stk_cb_ might also be retryable if it was a temporary PayHero issue
-                // but cancelled_by_user, insufficient_funds, invalid_pin are usually not directly retryable by simply re-polling.
-
-                if (showRetry && retryCount < maxRetries &&
-                    (retryableStkFailures.includes(data.status) || data.status.startsWith('failed_stk_cb_'))) {
-                    retryBtn.classList.remove('hidden');
-                    retryBtn.textContent = 'Retry Payment';
-                    retryBtn.onclick = () => {
-                        retryCount++;
-                        modal.classList.add('hidden'); document.body.classList.remove('popup-active');
-                        // For STK, retrying means showing the PayHero modal again.
-                        // We need product details and original KES price.
-                        const originalKesPrice = localStorage.getItem(`payment_${product.item}_kesPrice`) || (product.price * (exchangeRate || settings.fallbackRate || 130)).toFixed(2);
-                        showPayHeroModal(product, originalKesPrice);
-                    };
-                } else {
-                    setTimeout(() => { modal.classList.add('hidden'); document.body.classList.remove('popup-active'); clearPaymentCookie(product.item); }, 7000); // Longer for failure messages
-                }
+                // Since we removed specific failure statuses from the backend, the complex retry logic is no longer needed.
+                // We will simply close the modal after a delay to allow the user to read the message.
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.body.classList.remove('popup-active');
+                    clearPaymentCookie(product.item);
+                }, 8000); // 8 seconds to read the message.
             } else if (data.status === 'no payment' || data.status === 'partial payment') { // Manual Mpesa specific
               clearInterval(countdown);
               statusMessage.innerHTML = `${data.message || 'There was an issue with your manual payment.'} Please <a href="${WHATSAPP_REDIRECT}" class="text-green-600 underline">contact support</a>.`;
@@ -4118,23 +4107,29 @@ function handleCustomBotNowPaymentsStatus(orderId) {
                 const data = await res.json();
 
                 if (data.success) {
+                    // Always update the status message with the one from the server
+                    statusMessage.innerHTML = data.message || `Status: ${data.status}`;
+
                     if (data.status === 'paid') {
                         clearInterval(countdownTimerId);
                         clearInterval(pollIntervalId);
-                        modal.classList.add('hidden');
-                        document.body.classList.remove('popup-active');
-                        // We don't have the email here, but the tracking number is most important for the success message
-                        showCustomBotSuccess(data.trackingNumber, '', 'tracking');
-                    } else if (data.status && data.status.startsWith('failed')) {
-                        clearInterval(countdownTimerId);
-                        clearInterval(pollIntervalId);
-                        statusMessage.innerHTML = `Payment failed. Please try again or contact support. (Reason: ${data.status})`;
+                        statusMessage.style.color = 'green';
                         setTimeout(() => {
                             modal.classList.add('hidden');
                             document.body.classList.remove('popup-active');
-                        }, 4000);
+                            showCustomBotSuccess(data.trackingNumber, '', 'tracking');
+                        }, 2000);
+                    } else if (data.status && data.status.startsWith('failed')) {
+                        clearInterval(countdownTimerId);
+                        clearInterval(pollIntervalId);
+                        statusMessage.style.color = 'red';
+                        // The message is already set above, so we just need to handle the modal closing
+                        setTimeout(() => {
+                            modal.classList.add('hidden');
+                            document.body.classList.remove('popup-active');
+                        }, 8000); // Longer timeout for failure messages
                     }
-                    // If status is 'pending_stk_push', do nothing and let it continue polling.
+                    // If status is 'pending_stk_push', the loop will continue
                 }
             } catch (error) {
                 console.error('Error polling PayHero status:', error);
