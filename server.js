@@ -41,7 +41,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 const supabase = createSupabaseClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const ALLOWED_ORIGINS = [
-  'https://bot-delivery-system-qlx4j.ondigitalocean.app',
+  'https://botblitz-dev.onrender.com',
   'https://botblitz.store',
   'https://www.botblitz.store'
 ];
@@ -990,89 +990,72 @@ app.post('/api/save-data', isAuthenticated, async (req, res) => {
 });
 
 
-app.post('/api/add-bot', isAuthenticated, upload.single('file'), async (req, res) => {
+app.post('/api/add-bot', isAuthenticated, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'imageFile', maxCount: 1 }]), async (req, res) => {
   try {
-    const { item, name, price, price_kes, desc, embed, category, img, isNew } = req.body;
-    const file = req.file;
-    if (!file) throw new Error('No file uploaded');
+    const { item, name, price, desc, embed, category, isNew } = req.body;
 
-    let attempts = 0;
-    let fileId;
-    let uploadSuccess = false;
-    const originalFileName = file.originalname;
+    const botFile = req.files['file'] ? req.files['file'][0] : null;
+    const imageFile = req.files['imageFile'] ? req.files['imageFile'][0] : null;
 
-    while (attempts < 5 && !uploadSuccess) {
-      const uniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      fileId = `${uniquePrefix}_${originalFileName}`;
+    if (!botFile) throw new Error('No bot file uploaded');
+    if (!imageFile) throw new Error('No image file uploaded');
 
-      const { error: uploadError } = await supabase.storage
-        .from('bots')
-        .upload(fileId, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false
-        });
-      if (uploadError) {
-        if (uploadError.statusCode === '409') {
-          attempts++;
-          continue;
-        }
-        throw uploadError;
-      }
-      uploadSuccess = true;
+    // 1. Upload Bot File
+    let botFileId;
+    const botOriginalFileName = botFile.originalname;
+    const botUniquePrefix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    botFileId = `${botUniquePrefix}_${botOriginalFileName}`;
+    const { error: botUploadError } = await supabase.storage
+      .from('bots')
+      .upload(botFileId, botFile.buffer, { contentType: botFile.mimetype, upsert: false });
+    if (botUploadError) throw botUploadError;
+
+    // 2. Upload Image File
+    let imageUrl;
+    const imageFileName = `${Date.now()}_${imageFile.originalname}`;
+    const { error: imageUploadError } = await supabase.storage
+        .from('thumbnails')
+        .upload(imageFileName, imageFile.buffer, { contentType: imageFile.mimetype, upsert: false });
+
+    if (imageUploadError) {
+        // If image upload fails, clean up the already uploaded bot file
+        await supabase.storage.from('bots').remove([botFileId]);
+        throw imageUploadError;
     }
-    if (!uploadSuccess) throw new Error('Failed to upload file: too many collisions');
 
-    const productData = { // This is for cachedData
-      item,
-      fileId: fileId, // from upload
-      originalFileName: originalFileName, // from upload
-      price: parseFloat(price) || 0,
-      price_kes: price_kes ? parseFloat(price_kes) : null,
-      name,
-      desc, // field name in cachedData
-      img,  // field name in cachedData
-      category,
-      embed,
-      isNew: isNew === 'true' || isNew === true,
-      isArchived: false
-    };
+    const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(imageFileName);
+    imageUrl = publicUrl;
 
-    // Directly insert into DB, then update cache via loadData()
-    // DB schema mapping:
+    // 3. Save to Database
     const productForDB = {
-        item: productData.item,
-        file_id: productData.fileId,
-        original_file_name: productData.originalFileName,
-        price: productData.price,
-        name: productData.name,
-        description: productData.desc,
-        image: productData.img,
-        category: productData.category,
-        embed: productData.embed,
-        is_new: productData.isNew,
-        is_archived: productData.isArchived,
+        item,
+        file_id: botFileId,
+        original_file_name: botOriginalFileName,
+        price: parseFloat(price) || 0,
+        name,
+        description: desc,
+        image: imageUrl,
+        category,
+        embed,
+        is_new: isNew === 'true' || isNew === true,
+        is_archived: false,
         discount_percentage: null,
         discount_expires_at: null
-        // created_at will be set by DB default
     };
 
     const { error: insertError } = await supabase.from('products').insert(productForDB);
     if (insertError) {
         console.error(`[${new Date().toISOString()}] Error inserting new bot into DB:`, insertError.message, insertError.details);
-        // Attempt to delete the orphaned file from storage
-        if (productData.fileId) {
-            await supabase.storage.from('bots').remove([productData.fileId]);
-            console.log(`[${new Date().toISOString()}] Orphaned file ${productData.fileId} deleted from storage due to DB insert failure.`);
-        }
-        throw insertError; // This will be caught by the main catch block
+        // Attempt to delete the orphaned files from storage
+        await supabase.storage.from('bots').remove([botFileId]);
+        await supabase.storage.from('thumbnails').remove([imageFileName]);
+        console.log(`[${new Date().toISOString()}] Orphaned files ${botFileId} and ${imageFileName} deleted from storage due to DB insert failure.`);
+        throw insertError;
     }
 
-    await loadData(); // Refresh cache after successful DB operation
-    // The productData for the response should reflect the structure in cachedData,
-    // which might differ slightly from productForDB (e.g. desc vs description).
-    // loadData() populates cachedData correctly, so find the newly added product from there.
-    const newProductInCache = cachedData.products.find(p => p.item === productData.item);
-    res.json({ success: true, product: newProductInCache || productData });
+    await loadData(); // Refresh cache
+    const newProductInCache = cachedData.products.find(p => p.item === item);
+    res.json({ success: true, product: newProductInCache || productForDB });
     console.log(`[${new Date().toISOString()}] Bot added successfully: ${item}`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error adding bot:`, error.message, error.stack);
@@ -1102,6 +1085,97 @@ app.post('/api/delete-bot', isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting bot:`, error.message);
     res.status(500).json({ success: false, error: 'Failed to delete bot' });
+  }
+});
+
+app.post('/api/update-bot', isAuthenticated, upload.single('imageFile'), async (req, res) => {
+  try {
+    const {
+      originalItem, item, name, price, desc, embed, category, isNew, isArchived,
+      discount_percentage, discount_duration
+    } = req.body;
+    const imageFile = req.file;
+
+    // 1. Fetch existing product to get old image URL
+    const { data: existingProduct, error: fetchError } = await supabase
+      .from('products')
+      .select('image')
+      .eq('item', originalItem)
+      .single();
+
+    if (fetchError) {
+      return res.status(404).json({ success: false, error: 'Bot to update not found.' });
+    }
+    const oldImageUrl = existingProduct.image;
+    let newImageUrl = oldImageUrl;
+
+    // 2. If new image is provided, upload it
+    if (imageFile) {
+      const imageFileName = `${Date.now()}_${imageFile.originalname}`;
+      const { error: uploadError } = await supabase.storage
+        .from('thumbnails')
+        .upload(imageFileName, imageFile.buffer, { contentType: imageFile.mimetype, upsert: false });
+
+      if (uploadError) {
+        throw new Error('Failed to upload new image: ' + uploadError.message);
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('thumbnails').getPublicUrl(imageFileName);
+      newImageUrl = publicUrl;
+    }
+
+    // 3. Prepare the update payload for the database
+    const productUpdatePayload = {
+      item,
+      name,
+      price: parseFloat(price),
+      description: desc,
+      embed,
+      category,
+      image: newImageUrl,
+      is_new: isNew === 'true',
+      is_archived: isArchived === 'true',
+      discount_percentage: parseFloat(discount_percentage) || null
+    };
+
+    const discountDurationHours = parseInt(discount_duration, 10);
+    if (discountDurationHours && discountDurationHours > 0) {
+        const now = new Date();
+        productUpdatePayload.discount_expires_at = new Date(now.getTime() + discountDurationHours * 60 * 60 * 1000).toISOString();
+    } else if (!productUpdatePayload.discount_percentage) {
+        productUpdatePayload.discount_expires_at = null;
+    }
+
+    // 4. Update the database
+    const { error: updateError } = await supabase
+      .from('products')
+      .update(productUpdatePayload)
+      .eq('item', originalItem);
+
+    if (updateError) {
+      // If DB update fails, we should delete the newly uploaded image to prevent orphans
+      if (imageFile && newImageUrl) {
+        const newFileName = newImageUrl.split('/').pop();
+        await supabase.storage.from('thumbnails').remove([newFileName]);
+      }
+      throw new Error('Failed to update bot in database: ' + updateError.message);
+    }
+
+    // 5. If DB update was successful and a new image was uploaded, delete the old one
+    if (imageFile && oldImageUrl && oldImageUrl !== newImageUrl) {
+      const oldFileName = oldImageUrl.split('/').pop();
+      if (oldFileName && oldFileName.includes('supabase')) { // Basic check to avoid trying to delete placeholder images
+        await supabase.storage.from('thumbnails').remove([oldFileName]);
+      }
+    }
+
+    await loadData(); // Refresh cache
+    const updatedProduct = cachedData.products.find(p => p.item === item);
+    res.json({ success: true, product: updatedProduct });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error updating bot:`, error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to update bot' });
   }
 });
 
