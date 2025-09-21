@@ -365,8 +365,10 @@
               <input type="text" id="item" required class="mt-1 w-full p-2 border rounded-md">
             </div>
             <div class="sm:col-span-2">
-              <label for="img" class="block text-sm font-medium text-gray-700">Image URL</label>
-              <input type="url" id="img" required class="mt-1 w-full p-2 border rounded-md">
+              <label for="img-file" class="block text-sm font-medium text-gray-700">Image</label>
+              <input type="file" id="img-file" name="imageFile" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+              <img id="img-preview" src="" alt="Image Preview" class="mt-2 w-32 h-32 object-cover rounded-md hidden">
+              <input type="hidden" id="img" name="img">
             </div>
             <div class="sm:col-span-2">
               <label class="flex items-center">
@@ -775,8 +777,10 @@
               <input type="text" id="edit-item" required class="mt-1 w-full p-2 border rounded-md">
             </div>
             <div class="sm:col-span-2">
-              <label for="edit-img" class="block text-sm font-medium text-gray-700">Image URL</label>
-              <input type="url" id="edit-img" required class="mt-1 w-full p-2 border rounded-md">
+              <label for="edit-img-file" class="block text-sm font-medium text-gray-700">Image</label>
+              <input type="file" id="edit-img-file" name="imageFile" accept="image/*" class="mt-1 w-full p-2 border rounded-md">
+              <img id="edit-img-preview" src="" alt="Image Preview" class="mt-2 w-32 h-32 object-cover rounded-md">
+              <input type="hidden" id="edit-img" name="img">
             </div>
             <div class="sm:col-span-2">
               <label class="flex items-center">
@@ -1017,6 +1021,19 @@
   // Add bot with progress bar
   document.getElementById('product-form').addEventListener('submit', async e => {
     e.preventDefault();
+
+    const imageFile = document.getElementById('img-file').files[0];
+    if (!imageFile) {
+        alert('Please select an image for the bot.');
+        return;
+    }
+
+    const botFile = document.getElementById('file').files[0];
+    if (!botFile) {
+        alert('Please select a bot file to upload.');
+        return;
+    }
+
     const formData = new FormData();
     formData.append('item', document.getElementById('item').value.trim());
     formData.append('name', document.getElementById('name').value.trim());
@@ -1024,9 +1041,9 @@
     formData.append('desc', document.getElementById('desc').value);
     formData.append('embed', document.getElementById('embed').value.trim());
     formData.append('category', document.getElementById('category').value);
-    formData.append('img', document.getElementById('img').value.trim());
     formData.append('isNew', document.getElementById('isNew').checked);
-    formData.append('file', document.getElementById('file').files[0]);
+    formData.append('file', botFile);
+    formData.append('imageFile', imageFile);
 
     const progressBar = document.getElementById('upload-progress-bar');
     const progressContainer = document.getElementById('upload-progress');
@@ -1058,6 +1075,9 @@
           // No need for an additional global saveData() here as /api/add-bot already updated DB and server cache.
           renderBots();
           document.getElementById('product-form').reset();
+          const addPreview = document.getElementById('img-preview');
+          addPreview.src = '';
+          addPreview.classList.add('hidden');
           if (window.descQuill) {
             window.descQuill.setText(''); // Clear Quill editor
           }
@@ -1182,90 +1202,63 @@
     document.getElementById('edit-modal').classList.add('hidden');
     document.body.classList.remove('modal-active');
     document.getElementById('edit-form').reset();
+    const editPreview = document.getElementById('edit-img-preview');
+    editPreview.src = '';
+    editPreview.classList.add('hidden');
   }
 
   document.getElementById('edit-form').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = e.submitter;
-    showButtonFeedback(btn, 'Saving...', 'Save Changes');
+    const originalBtnText = btn.textContent;
+    showButtonFeedback(btn, 'Saving...', 'Save Changes', 999999);
 
+    const formData = new FormData();
     const originalItem = document.getElementById('edit-item').dataset.originalItem;
     const newItem = document.getElementById('edit-item').value.trim();
 
-    if (newItem !== originalItem && data.products.some(p => p.item === newItem)) {
-      alert('This item number already exists. Please use a unique item number.');
-      return;
+    formData.append('originalItem', originalItem);
+    formData.append('item', newItem);
+    formData.append('name', document.getElementById('edit-name').value.trim());
+    formData.append('price', document.getElementById('edit-price').value);
+    formData.append('desc', document.getElementById('edit-desc').value);
+    formData.append('embed', document.getElementById('edit-embed').value.trim());
+    formData.append('category', document.getElementById('edit-category').value);
+    formData.append('isNew', document.getElementById('edit-isNew').checked);
+    formData.append('isArchived', document.getElementById('edit-isArchived').checked);
+    formData.append('discount_percentage', document.getElementById('edit-discount-percentage').value || '');
+    formData.append('discount_duration', document.getElementById('edit-discount-duration').value || '');
+
+    const imageFile = document.getElementById('edit-img-file').files[0];
+    if (imageFile) {
+      formData.append('imageFile', imageFile);
     }
 
-    const productIndex = data.products.findIndex(p => p.item === originalItem);
-    if (productIndex === -1 && originalItem !== newItem) { // If originalItem not found and it's supposed to be an edit of an existing
-      alert('Original bot data not found. Cannot update if item ID was changed. Please refresh.');
-      btn.disabled = false; btn.textContent = 'Save Changes'; // Re-enable button
-      return;
-    }
+    try {
+      const response = await fetch('/api/update-bot', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
 
-    const productPayload = {
-      // Preserve existing fileId and originalFileName unless a new file is uploaded (not handled in this form)
-      fileId: productIndex !== -1 ? data.products[productIndex].fileId : null,
-      originalFileName: productIndex !== -1 ? data.products[productIndex].originalFileName : null,
+      const result = await response.json();
+      btn.disabled = false;
+      btn.textContent = originalBtnText;
 
-      item: newItem,
-      name: document.getElementById('edit-name').value.trim(),
-      price: parseFloat(document.getElementById('edit-price').value),
-      desc: document.getElementById('edit-desc').value, // Synced from Quill's hidden input
-      embed: document.getElementById('edit-embed').value.trim(),
-      category: document.getElementById('edit-category').value,
-      img: document.getElementById('edit-img').value.trim(),
-      isNew: document.getElementById('edit-isNew').checked,
-      isArchived: document.getElementById('edit-isArchived').checked,
-      discount_percentage: parseFloat(document.getElementById('edit-discount-percentage').value) || null,
-    };
-
-    const discountDuration = parseInt(document.getElementById('edit-discount-duration').value, 10);
-    if (discountDuration && discountDuration > 0) {
-      const now = new Date();
-      productPayload.discount_expires_at = new Date(now.getTime() + discountDuration * 60 * 60 * 1000).toISOString();
-    } else if (productPayload.discount_percentage === null || productPayload.discount_percentage <= 0) {
-      // If the discount is removed or set to 0, clear the expiration
-      productPayload.discount_expires_at = null;
-    } else {
-      // Keep existing expiration if duration is not set but percentage is
-      const existingProduct = data.products.find(p => p.item === originalItem);
-      if (existingProduct) {
-        productPayload.discount_expires_at = existingProduct.discount_expires_at;
-      }
-    }
-
-    if (newItem !== originalItem) {
-      productPayload.originalItem = originalItem; // Add originalItem only if ID changed
-    }
-
-    // Update local cache
-    if (newItem !== originalItem) {
-      // Item ID changed: remove old, add new
-      if (productIndex !== -1) { // Should be found if originalItem was valid
-        data.products.splice(productIndex, 1); // Remove the old item entry
-      }
-      data.products.push(productPayload); // Add the product with its new ID and data
-    } else {
-      // Item ID did not change: update in place
-      if (productIndex !== -1) {
-        data.products[productIndex] = productPayload;
+      if (response.ok && result.success) {
+        await fetchData(); // Refresh all data from server
+        renderBots();
+        closeEditModal();
+        alert('Bot updated successfully!');
       } else {
-        // This case means originalItem was not found, and newItem is the same as originalItem (i.e., trying to edit a non-existent item without changing ID)
-        alert('Bot data not found for update. Please refresh.');
-        btn.disabled = false; btn.textContent = 'Save Changes'; // Re-enable button
-        return;
+        throw new Error(result.error || 'Failed to update bot.');
       }
+    } catch (error) {
+      console.error('Error updating bot:', error);
+      alert('Error updating bot: ' + error.message);
+      btn.disabled = false;
+      btn.textContent = originalBtnText;
     }
-
-    const success = await saveData({ products: [productPayload] });
-    if (success) {
-      renderBots();
-      closeEditModal();
-      alert('Bot updated successfully!');
-    }
-    // else: Error is already alerted by saveData(), button state handled by showButtonFeedback
   });
 
   document.getElementById('edit-cancel').addEventListener('click', () => {
@@ -2277,6 +2270,34 @@
   }
 
   document.addEventListener('DOMContentLoaded', initialize);
+
+  // Image preview for Add Bot form
+  document.getElementById('img-file').addEventListener('change', function(event) {
+    const preview = document.getElementById('img-preview');
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+      }
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Image preview for Edit Bot form
+  document.getElementById('edit-img-file').addEventListener('change', function(event) {
+    const preview = document.getElementById('edit-img-preview');
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+      }
+      reader.readAsDataURL(file);
+    }
+  });
 </script>
   
   <!-- The HTML for payment options checkboxes will be inserted above this line by the agent -->
